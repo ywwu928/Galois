@@ -349,7 +349,7 @@ public:
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       //! [numaallocex]
-      this->outOfLineAllocateBlocked(numNodes, false);
+      this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numNodes);
       edgeIndData.allocateInterleaved(numNodes);
