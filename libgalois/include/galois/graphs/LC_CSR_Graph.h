@@ -199,7 +199,7 @@ protected:
 
   template <bool _A1 = HasOutOfLineLockable, bool _A2 = HasNoLockable>
   void acquireNode(GraphNode, MethodFlag,
-                   typename std::enable_if<_A2>::type* = 0) {}
+                   typename std::enable_if<_A2>::type* = 0) const {}
 
   template <bool _A1 = EdgeData::has_value,
             bool _A2 = LargeArray<FileEdgeTy>::has_value>
