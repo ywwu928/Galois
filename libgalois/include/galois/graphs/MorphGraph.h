@@ -793,6 +793,22 @@ public
    * value if desired.  This frees us from dealing with the void edge data
    * problem in this API
    */
+  edge_iterator addEdge(uint64_t src, uint64_t dst,
+                        galois::MethodFlag mflag = MethodFlag::WRITE) {
+    auto s = this->begin();
+    std::advance(s, src);
+    auto d = this->begin();
+    std::advance(d, dst);
+    return createEdgeWithReuse(*s, *d, mflag);
+  }
+
+  /**
+   * Adds an edge to graph, replacing existing value if edge already exists.
+   *
+   * Ignore the edge data, let the caller use the returned iterator to set the
+   * value if desired.  This frees us from dealing with the void edge data
+   * problem in this API
+   */
   edge_iterator addEdge(GraphNode src, GraphNode dst,
                         galois::MethodFlag mflag = MethodFlag::WRITE) {
     return createEdgeWithReuse(src, dst, mflag);
@@ -959,7 +975,7 @@ public
   //! Sorts edge of a node by destination.
   void sortEdgesByDst(GraphNode N,
                       galois::MethodFlag mflag = MethodFlag::WRITE) {
-    acquire(N, mflag);
+    //acquire(N, mflag);
     typedef typename gNode::EdgeInfo EdgeInfo;
     std::sort(N->begin(), N->end(),
               [=](const EdgeInfo& e1, const EdgeInfo& e2) {
@@ -1028,6 +1044,16 @@ public
     // ever require it
     // N->acquire(mflag);
     return boost::make_filter_iterator(is_out_edge(), N->end(), N->end());
+  }
+
+  uint64_t getDegree(GraphNode N)
+  {
+    uint64_t ret;
+    for(auto& edge : out_edges(N))
+    {
+      ret++;
+    }
+    return ret;
   }
 
   //! Returns the end of an in-neighbor edge iterator
@@ -1127,6 +1153,31 @@ public
 
   //! Returns the size of edge data.
   size_t sizeOfEdgeData() const { return gNode::EdgeInfo::sizeOfSecond(); }
+
+  MorphGraph() = default;
+
+  template <typename EdgeNumFnTy, typename EdgeDstFnTy, typename EdgeDataFnTy>
+  MorphGraph(uint32_t numNodes, uint64_t numEdges, EdgeNumFnTy edgeNum,
+               EdgeDstFnTy _edgeDst, EdgeDataFnTy _edgeData)
+  {
+    std::vector<GraphNode> nodes {numNodes};
+    for (size_t n = 0; n < numNodes; ++n)
+    {
+      NodeTy node;
+      GraphNode a = this->createNode(node);
+      this->addNode(a);
+      nodes[n] = a;
+    }
+    for (size_t n = 0; n < numNodes; ++n)
+    {
+      for (size_t e = 0; e < edgeNum(n); ++e)
+      {
+        auto edge = this->addEdge(nodes[n], nodes[_edgeDst(n, e)]);
+        if(!std::is_void<EdgeTy>::value) this->getEdgeData(edge) = _edgeData(n, e);
+      }
+    }
+  }
+
 
 #ifdef AUX_MAP
   /**
