@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgalois_gluon.a CMakeFiles/galois_gluon.dir/src/cuda_device.cpp.o CMakeFiles/galois_gluon.dir/src/SyncStructures.cpp.o CMakeFiles/galois_gluon.dir/src/GlobalObj.cpp.o CMakeFiles/galois_gluon.dir/src/GluonSubstrate.cpp.o
+/usr/bin/ranlib libgalois_gluon.a

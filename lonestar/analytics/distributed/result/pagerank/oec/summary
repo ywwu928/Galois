@@ -1,0 +1,48 @@
+### flickr ###
+Master access: 30736712 24441154 21323232 19735444 -1 -1 
+Master write access: 8317606 5169827 3610866 2816972 -1 -1 
+Mirror access: 112455162 118750720 121868642 123456430 -1 -1 
+Mirror write access: 56227581 59375360 60934321 61728215 -1 -1 
+
+### yelp ###
+Master access: 458270090 336828342 274498182 243023584 227132830 -1 
+Master write access: 171070438 110349564 79184484 63447185 55501808 -1 
+Mirror access: 1691787452 1813229200 1875559360 1907033958 1922924712 -1 
+Mirror write access: 845893726 906614600 937779680 953516979 961462356 -1 
+
+### rmat15 ###
+Master access: 12941080 8708164 6778006 5805418 -1 -1 
+Master write access: 4049186 1932728 967649 481355 -1 -1 
+Mirror access: 63201090 67434006 69364164 70336752 -1 -1 
+Mirror write access: 31600545 33717003 34682082 35168376 -1 -1 
+
+### rmat26 ###
+Master access: -1 -1 -1 -1 -1 -1 
+Master write access: -1 -1 -1 -1 -1 -1 
+Mirror access: -1 -1 -1 -1 -1 -1 
+Mirror write access: -1 -1 -1 -1 -1 -1 
+
+### rmat28 ###
+Master access: -1 -1 -1 -1 -1 -1 
+Master write access: -1 -1 -1 -1 -1 -1 
+Mirror access: -1 -1 -1 -1 -1 -1 
+Mirror write access: -1 -1 -1 -1 -1 -1 
+
+### data_01 ###
+Master access: -1 -1 -1 -1 -1 -1 
+Master write access: -1 -1 -1 -1 -1 -1 
+Mirror access: -1 -1 -1 -1 -1 -1 
+Mirror write access: -1 -1 -1 -1 -1 -1 
+
+### data_10 ###
+Master access: -1 -1 -1 -1 -1 -1 
+Master write access: -1 -1 -1 -1 -1 -1 
+Mirror access: -1 -1 -1 -1 -1 -1 
+Mirror write access: -1 -1 -1 -1 -1 -1 
+
+### data_200 ###
+Master access: 3377967892 3303471452 3255797316 3242598382 3231565256 -1 
+Master write access: 101389816 64141596 40304528 33705061 28188498 -1 
+Mirror access: 693513574 768010014 815684150 828883084 839916210 -1 
+Mirror write access: 346756787 384005007 407842075 414441542 419958105 -1 
+

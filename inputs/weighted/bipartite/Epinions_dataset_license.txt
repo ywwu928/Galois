@@ -1,0 +1,3 @@
+The Epinions dataset is licensed under the Creative Commons Attribution-ShareAlike 2.0 Germany License.
+It was downloaded from http://konect.uni-koblenz.de/ (the Koblenz Network Collection).
+For details about licensing, see http://konect.uni-koblenz.de/license.

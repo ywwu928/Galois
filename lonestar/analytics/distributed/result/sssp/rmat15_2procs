@@ -1,0 +1,196 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: SSSP pull - Distributed Heterogeneous
+SSSP pull on Distributed Galois.
+
+[0] Master distribution time : 0.16096 seconds to read 128 bytes in 16 seeks (0.000795229 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.00196 seconds to read 1069248 bytes (545.535 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.005709 seconds to read 2138360 bytes (374.559 MBPS)
+[1] Master distribution time : 0.182043 seconds to read 248 bytes in 31 seeks (0.00136232 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.001232 seconds to read 1552176 bytes (1259.88 MBPS)
+[1] Edge loading time: 0.002052 seconds to read 2580216 bytes (1257.42 MBPS)
+[0] Graph construction complete.
+[1] Graph construction complete.
+[1] InitializeGraph::go called
+[0] InitializeGraph::go called
+[0] SSSP::go run 0 called
+[1] SSSP::go run 0 called
+Number of nodes visited from source 0 is 29352
+Max distance from source 0 is 104
+Average distances on visited nodes is 17.2566
+[1] SSSP::go run 1 called
+[0] SSSP::go run 1 called
+Number of nodes visited from source 0 is 29352
+Max distance from source 0 is 104
+Average distances on visited nodes is 17.2566
+[1] SSSP::go run 2 called
+[0] SSSP::go run 2 called
+Number of nodes visited from source 0 is 29352
+Max distance from source 0 is 104
+Average distances on visited nodes is 17.2566
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 5
+STAT, 0, dGraph_Generic, EdgeLoading, TMAX, 5
+STAT, 0, dGraph_Generic, EdgeLoading, ThreadValues, 5
+STAT, 1, dGraph_Generic, EdgeLoading, TMAX, 2
+STAT, 1, dGraph_Generic, EdgeLoading, ThreadValues, 2
+STAT, 0, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, HMAX, 38
+STAT, 0, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, TMAX, 38
+STAT, 0, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, ThreadValues, 38
+STAT, 1, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, TMAX, 31
+STAT, 1, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, ThreadValues, 31
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, SINGLE, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, ThreadValues, 100
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 1
+STAT, 0, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 0, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 1, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 1, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 0, dGraph_Generic, GraphReading, HMAX, 1
+STAT, 0, dGraph_Generic, GraphReading, TMAX, 1
+STAT, 0, dGraph_Generic, GraphReading, ThreadValues, 1
+STAT, 1, dGraph_Generic, GraphReading, TMAX, 1
+STAT, 1, dGraph_Generic, GraphReading, ThreadValues, 1
+STAT, 0, TRANSPOSE_EDGEINTDATA_INC, Time, HMAX, 34
+STAT, 0, TRANSPOSE_EDGEINTDATA_INC, Time, TMAX, 34
+STAT, 0, TRANSPOSE_EDGEINTDATA_INC, Time, ThreadValues, 34
+STAT, 1, TRANSPOSE_EDGEINTDATA_INC, Time, TMAX, 1
+STAT, 1, TRANSPOSE_EDGEINTDATA_INC, Time, ThreadValues, 1
+STAT, 0, TRANSPOSE_EDGEDST, Time, HMAX, 30
+STAT, 0, TRANSPOSE_EDGEDST, Time, TMAX, 3
+STAT, 0, TRANSPOSE_EDGEDST, Time, ThreadValues, 3
+STAT, 1, TRANSPOSE_EDGEDST, Time, TMAX, 30
+STAT, 1, TRANSPOSE_EDGEDST, Time, ThreadValues, 30
+STAT, 0, DistBench, GraphConstructTime, HMAX, 255
+STAT, 0, DistBench, GraphConstructTime, TMAX, 235
+STAT, 0, DistBench, GraphConstructTime, ThreadValues, 235
+STAT, 1, DistBench, GraphConstructTime, TMAX, 255
+STAT, 1, DistBench, GraphConstructTime, ThreadValues, 255
+STAT, 0, Gluon, ReduceSendBytes_SSSP_0, HSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_0, TSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_0, ThreadValues, 91080
+STAT, 0, Gluon, ReduceNumMessages_SSSP_0, HSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_0, TSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_0, ThreadValues, 3
+STAT, 1, Gluon, ReduceNumMessages_SSSP_0, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_SSSP_0, ThreadValues, 0
+STAT, 0, Gluon, ReduceSendBytes_SSSP_1, HSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_1, TSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_1, ThreadValues, 91080
+STAT, 0, Gluon, ReduceNumMessages_SSSP_1, HSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_1, TSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_1, ThreadValues, 3
+STAT, 1, Gluon, ReduceNumMessages_SSSP_1, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_SSSP_1, ThreadValues, 0
+STAT, 0, Gluon, ReduceSendBytes_SSSP_2, HSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_2, TSUM, 91080
+STAT, 0, Gluon, ReduceSendBytes_SSSP_2, ThreadValues, 91080
+STAT, 0, Gluon, ReduceNumMessages_SSSP_2, HSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_2, TSUM, 3
+STAT, 0, Gluon, ReduceNumMessages_SSSP_2, ThreadValues, 3
+STAT, 1, Gluon, ReduceNumMessages_SSSP_2, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_SSSP_2, ThreadValues, 0
+STAT, 0, Gluon, Sync_SSSP_0, HMAX, 3008
+STAT, 1, Gluon, Sync_SSSP_0, TMAX, 3008
+STAT, 1, Gluon, Sync_SSSP_0, ThreadValues, 3008
+STAT, 0, Gluon, Sync_SSSP_1, HMAX, 3734
+STAT, 1, Gluon, Sync_SSSP_1, TMAX, 3734
+STAT, 1, Gluon, Sync_SSSP_1, ThreadValues, 3734
+STAT, 0, Gluon, Sync_SSSP_2, HMAX, 1561
+STAT, 1, Gluon, Sync_SSSP_2, TMAX, 1561
+STAT, 1, Gluon, Sync_SSSP_2, ThreadValues, 1561
+STAT, 0, SSSP, NumWorkItems_0, HSUM, 77061
+STAT, 0, SSSP, NumWorkItems_0, TSUM, 50016
+STAT, 0, SSSP, NumWorkItems_0, ThreadValues, 50016
+STAT, 1, SSSP, NumWorkItems_0, TSUM, 27045
+STAT, 1, SSSP, NumWorkItems_0, ThreadValues, 27045
+STAT, 0, SSSP, NumIterations_0, HOST_0, 3
+STAT, 0, SSSP, NumIterations_0, SINGLE, 3
+STAT, 0, SSSP, NumIterations_0, ThreadValues, 3
+STAT, 0, SSSP, Timer_0, HMAX, 4174
+STAT, 0, SSSP, Timer_0, TMAX, 4174
+STAT, 0, SSSP, Timer_0, ThreadValues, 4174
+STAT, 1, SSSP, Timer_0, TMAX, 3241
+STAT, 1, SSSP, Timer_0, ThreadValues, 3241
+STAT, 0, SSSP, NumWorkItems_1, HSUM, 77061
+STAT, 0, SSSP, NumWorkItems_1, TSUM, 50016
+STAT, 0, SSSP, NumWorkItems_1, ThreadValues, 50016
+STAT, 1, SSSP, NumWorkItems_1, TSUM, 27045
+STAT, 1, SSSP, NumWorkItems_1, ThreadValues, 27045
+STAT, 0, SSSP, NumIterations_1, HOST_0, 3
+STAT, 0, SSSP, NumIterations_1, SINGLE, 3
+STAT, 0, SSSP, NumIterations_1, ThreadValues, 3
+STAT, 0, SSSP, Timer_1, HMAX, 4850
+STAT, 0, SSSP, Timer_1, TMAX, 4850
+STAT, 0, SSSP, Timer_1, ThreadValues, 4850
+STAT, 1, SSSP, Timer_1, TMAX, 4718
+STAT, 1, SSSP, Timer_1, ThreadValues, 4718
+STAT, 0, SSSP, NumWorkItems_2, HSUM, 77061
+STAT, 0, SSSP, NumWorkItems_2, TSUM, 50016
+STAT, 0, SSSP, NumWorkItems_2, ThreadValues, 50016
+STAT, 1, SSSP, NumWorkItems_2, TSUM, 27045
+STAT, 1, SSSP, NumWorkItems_2, ThreadValues, 27045
+STAT, 0, SSSP, NumIterations_2, HOST_0, 3
+STAT, 0, SSSP, NumIterations_2, SINGLE, 3
+STAT, 0, SSSP, NumIterations_2, ThreadValues, 3
+STAT, 0, SSSP, Timer_2, HMAX, 1915
+STAT, 0, SSSP, Timer_2, TMAX, 1531
+STAT, 0, SSSP, Timer_2, ThreadValues, 1531
+STAT, 1, SSSP, Timer_2, TMAX, 1915
+STAT, 1, SSSP, Timer_2, ThreadValues, 1915
+STAT, 0, SSSP, TimerTotal, HMAX, 12128
+STAT, 0, SSSP, TimerTotal, TMAX, 12108
+STAT, 0, SSSP, TimerTotal, ThreadValues, 12108
+STAT, 1, SSSP, TimerTotal, TMAX, 12128
+STAT, 1, SSSP, TimerTotal, ThreadValues, 12128
+STAT, 0, SSSP_1, Time, HMAX, 1
+STAT, 1, SSSP_1, Time, TMAX, 1
+STAT, 1, SSSP_1, Time, ThreadValues, 1
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 1.69473
+STAT, 0, Gluon, ReplicationFactor, SINGLE, 1.69473
+STAT, 0, Gluon, ReplicationFactor, ThreadValues, 1.69473
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../sssp/sssp-pull-dist ../rmat15.gr -graphTranspose=../rmat15.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, SINGLE, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../sssp/sssp-pull-dist ../rmat15.gr -graphTranspose=../rmat15.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, ThreadValues, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../sssp/sssp-pull-dist ../rmat15.gr -graphTranspose=../rmat15.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Threads, SINGLE, 1
+PARAM, 0, DistBench, Threads, ThreadValues, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 2
+PARAM, 0, DistBench, Hosts, SINGLE, 2
+PARAM, 0, DistBench, Hosts, ThreadValues, 2
+PARAM, 0, DistBench, Runs, HOST_0, 3
+PARAM, 0, DistBench, Runs, SINGLE, 3
+PARAM, 0, DistBench, Runs, ThreadValues, 3
+PARAM, 0, DistBench, Run_UUID, HOST_0, 64e7a707-0f91-49a7-b4c0-122e905df417
+PARAM, 0, DistBench, Run_UUID, SINGLE, 64e7a707-0f91-49a7-b4c0-122e905df417
+PARAM, 0, DistBench, Run_UUID, ThreadValues, 64e7a707-0f91-49a7-b4c0-122e905df417
+PARAM, 0, DistBench, Input, HOST_0, ../rmat15.gr
+PARAM, 0, DistBench, Input, SINGLE, ../rmat15.gr
+PARAM, 0, DistBench, Input, ThreadValues, ../rmat15.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, PartitionScheme, SINGLE, oec
+PARAM, 0, DistBench, PartitionScheme, ThreadValues, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c312-073.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, SINGLE, c312-073.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, ThreadValues, c312-073.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, SINGLE, c312-073.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, ThreadValues, c312-073.ls6.tacc.utexas.edu
+PARAM, 0, SSSP, Max Iterations, HOST_0, 1000
+PARAM, 0, SSSP, Max Iterations, SINGLE, 1000
+PARAM, 0, SSSP, Max Iterations, ThreadValues, 1000
+PARAM, 0, SSSP, Source Node ID, HOST_0, 0
+PARAM, 0, SSSP, Source Node ID, SINGLE, 0
+PARAM, 0, SSSP, Source Node ID, ThreadValues, 0
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0
+PARAM, 0, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 0, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 1, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 1, dGraph, GenericPartitioner, ThreadValues, 0

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libdistbench.a CMakeFiles/distbench.dir/src/Start.cpp.o CMakeFiles/distbench.dir/src/Input.cpp.o CMakeFiles/distbench.dir/src/Output.cpp.o
+/usr/bin/ranlib libdistbench.a

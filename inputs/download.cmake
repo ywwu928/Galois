@@ -1,0 +1,1 @@
+file(DOWNLOAD http://iss.oden.utexas.edu/projects/galois/downloads/small_inputs_for_lonestar_test.tar.gz /work/08474/ywwu/ls6/Galois/inputs/lonestar-cpu-inputs.tar.gz SHOW_PROGRESS)

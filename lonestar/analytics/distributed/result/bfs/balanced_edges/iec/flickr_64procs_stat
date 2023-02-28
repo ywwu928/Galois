@@ -1,0 +1,22 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, DistBench, GraphConstructTime, HMAX, 5794
+STAT, 0, Gluon, BroadcastSendBytes_BFS_0, HSUM, 3583428
+STAT, 0, Gluon, BroadcastNumMessages_BFS_0, HSUM, 20160
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 405194
+STAT, 0, BFS, NumWorkItems_0, HSUM, 111655
+STAT, 0, BFS, NumIterations_0, HOST_0, 5
+STAT, 0, BFS, Timer_0, HMAX, 806017
+STAT, 0, BFS, TimerTotal, HMAX, 1108715
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 8.53519
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/flickr.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/flickr.tgr -startNode=50 -t=4 --runs=1 -partition=iec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/iec/flickr_64procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 64
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, 118e7bf4-67f4-4868-96fc-fdf554d2b1ee
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/flickr.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, iec
+PARAM, 0, DistBench, Hostname, HOST_0, c302-012.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 50
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

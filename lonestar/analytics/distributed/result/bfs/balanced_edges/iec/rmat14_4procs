@@ -1,0 +1,45 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS pull - Distributed Heterogeneous
+BFS pull on Distributed Galois.
+
+[0] Master distribution time : 0.231566 seconds to read 120 bytes in 14 seeks (0.000518211 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.000872 seconds to read 269360 bytes (308.899 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.000635 seconds to read 269360 bytes (424.189 MBPS)
+[0] Graph construction complete.
+[2] Master distribution time : 0.310659 seconds to read 240 bytes in 29 seeks (0.000772551 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.000946 seconds to read 339052 bytes (358.406 MBPS)
+[2] Edge loading time: 0.000681 seconds to read 339052 bytes (497.874 MBPS)
+[2] Graph construction complete.
+[3] Master distribution time : 0.31399 seconds to read 232 bytes in 27 seeks (0.000738877 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.000597 seconds to read 409060 bytes (685.193 MBPS)
+[3] Edge loading time: 0.000545 seconds to read 409060 bytes (750.569 MBPS)
+[3] Graph construction complete.
+[1] Master distribution time : 0.337624 seconds to read 240 bytes in 29 seeks (0.00071085 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.000869 seconds to read 292848 bytes (336.994 MBPS)
+[1] Edge loading time: 0.000668 seconds to read 292848 bytes (438.395 MBPS)
+[1] Graph construction complete.
+[1] InitializeGraph::go called
+[0] InitializeGraph::go called
+[2] InitializeGraph::go called
+[3] InitializeGraph::go called
+[2] BFS::go run 0 called
+[0] BFS::go run 0 called
+[3] BFS::go run 0 called
+[1] BFS::go run 0 called
+Total access to nodes: 1392525
+Total access to mirror nodes: 1000720
+Write access to mirror nodes: 0
+Number of nodes visited from source 0 is 11467
+Max distance from source 0 is 4

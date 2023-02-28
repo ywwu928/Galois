@@ -1,0 +1,11 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: SSSP pull - Distributed Heterogeneous
+SSSP pull on Distributed Galois.
+
+[0] Master distribution time : 0.115884 seconds to read 112 bytes in 13 seeks (0.000966484 MBPS)
+[0] Starting graph reading.
+[1] Master distribution time : 0.137962 seconds to read 224 bytes in 26 seeks (0.00162364 MBPS)
+[1] Starting graph reading.

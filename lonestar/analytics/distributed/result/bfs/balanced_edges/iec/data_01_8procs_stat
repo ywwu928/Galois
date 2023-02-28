@@ -1,0 +1,25 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 1
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 1
+STAT, 0, DistBench, GraphConstructTime, HMAX, 746
+STAT, 0, Gluon, BroadcastSendBytes_BFS_0, HSUM, 130468
+STAT, 0, Gluon, BroadcastNumMessages_BFS_0, HSUM, 168
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 2416
+STAT, 0, BFS, NumWorkItems_0, HSUM, 24264
+STAT, 0, BFS, NumIterations_0, HOST_0, 3
+STAT, 0, BFS, Timer_0, HMAX, 16728
+STAT, 0, BFS, TimerTotal, HMAX, 26157
+STAT, 0, BFS_0, Time, HMAX, 4
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 1.78329
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/data_01.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/data_01.tgr -startNode=26 -t=4 --runs=1 -partition=iec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/iec/data_01_8procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 8
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, 1cbf8bc8-2f3b-4966-95bc-e9553048c6e2
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/data_01.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, iec
+PARAM, 0, DistBench, Hostname, HOST_0, c314-021.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 26
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

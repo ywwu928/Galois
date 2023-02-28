@@ -1,0 +1,140 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS pull - Distributed Heterogeneous
+BFS pull on Distributed Galois.
+
+[5] Master distribution time : 0.577806 seconds to read 464 bytes in 56 seeks (0.000803038 MBPS)
+[5] Starting graph reading.
+[24] Master distribution time : 2.33339 seconds to read 464 bytes in 57 seeks (0.000198852 MBPS)
+[24] Starting graph reading.
+[13] Master distribution time : 2.16389 seconds to read 464 bytes in 58 seeks (0.000214429 MBPS)
+[13] Starting graph reading.
+[7] Master distribution time : 2.42031 seconds to read 464 bytes in 57 seeks (0.000191711 MBPS)
+[7] Starting graph reading.
+[11] Master distribution time : 3.29446 seconds to read 464 bytes in 57 seeks (0.000140843 MBPS)
+[11] Starting graph reading.
+[22] Master distribution time : 3.31132 seconds to read 456 bytes in 55 seeks (0.000137709 MBPS)
+[22] Starting graph reading.
+[8] Master distribution time : 2.86442 seconds to read 464 bytes in 58 seeks (0.000161987 MBPS)
+[8] Starting graph reading.
+[12] Master distribution time : 2.85233 seconds to read 464 bytes in 57 seeks (0.000162674 MBPS)
+[12] Starting graph reading.
+[3] Master distribution time : 3.36565 seconds to read 464 bytes in 57 seeks (0.000137863 MBPS)
+[3] Starting graph reading.
+[4] Master distribution time : 2.65168 seconds to read 464 bytes in 57 seeks (0.000174983 MBPS)
+[4] Starting graph reading.
+[16] Master distribution time : 3.43314 seconds to read 456 bytes in 57 seeks (0.000132823 MBPS)
+[16] Starting graph reading.
+[18] Master distribution time : 3.45624 seconds to read 456 bytes in 56 seeks (0.000131935 MBPS)
+[18] Starting graph reading.
+[19] Master distribution time : 3.45961 seconds to read 464 bytes in 58 seeks (0.000134119 MBPS)
+[19] Starting graph reading.
+[29] Master distribution time : 3.47757 seconds to read 456 bytes in 57 seeks (0.000131126 MBPS)
+[29] Starting graph reading.
+[9] Master distribution time : 3.4558 seconds to read 464 bytes in 56 seeks (0.000134267 MBPS)
+[9] Starting graph reading.
+[1] Master distribution time : 3.50613 seconds to read 464 bytes in 58 seeks (0.00013234 MBPS)
+[1] Starting graph reading.
+[21] Master distribution time : 2.6504 seconds to read 456 bytes in 55 seeks (0.000172049 MBPS)
+[21] Starting graph reading.
+[10] Master distribution time : 3.52931 seconds to read 464 bytes in 57 seeks (0.00013147 MBPS)
+[10] Starting graph reading.
+[14] Master distribution time : 2.66888 seconds to read 456 bytes in 56 seeks (0.000170858 MBPS)
+[14] Starting graph reading.
+[23] Master distribution time : 3.54941 seconds to read 464 bytes in 57 seeks (0.000130726 MBPS)
+[23] Starting graph reading.
+[0] Master distribution time : 3.58253 seconds to read 232 bytes in 28 seeks (6.47587e-05 MBPS)
+[0] Starting graph reading.
+[17] Master distribution time : 2.56026 seconds to read 456 bytes in 57 seeks (0.000178107 MBPS)
+[17] Starting graph reading.
+[27] Master distribution time : 2.84247 seconds to read 456 bytes in 56 seeks (0.000160424 MBPS)
+[27] Starting graph reading.
+[30] Master distribution time : 3.62721 seconds to read 448 bytes in 56 seeks (0.000123511 MBPS)
+[30] Starting graph reading.
+[15] Master distribution time : 2.93059 seconds to read 464 bytes in 57 seeks (0.00015833 MBPS)
+[15] Starting graph reading.
+[20] Master distribution time : 2.96922 seconds to read 464 bytes in 58 seeks (0.00015627 MBPS)
+[20] Starting graph reading.
+[6] Master distribution time : 3.36736 seconds to read 464 bytes in 58 seeks (0.000137793 MBPS)
+[6] Starting graph reading.
+[28] Master distribution time : 3.36767 seconds to read 456 bytes in 57 seeks (0.000135405 MBPS)
+[28] Starting graph reading.
+[2] Master distribution time : 2.9713 seconds to read 464 bytes in 58 seeks (0.00015616 MBPS)
+[2] Starting graph reading.
+[25] Master distribution time : 3.43852 seconds to read 456 bytes in 56 seeks (0.000132615 MBPS)
+[25] Starting graph reading.
+[31] Master distribution time : 2.68297 seconds to read 440 bytes in 54 seeks (0.000163997 MBPS)
+[31] Starting graph reading.
+[26] Master distribution time : 2.89444 seconds to read 456 bytes in 55 seeks (0.000157543 MBPS)
+[26] Starting graph reading.
+[5] Reading graph complete.
+[15] Reading graph complete.
+[28] Reading graph complete.
+[20] Reading graph complete.
+[13] Reading graph complete.
+[27] Reading graph complete.
+[2] Reading graph complete.
+[11] Reading graph complete.
+[4] Reading graph complete.
+[24] Reading graph complete.
+[25] Reading graph complete.
+[9] Reading graph complete.
+[31] Reading graph complete.
+[29] Reading graph complete.
+[10] Reading graph complete.
+[1] Reading graph complete.
+[14] Reading graph complete.
+[17] Reading graph complete.
+[23] Reading graph complete.
+[7] Reading graph complete.
+[0] Reading graph complete.
+[3] Reading graph complete.
+[16] Reading graph complete.
+[12] Reading graph complete.
+[6] Reading graph complete.
+[21] Reading graph complete.
+[26] Reading graph complete.
+[22] Reading graph complete.
+[30] Reading graph complete.
+[19] Reading graph complete.
+[18] Reading graph complete.
+[8] Reading graph complete.
+[5] Edge inspection time: 387.404 seconds to read 558933108 bytes (1.44277 MBPS)
+[15] Edge inspection time: 401.229 seconds to read 593527700 bytes (1.47928 MBPS)
+[28] Edge inspection time: 407.216 seconds to read 798492144 bytes (1.96086 MBPS)
+[27] Edge inspection time: 407.928 seconds to read 684173892 bytes (1.67719 MBPS)
+[20] Edge inspection time: 415.983 seconds to read 636728616 bytes (1.53066 MBPS)
+[13] Edge inspection time: 416.131 seconds to read 708450232 bytes (1.70247 MBPS)
+[2] Edge inspection time: 417.527 seconds to read 542272264 bytes (1.29877 MBPS)
+[11] Edge inspection time: 418.081 seconds to read 561095156 bytes (1.34207 MBPS)
+[25] Edge inspection time: 416.687 seconds to read 571965216 bytes (1.37265 MBPS)
+[4] Edge inspection time: 419.07 seconds to read 552745352 bytes (1.31898 MBPS)
+[24] Edge inspection time: 424.283 seconds to read 805654768 bytes (1.89886 MBPS)
+[0] Edge inspection time: 402.389 seconds to read 537433748 bytes (1.33561 MBPS)
+[9] Edge inspection time: 423.49 seconds to read 594825436 bytes (1.40458 MBPS)
+[1] Edge inspection time: 417.179 seconds to read 539918564 bytes (1.29421 MBPS)
+[10] Edge inspection time: 421.122 seconds to read 605032240 bytes (1.43671 MBPS)
+[14] Edge inspection time: 420.624 seconds to read 547618404 bytes (1.30192 MBPS)
+[29] Edge inspection time: 427.735 seconds to read 864615312 bytes (2.02138 MBPS)
+[23] Edge inspection time: 420.312 seconds to read 808210980 bytes (1.92288 MBPS)
+[7] Edge inspection time: 427.81 seconds to read 583665696 bytes (1.36431 MBPS)
+[17] Edge inspection time: 432.939 seconds to read 705815296 bytes (1.63029 MBPS)
+[3] Edge inspection time: 426.691 seconds to read 546620204 bytes (1.28107 MBPS)
+[12] Edge inspection time: 425.209 seconds to read 608640916 bytes (1.43139 MBPS)
+[26] Edge inspection time: 420.398 seconds to read 633579040 bytes (1.50709 MBPS)
+[31] Edge inspection time: 453.808 seconds to read 1474261088 bytes (3.24864 MBPS)
+[16] Edge inspection time: 432.418 seconds to read 637020212 bytes (1.47316 MBPS)
+[19] Edge inspection time: 419.71 seconds to read 568627788 bytes (1.35481 MBPS)
+[6] Edge inspection time: 431.723 seconds to read 555805068 bytes (1.28741 MBPS)
+[21] Edge inspection time: 430.343 seconds to read 675286924 bytes (1.56918 MBPS)
+[22] Edge inspection time: 428.238 seconds to read 802390260 bytes (1.8737 MBPS)
+[30] Edge inspection time: 430.034 seconds to read 873895356 bytes (2.03216 MBPS)
+[8] Edge inspection time: 423.383 seconds to read 557856116 bytes (1.31762 MBPS)
+[18] Edge inspection time: 439.883 seconds to read 739648664 bytes (1.68147 MBPS)
+Loading edge-data while creating edges
+[20] Edge loading time: 1068.87 seconds to read 636728616 bytes (0.595701 MBPS)
+[5] Edge loading time: 1142.87 seconds to read 558933108 bytes (0.489063 MBPS)
+[0] Edge loading time: 1105.98 seconds to read 537433748 bytes (0.485937 MBPS)
+[14] Edge loading time: 1114.15 seconds to read 547618404 bytes (0.491511 MBPS)

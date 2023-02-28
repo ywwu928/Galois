@@ -1,0 +1,18 @@
+A
+(
+0 0 10 10 Metal1
+10 0 20 10 Metal1
+10 0 20 10 Metal2
+10 10 20 20 Metal2
+10 10 20 20 Metal1
+0 10 10 20 Metal1
+0 10 10 20 Metal2
+0 20 10 30 Metal2
+0 20 10 30 Metal1
+10 20 20 30 Metal1
+20 20 30 30 Metal1
+20 20 30 30 Metal2
+20 10 30 20 Metal2
+20 0 30 10 Metal2
+20 0 30 10 Metal1
+)

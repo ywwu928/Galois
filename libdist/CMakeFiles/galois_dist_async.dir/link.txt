@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgalois_dist_async.a CMakeFiles/galois_dist_async.dir/src/Barrier.cpp.o CMakeFiles/galois_dist_async.dir/src/DistGalois.cpp.o CMakeFiles/galois_dist_async.dir/src/DistStats.cpp.o CMakeFiles/galois_dist_async.dir/src/Network.cpp.o CMakeFiles/galois_dist_async.dir/src/NetworkBuffered.cpp.o CMakeFiles/galois_dist_async.dir/src/NetworkIOMPI.cpp.o CMakeFiles/galois_dist_async.dir/src/NetworkLCI.cpp.o
+/usr/bin/ranlib libgalois_dist_async.a

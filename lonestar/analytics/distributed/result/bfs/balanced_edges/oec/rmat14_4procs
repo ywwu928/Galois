@@ -1,0 +1,45 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS pull - Distributed Heterogeneous
+BFS pull on Distributed Galois.
+
+[2] Master distribution time : 0.199896 seconds to read 232 bytes in 29 seeks (0.0011606 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.001069 seconds to read 340076 bytes (318.125 MBPS)
+[2] Edge loading time: 0.000714 seconds to read 340076 bytes (476.297 MBPS)
+[2] Graph construction complete.
+[0] Master distribution time : 0.282442 seconds to read 120 bytes in 15 seeks (0.000424866 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.000862 seconds to read 269968 bytes (313.188 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.000658 seconds to read 269968 bytes (410.286 MBPS)
+[0] Graph construction complete.
+[3] Master distribution time : 0.275668 seconds to read 232 bytes in 28 seeks (0.000841592 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.000657 seconds to read 408812 bytes (622.24 MBPS)
+[3] Edge loading time: 0.000586 seconds to read 408812 bytes (697.631 MBPS)
+[3] Graph construction complete.
+[1] Master distribution time : 0.263771 seconds to read 240 bytes in 29 seeks (0.00090988 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.0009 seconds to read 291464 bytes (323.849 MBPS)
+[1] Edge loading time: 0.00069 seconds to read 291464 bytes (422.412 MBPS)
+[1] Graph construction complete.
+[0] InitializeGraph::go called
+[3] InitializeGraph::go called
+[2] InitializeGraph::go called
+[1] InitializeGraph::go called
+[2] BFS::go run 0 called
+[3] BFS::go run 0 called
+[1] BFS::go run 0 called
+[0] BFS::go run 0 called
+Total access to nodes: 1511730
+Total access to mirror nodes: 119205
+Write access to mirror nodes: 26199
+Number of nodes visited from source 0 is 11467
+Max distance from source 0 is 4

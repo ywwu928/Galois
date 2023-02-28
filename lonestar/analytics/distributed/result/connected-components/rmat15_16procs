@@ -1,0 +1,842 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: ConnectedComp Pull - Distributed Heterogeneous
+ConnectedComp pull on Distributed Galois.
+
+[1] Master distribution time : 0.335264 seconds to read 240 bytes in 30 seeks (0.000715854 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 2.9e-05 seconds to read 0 bytes (0 MBPS)
+[1] Edge loading time: 2e-06 seconds to read 0 bytes (0 MBPS)
+[1] Graph construction complete.
+[14] Master distribution time : 1.01574 seconds to read 248 bytes in 30 seeks (0.000244158 MBPS)
+[14] Starting graph reading.
+[14] Reading graph complete.
+[14] Edge inspection time: 0.001071 seconds to read 323120 bytes (301.699 MBPS)
+[14] Edge loading time: 0.000553 seconds to read 323120 bytes (584.304 MBPS)
+[14] Graph construction complete.
+[7] Master distribution time : 0.989943 seconds to read 256 bytes in 31 seeks (0.000258601 MBPS)
+[7] Starting graph reading.
+[7] Reading graph complete.
+[7] Edge inspection time: 0.001071 seconds to read 271608 bytes (253.602 MBPS)
+[7] Edge loading time: 0.000625 seconds to read 271608 bytes (434.573 MBPS)
+[7] Graph construction complete.
+[15] Master distribution time : 0.994581 seconds to read 240 bytes in 28 seeks (0.000241308 MBPS)
+[15] Starting graph reading.
+[15] Reading graph complete.
+[15] Edge inspection time: 0.001053 seconds to read 456784 bytes (433.793 MBPS)
+[15] Edge loading time: 0.00046 seconds to read 456784 bytes (993.009 MBPS)
+[15] Graph construction complete.
+[9] Master distribution time : 1.04262 seconds to read 248 bytes in 30 seeks (0.000237862 MBPS)
+[9] Starting graph reading.
+[9] Reading graph complete.
+[9] Edge inspection time: 0.001125 seconds to read 289948 bytes (257.732 MBPS)
+[9] Edge loading time: 0.000674 seconds to read 289948 bytes (430.19 MBPS)
+[9] Graph construction complete.
+[6] Master distribution time : 1.15678 seconds to read 256 bytes in 31 seeks (0.000221304 MBPS)
+[6] Starting graph reading.
+[6] Reading graph complete.
+[6] Edge inspection time: 0.001053 seconds to read 245520 bytes (233.162 MBPS)
+[6] Edge loading time: 0.000693 seconds to read 245520 bytes (354.286 MBPS)
+[6] Graph construction complete.
+[10] Master distribution time : 1.24763 seconds to read 256 bytes in 31 seeks (0.000205189 MBPS)
+[10] Starting graph reading.
+[10] Reading graph complete.
+[10] Edge inspection time: 0.000942 seconds to read 293416 bytes (311.482 MBPS)
+[10] Edge loading time: 0.000571 seconds to read 293416 bytes (513.863 MBPS)
+[10] Graph construction complete.
+[12] Master distribution time : 1.29411 seconds to read 248 bytes in 31 seeks (0.000191638 MBPS)
+[12] Starting graph reading.
+[12] Reading graph complete.
+[12] Edge inspection time: 0.000973 seconds to read 307112 bytes (315.634 MBPS)
+[12] Edge loading time: 0.000604 seconds to read 307112 bytes (508.464 MBPS)
+[12] Graph construction complete.
+[5] Master distribution time : 1.0668 seconds to read 256 bytes in 32 seeks (0.000239969 MBPS)
+[5] Starting graph reading.
+[5] Reading graph complete.
+[5] Edge inspection time: 0.001176 seconds to read 251648 bytes (213.986 MBPS)
+[5] Edge loading time: 0.000672 seconds to read 251648 bytes (374.476 MBPS)
+[5] Graph construction complete.
+[3] Master distribution time : 1.27355 seconds to read 256 bytes in 32 seeks (0.000201013 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.001352 seconds to read 233684 bytes (172.843 MBPS)
+[3] Edge loading time: 0.000847 seconds to read 233684 bytes (275.896 MBPS)
+[3] Graph construction complete.
+[11] Master distribution time : 0.996187 seconds to read 248 bytes in 31 seeks (0.000248949 MBPS)
+[11] Starting graph reading.
+[11] Reading graph complete.
+[11] Edge inspection time: 0.001176 seconds to read 298556 bytes (253.874 MBPS)
+[11] Edge loading time: 0.000625 seconds to read 298556 bytes (477.69 MBPS)
+[11] Graph construction complete.
+[0] Master distribution time : 1.28496 seconds to read 128 bytes in 16 seeks (9.96142e-05 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.003924 seconds to read 853012 bytes (217.383 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.003738 seconds to read 853012 bytes (228.2 MBPS)
+[0] Graph construction complete.
+[2] Master distribution time : 1.25252 seconds to read 240 bytes in 30 seeks (0.000191614 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 2.2e-05 seconds to read 0 bytes (0 MBPS)
+[2] Edge loading time: 0 seconds to read 0 bytes (-nan MBPS)
+[2] Graph construction complete.
+[13] Master distribution time : 1.34953 seconds to read 248 bytes in 30 seeks (0.000183768 MBPS)
+[13] Starting graph reading.
+[13] Reading graph complete.
+[13] Edge inspection time: 0.001275 seconds to read 344024 bytes (269.823 MBPS)
+[13] Edge loading time: 0.000613 seconds to read 344024 bytes (561.214 MBPS)
+[13] Graph construction complete.
+[4] Master distribution time : 1.29072 seconds to read 256 bytes in 32 seeks (0.00019834 MBPS)
+[4] Starting graph reading.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.00133 seconds to read 252652 bytes (189.964 MBPS)
+[4] Edge loading time: 0.00085 seconds to read 252652 bytes (297.238 MBPS)
+[4] Graph construction complete.
+[8] Master distribution time : 1.2933 seconds to read 256 bytes in 30 seeks (0.000197943 MBPS)
+[8] Starting graph reading.
+[8] Reading graph complete.
+[8] Edge inspection time: 0.001085 seconds to read 276880 bytes (255.189 MBPS)
+[8] Edge loading time: 0.000607 seconds to read 276880 bytes (456.145 MBPS)
+[8] Graph construction complete.
+[7] InitializeGraph::go called
+[5] InitializeGraph::go called
+[4] InitializeGraph::go called
+[10] InitializeGraph::go called
+[9] InitializeGraph::go called
+[11] InitializeGraph::go called
+[12] InitializeGraph::go called
+[15] InitializeGraph::go called
+[0] InitializeGraph::go called
+[2] InitializeGraph::go called
+[1] InitializeGraph::go called
+[13] InitializeGraph::go called
+[14] InitializeGraph::go called
+[8] InitializeGraph::go called
+[6] InitializeGraph::go called
+[3] InitializeGraph::go called
+[13] ConnectedComp::go run 0 called
+[1] ConnectedComp::go run 0 called
+[15] ConnectedComp::go run 0 called
+[9] ConnectedComp::go run 0 called
+[7] ConnectedComp::go run 0 called
+[3] ConnectedComp::go run 0 called
+[11] ConnectedComp::go run 0 called
+[5] ConnectedComp::go run 0 called
+[14] ConnectedComp::go run 0 called
+[6] ConnectedComp::go run 0 called
+[2] ConnectedComp::go run 0 called
+[4] ConnectedComp::go run 0 called
+[12] ConnectedComp::go run 0 called
+[8] ConnectedComp::go run 0 called
+[10] ConnectedComp::go run 0 called
+[0] ConnectedComp::go run 0 called
+Number of components is 3417
+[1] ConnectedComp::go run 1 called
+[5] ConnectedComp::go run 1 called
+[11] ConnectedComp::go run 1 called
+[9] ConnectedComp::go run 1 called
+[3] ConnectedComp::go run 1 called
+[13] ConnectedComp::go run 1 called
+[15] ConnectedComp::go run 1 called
+[7] ConnectedComp::go run 1 called
+[0] ConnectedComp::go run 1 called
+[8] ConnectedComp::go run 1 called
+[4] ConnectedComp::go run 1 called
+[12] ConnectedComp::go run 1 called
+[10] ConnectedComp::go run 1 called
+[14] ConnectedComp::go run 1 called
+[2] ConnectedComp::go run 1 called
+[6] ConnectedComp::go run 1 called
+Number of components is 3417
+[15] ConnectedComp::go run 2 called
+[7] ConnectedComp::go run 2 called
+[3] ConnectedComp::go run 2 called
+[11] ConnectedComp::go run 2 called
+[13] ConnectedComp::go run 2 called
+[5] ConnectedComp::go run 2 called
+[1] ConnectedComp::go run 2 called
+[9] ConnectedComp::go run 2 called
+[4] ConnectedComp::go run 2 called
+[12] ConnectedComp::go run 2 called
+[8] ConnectedComp::go run 2 called
+[0] ConnectedComp::go run 2 called
+[6] ConnectedComp::go run 2 called
+[10] ConnectedComp::go run 2 called
+[14] ConnectedComp::go run 2 called
+[2] ConnectedComp::go run 2 called
+Number of components is 3417
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 3
+STAT, 0, dGraph_Generic, EdgeLoading, TMAX, 3
+STAT, 0, dGraph_Generic, EdgeLoading, ThreadValues, 3
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, SINGLE, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, ThreadValues, 100
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 3
+STAT, 0, dGraph_Generic, EdgeInspection, TMAX, 3
+STAT, 0, dGraph_Generic, EdgeInspection, ThreadValues, 3
+STAT, 3, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 3, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 4, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 4, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 5, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 5, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 6, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 6, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 7, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 7, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 8, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 8, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 9, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 9, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 11, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 11, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 13, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 13, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 14, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 14, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 15, dGraph_Generic, EdgeInspection, TMAX, 1
+STAT, 15, dGraph_Generic, EdgeInspection, ThreadValues, 1
+STAT, 0, DistBench, GraphConstructTime, HMAX, 1501
+STAT, 0, DistBench, GraphConstructTime, TMAX, 1339
+STAT, 0, DistBench, GraphConstructTime, ThreadValues, 1339
+STAT, 1, DistBench, GraphConstructTime, TMAX, 335
+STAT, 1, DistBench, GraphConstructTime, ThreadValues, 335
+STAT, 2, DistBench, GraphConstructTime, TMAX, 1252
+STAT, 2, DistBench, GraphConstructTime, ThreadValues, 1252
+STAT, 3, DistBench, GraphConstructTime, TMAX, 1332
+STAT, 3, DistBench, GraphConstructTime, ThreadValues, 1332
+STAT, 4, DistBench, GraphConstructTime, TMAX, 1294
+STAT, 4, DistBench, GraphConstructTime, ThreadValues, 1294
+STAT, 5, DistBench, GraphConstructTime, TMAX, 1501
+STAT, 5, DistBench, GraphConstructTime, ThreadValues, 1501
+STAT, 6, DistBench, GraphConstructTime, TMAX, 1160
+STAT, 6, DistBench, GraphConstructTime, ThreadValues, 1160
+STAT, 7, DistBench, GraphConstructTime, TMAX, 1045
+STAT, 7, DistBench, GraphConstructTime, ThreadValues, 1045
+STAT, 8, DistBench, GraphConstructTime, TMAX, 1329
+STAT, 8, DistBench, GraphConstructTime, ThreadValues, 1329
+STAT, 9, DistBench, GraphConstructTime, TMAX, 1045
+STAT, 9, DistBench, GraphConstructTime, ThreadValues, 1045
+STAT, 10, DistBench, GraphConstructTime, TMAX, 1250
+STAT, 10, DistBench, GraphConstructTime, ThreadValues, 1250
+STAT, 11, DistBench, GraphConstructTime, TMAX, 999
+STAT, 11, DistBench, GraphConstructTime, ThreadValues, 999
+STAT, 12, DistBench, GraphConstructTime, TMAX, 1310
+STAT, 12, DistBench, GraphConstructTime, ThreadValues, 1310
+STAT, 13, DistBench, GraphConstructTime, TMAX, 1352
+STAT, 13, DistBench, GraphConstructTime, ThreadValues, 1352
+STAT, 14, DistBench, GraphConstructTime, TMAX, 1063
+STAT, 14, DistBench, GraphConstructTime, ThreadValues, 1063
+STAT, 15, DistBench, GraphConstructTime, TMAX, 997
+STAT, 15, DistBench, GraphConstructTime, ThreadValues, 997
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_0, HSUM, 550364
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 156
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 156
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 672
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 672
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 2344
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 2344
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 5052
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 5052
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 8772
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 8772
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 15332
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 15332
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 21804
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 21804
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 36964
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 36964
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 41764
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 41764
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 44256
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 44256
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 60012
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 60012
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 85180
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 85180
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 68088
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 68088
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_0, TSUM, 159968
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_0, ThreadValues, 159968
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_0, HSUM, 528
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 0
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 0
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 36
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 36
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 33
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 33
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 33
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 33
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_0, TSUM, 39
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_0, ThreadValues, 39
+STAT, 0, Gluon, Sync_ConnectedComp_0, HMAX, 21090
+STAT, 0, Gluon, Sync_ConnectedComp_0, TMAX, 4658
+STAT, 0, Gluon, Sync_ConnectedComp_0, ThreadValues, 4658
+STAT, 3, Gluon, Sync_ConnectedComp_0, TMAX, 17937
+STAT, 3, Gluon, Sync_ConnectedComp_0, ThreadValues, 17937
+STAT, 4, Gluon, Sync_ConnectedComp_0, TMAX, 5574
+STAT, 4, Gluon, Sync_ConnectedComp_0, ThreadValues, 5574
+STAT, 5, Gluon, Sync_ConnectedComp_0, TMAX, 19596
+STAT, 5, Gluon, Sync_ConnectedComp_0, ThreadValues, 19596
+STAT, 6, Gluon, Sync_ConnectedComp_0, TMAX, 12840
+STAT, 6, Gluon, Sync_ConnectedComp_0, ThreadValues, 12840
+STAT, 7, Gluon, Sync_ConnectedComp_0, TMAX, 18731
+STAT, 7, Gluon, Sync_ConnectedComp_0, ThreadValues, 18731
+STAT, 8, Gluon, Sync_ConnectedComp_0, TMAX, 6368
+STAT, 8, Gluon, Sync_ConnectedComp_0, ThreadValues, 6368
+STAT, 9, Gluon, Sync_ConnectedComp_0, TMAX, 21090
+STAT, 9, Gluon, Sync_ConnectedComp_0, ThreadValues, 21090
+STAT, 10, Gluon, Sync_ConnectedComp_0, TMAX, 10401
+STAT, 10, Gluon, Sync_ConnectedComp_0, ThreadValues, 10401
+STAT, 11, Gluon, Sync_ConnectedComp_0, TMAX, 20650
+STAT, 11, Gluon, Sync_ConnectedComp_0, ThreadValues, 20650
+STAT, 12, Gluon, Sync_ConnectedComp_0, TMAX, 4767
+STAT, 12, Gluon, Sync_ConnectedComp_0, ThreadValues, 4767
+STAT, 13, Gluon, Sync_ConnectedComp_0, TMAX, 20834
+STAT, 13, Gluon, Sync_ConnectedComp_0, ThreadValues, 20834
+STAT, 14, Gluon, Sync_ConnectedComp_0, TMAX, 14259
+STAT, 14, Gluon, Sync_ConnectedComp_0, ThreadValues, 14259
+STAT, 15, Gluon, Sync_ConnectedComp_0, TMAX, 21071
+STAT, 15, Gluon, Sync_ConnectedComp_0, ThreadValues, 21071
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_1, HSUM, 550364
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 156
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 156
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 672
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 672
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 2344
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 2344
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 5052
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 5052
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 8772
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 8772
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 15332
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 15332
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 21804
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 21804
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 36964
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 36964
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 41764
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 41764
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 44256
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 44256
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 60012
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 60012
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 85180
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 85180
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 68088
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 68088
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_1, TSUM, 159968
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_1, ThreadValues, 159968
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_1, HSUM, 528
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 0
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 0
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 36
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 36
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 33
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 33
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 33
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 33
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_1, TSUM, 39
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_1, ThreadValues, 39
+STAT, 0, Gluon, Sync_ConnectedComp_1, HMAX, 28218
+STAT, 0, Gluon, Sync_ConnectedComp_1, TMAX, 9996
+STAT, 0, Gluon, Sync_ConnectedComp_1, ThreadValues, 9996
+STAT, 3, Gluon, Sync_ConnectedComp_1, TMAX, 27573
+STAT, 3, Gluon, Sync_ConnectedComp_1, ThreadValues, 27573
+STAT, 4, Gluon, Sync_ConnectedComp_1, TMAX, 5093
+STAT, 4, Gluon, Sync_ConnectedComp_1, ThreadValues, 5093
+STAT, 5, Gluon, Sync_ConnectedComp_1, TMAX, 27683
+STAT, 5, Gluon, Sync_ConnectedComp_1, ThreadValues, 27683
+STAT, 6, Gluon, Sync_ConnectedComp_1, TMAX, 24050
+STAT, 6, Gluon, Sync_ConnectedComp_1, ThreadValues, 24050
+STAT, 7, Gluon, Sync_ConnectedComp_1, TMAX, 27410
+STAT, 7, Gluon, Sync_ConnectedComp_1, ThreadValues, 27410
+STAT, 8, Gluon, Sync_ConnectedComp_1, TMAX, 9896
+STAT, 8, Gluon, Sync_ConnectedComp_1, ThreadValues, 9896
+STAT, 9, Gluon, Sync_ConnectedComp_1, TMAX, 28218
+STAT, 9, Gluon, Sync_ConnectedComp_1, ThreadValues, 28218
+STAT, 10, Gluon, Sync_ConnectedComp_1, TMAX, 25495
+STAT, 10, Gluon, Sync_ConnectedComp_1, ThreadValues, 25495
+STAT, 11, Gluon, Sync_ConnectedComp_1, TMAX, 28159
+STAT, 11, Gluon, Sync_ConnectedComp_1, ThreadValues, 28159
+STAT, 12, Gluon, Sync_ConnectedComp_1, TMAX, 11570
+STAT, 12, Gluon, Sync_ConnectedComp_1, ThreadValues, 11570
+STAT, 13, Gluon, Sync_ConnectedComp_1, TMAX, 27728
+STAT, 13, Gluon, Sync_ConnectedComp_1, ThreadValues, 27728
+STAT, 14, Gluon, Sync_ConnectedComp_1, TMAX, 25374
+STAT, 14, Gluon, Sync_ConnectedComp_1, ThreadValues, 25374
+STAT, 15, Gluon, Sync_ConnectedComp_1, TMAX, 27995
+STAT, 15, Gluon, Sync_ConnectedComp_1, ThreadValues, 27995
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_2, HSUM, 550364
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 156
+STAT, 0, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 156
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 672
+STAT, 3, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 672
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 2344
+STAT, 4, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 2344
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 5052
+STAT, 5, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 5052
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 8772
+STAT, 6, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 8772
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 15332
+STAT, 7, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 15332
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 21804
+STAT, 8, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 21804
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 36964
+STAT, 9, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 36964
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 41764
+STAT, 10, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 41764
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 44256
+STAT, 11, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 44256
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 60012
+STAT, 12, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 60012
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 85180
+STAT, 13, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 85180
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 68088
+STAT, 14, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 68088
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_2, TSUM, 159968
+STAT, 15, Gluon, BroadcastSendBytes_ConnectedComp_2, ThreadValues, 159968
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_2, HSUM, 528
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 0, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 0
+STAT, 1, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 0
+STAT, 2, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 0
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 3, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 4, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 5, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 6, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 7, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 8, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 9, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 36
+STAT, 10, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 36
+STAT, 11, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 36
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 33
+STAT, 12, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 33
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 13, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 33
+STAT, 14, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 33
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_2, TSUM, 39
+STAT, 15, Gluon, BroadcastNumMessages_ConnectedComp_2, ThreadValues, 39
+STAT, 0, Gluon, Sync_ConnectedComp_2, HMAX, 18936
+STAT, 0, Gluon, Sync_ConnectedComp_2, TMAX, 10805
+STAT, 0, Gluon, Sync_ConnectedComp_2, ThreadValues, 10805
+STAT, 3, Gluon, Sync_ConnectedComp_2, TMAX, 18870
+STAT, 3, Gluon, Sync_ConnectedComp_2, ThreadValues, 18870
+STAT, 4, Gluon, Sync_ConnectedComp_2, TMAX, 12171
+STAT, 4, Gluon, Sync_ConnectedComp_2, ThreadValues, 12171
+STAT, 5, Gluon, Sync_ConnectedComp_2, TMAX, 11259
+STAT, 5, Gluon, Sync_ConnectedComp_2, ThreadValues, 11259
+STAT, 6, Gluon, Sync_ConnectedComp_2, TMAX, 12686
+STAT, 6, Gluon, Sync_ConnectedComp_2, ThreadValues, 12686
+STAT, 7, Gluon, Sync_ConnectedComp_2, TMAX, 17461
+STAT, 7, Gluon, Sync_ConnectedComp_2, ThreadValues, 17461
+STAT, 8, Gluon, Sync_ConnectedComp_2, TMAX, 11020
+STAT, 8, Gluon, Sync_ConnectedComp_2, ThreadValues, 11020
+STAT, 9, Gluon, Sync_ConnectedComp_2, TMAX, 10465
+STAT, 9, Gluon, Sync_ConnectedComp_2, ThreadValues, 10465
+STAT, 10, Gluon, Sync_ConnectedComp_2, TMAX, 11389
+STAT, 10, Gluon, Sync_ConnectedComp_2, ThreadValues, 11389
+STAT, 11, Gluon, Sync_ConnectedComp_2, TMAX, 18936
+STAT, 11, Gluon, Sync_ConnectedComp_2, ThreadValues, 18936
+STAT, 12, Gluon, Sync_ConnectedComp_2, TMAX, 11714
+STAT, 12, Gluon, Sync_ConnectedComp_2, ThreadValues, 11714
+STAT, 13, Gluon, Sync_ConnectedComp_2, TMAX, 11212
+STAT, 13, Gluon, Sync_ConnectedComp_2, ThreadValues, 11212
+STAT, 14, Gluon, Sync_ConnectedComp_2, TMAX, 12825
+STAT, 14, Gluon, Sync_ConnectedComp_2, ThreadValues, 12825
+STAT, 15, Gluon, Sync_ConnectedComp_2, TMAX, 9476
+STAT, 15, Gluon, Sync_ConnectedComp_2, ThreadValues, 9476
+STAT, 0, ConnectedComp, NumWorkItems_0, HSUM, 37753
+STAT, 0, ConnectedComp, NumWorkItems_0, TSUM, 0
+STAT, 0, ConnectedComp, NumWorkItems_0, ThreadValues, 0
+STAT, 1, ConnectedComp, NumWorkItems_0, TSUM, 0
+STAT, 1, ConnectedComp, NumWorkItems_0, ThreadValues, 0
+STAT, 2, ConnectedComp, NumWorkItems_0, TSUM, 0
+STAT, 2, ConnectedComp, NumWorkItems_0, ThreadValues, 0
+STAT, 3, ConnectedComp, NumWorkItems_0, TSUM, 8
+STAT, 3, ConnectedComp, NumWorkItems_0, ThreadValues, 8
+STAT, 4, ConnectedComp, NumWorkItems_0, TSUM, 56
+STAT, 4, ConnectedComp, NumWorkItems_0, ThreadValues, 56
+STAT, 5, ConnectedComp, NumWorkItems_0, TSUM, 192
+STAT, 5, ConnectedComp, NumWorkItems_0, ThreadValues, 192
+STAT, 6, ConnectedComp, NumWorkItems_0, TSUM, 357
+STAT, 6, ConnectedComp, NumWorkItems_0, ThreadValues, 357
+STAT, 7, ConnectedComp, NumWorkItems_0, TSUM, 719
+STAT, 7, ConnectedComp, NumWorkItems_0, ThreadValues, 719
+STAT, 8, ConnectedComp, NumWorkItems_0, TSUM, 1067
+STAT, 8, ConnectedComp, NumWorkItems_0, ThreadValues, 1067
+STAT, 9, ConnectedComp, NumWorkItems_0, TSUM, 2018
+STAT, 9, ConnectedComp, NumWorkItems_0, ThreadValues, 2018
+STAT, 10, ConnectedComp, NumWorkItems_0, TSUM, 2290
+STAT, 10, ConnectedComp, NumWorkItems_0, ThreadValues, 2290
+STAT, 11, ConnectedComp, NumWorkItems_0, TSUM, 2678
+STAT, 11, ConnectedComp, NumWorkItems_0, ThreadValues, 2678
+STAT, 12, ConnectedComp, NumWorkItems_0, TSUM, 3379
+STAT, 12, ConnectedComp, NumWorkItems_0, ThreadValues, 3379
+STAT, 13, ConnectedComp, NumWorkItems_0, TSUM, 6150
+STAT, 13, ConnectedComp, NumWorkItems_0, ThreadValues, 6150
+STAT, 14, ConnectedComp, NumWorkItems_0, TSUM, 4749
+STAT, 14, ConnectedComp, NumWorkItems_0, ThreadValues, 4749
+STAT, 15, ConnectedComp, NumWorkItems_0, TSUM, 14090
+STAT, 15, ConnectedComp, NumWorkItems_0, ThreadValues, 14090
+STAT, 0, ConnectedComp, NumIterations_0, HOST_0, 3
+STAT, 0, ConnectedComp, NumIterations_0, SINGLE, 3
+STAT, 0, ConnectedComp, NumIterations_0, ThreadValues, 3
+STAT, 0, ConnectedComp, Timer_0, HMAX, 41585
+STAT, 0, ConnectedComp, Timer_0, TMAX, 31172
+STAT, 0, ConnectedComp, Timer_0, ThreadValues, 31172
+STAT, 1, ConnectedComp, Timer_0, TMAX, 41371
+STAT, 1, ConnectedComp, Timer_0, ThreadValues, 41371
+STAT, 2, ConnectedComp, Timer_0, TMAX, 35223
+STAT, 2, ConnectedComp, Timer_0, ThreadValues, 35223
+STAT, 3, ConnectedComp, Timer_0, TMAX, 41167
+STAT, 3, ConnectedComp, Timer_0, ThreadValues, 41167
+STAT, 4, ConnectedComp, Timer_0, TMAX, 34983
+STAT, 4, ConnectedComp, Timer_0, ThreadValues, 34983
+STAT, 5, ConnectedComp, Timer_0, TMAX, 40382
+STAT, 5, ConnectedComp, Timer_0, ThreadValues, 40382
+STAT, 6, ConnectedComp, Timer_0, TMAX, 35302
+STAT, 6, ConnectedComp, Timer_0, ThreadValues, 35302
+STAT, 7, ConnectedComp, Timer_0, TMAX, 41259
+STAT, 7, ConnectedComp, Timer_0, ThreadValues, 41259
+STAT, 8, ConnectedComp, Timer_0, TMAX, 31648
+STAT, 8, ConnectedComp, Timer_0, ThreadValues, 31648
+STAT, 9, ConnectedComp, Timer_0, TMAX, 41305
+STAT, 9, ConnectedComp, Timer_0, ThreadValues, 41305
+STAT, 10, ConnectedComp, Timer_0, TMAX, 31470
+STAT, 10, ConnectedComp, Timer_0, ThreadValues, 31470
+STAT, 11, ConnectedComp, Timer_0, TMAX, 41134
+STAT, 11, ConnectedComp, Timer_0, ThreadValues, 41134
+STAT, 12, ConnectedComp, Timer_0, TMAX, 34885
+STAT, 12, ConnectedComp, Timer_0, ThreadValues, 34885
+STAT, 13, ConnectedComp, Timer_0, TMAX, 41585
+STAT, 13, ConnectedComp, Timer_0, ThreadValues, 41585
+STAT, 14, ConnectedComp, Timer_0, TMAX, 35504
+STAT, 14, ConnectedComp, Timer_0, ThreadValues, 35504
+STAT, 15, ConnectedComp, Timer_0, TMAX, 41505
+STAT, 15, ConnectedComp, Timer_0, ThreadValues, 41505
+STAT, 0, ConnectedComp, NumWorkItems_1, HSUM, 37753
+STAT, 0, ConnectedComp, NumWorkItems_1, TSUM, 0
+STAT, 0, ConnectedComp, NumWorkItems_1, ThreadValues, 0
+STAT, 1, ConnectedComp, NumWorkItems_1, TSUM, 0
+STAT, 1, ConnectedComp, NumWorkItems_1, ThreadValues, 0
+STAT, 2, ConnectedComp, NumWorkItems_1, TSUM, 0
+STAT, 2, ConnectedComp, NumWorkItems_1, ThreadValues, 0
+STAT, 3, ConnectedComp, NumWorkItems_1, TSUM, 8
+STAT, 3, ConnectedComp, NumWorkItems_1, ThreadValues, 8
+STAT, 4, ConnectedComp, NumWorkItems_1, TSUM, 56
+STAT, 4, ConnectedComp, NumWorkItems_1, ThreadValues, 56
+STAT, 5, ConnectedComp, NumWorkItems_1, TSUM, 192
+STAT, 5, ConnectedComp, NumWorkItems_1, ThreadValues, 192
+STAT, 6, ConnectedComp, NumWorkItems_1, TSUM, 357
+STAT, 6, ConnectedComp, NumWorkItems_1, ThreadValues, 357
+STAT, 7, ConnectedComp, NumWorkItems_1, TSUM, 719
+STAT, 7, ConnectedComp, NumWorkItems_1, ThreadValues, 719
+STAT, 8, ConnectedComp, NumWorkItems_1, TSUM, 1067
+STAT, 8, ConnectedComp, NumWorkItems_1, ThreadValues, 1067
+STAT, 9, ConnectedComp, NumWorkItems_1, TSUM, 2018
+STAT, 9, ConnectedComp, NumWorkItems_1, ThreadValues, 2018
+STAT, 10, ConnectedComp, NumWorkItems_1, TSUM, 2290
+STAT, 10, ConnectedComp, NumWorkItems_1, ThreadValues, 2290
+STAT, 11, ConnectedComp, NumWorkItems_1, TSUM, 2678
+STAT, 11, ConnectedComp, NumWorkItems_1, ThreadValues, 2678
+STAT, 12, ConnectedComp, NumWorkItems_1, TSUM, 3379
+STAT, 12, ConnectedComp, NumWorkItems_1, ThreadValues, 3379
+STAT, 13, ConnectedComp, NumWorkItems_1, TSUM, 6150
+STAT, 13, ConnectedComp, NumWorkItems_1, ThreadValues, 6150
+STAT, 14, ConnectedComp, NumWorkItems_1, TSUM, 4749
+STAT, 14, ConnectedComp, NumWorkItems_1, ThreadValues, 4749
+STAT, 15, ConnectedComp, NumWorkItems_1, TSUM, 14090
+STAT, 15, ConnectedComp, NumWorkItems_1, ThreadValues, 14090
+STAT, 0, ConnectedComp, NumIterations_1, HOST_0, 3
+STAT, 0, ConnectedComp, NumIterations_1, SINGLE, 3
+STAT, 0, ConnectedComp, NumIterations_1, ThreadValues, 3
+STAT, 0, ConnectedComp, Timer_1, HMAX, 52534
+STAT, 0, ConnectedComp, Timer_1, TMAX, 48245
+STAT, 0, ConnectedComp, Timer_1, ThreadValues, 48245
+STAT, 1, ConnectedComp, Timer_1, TMAX, 51507
+STAT, 1, ConnectedComp, Timer_1, ThreadValues, 51507
+STAT, 2, ConnectedComp, Timer_1, TMAX, 44846
+STAT, 2, ConnectedComp, Timer_1, ThreadValues, 44846
+STAT, 3, ConnectedComp, Timer_1, TMAX, 48237
+STAT, 3, ConnectedComp, Timer_1, ThreadValues, 48237
+STAT, 4, ConnectedComp, Timer_1, TMAX, 52534
+STAT, 4, ConnectedComp, Timer_1, ThreadValues, 52534
+STAT, 5, ConnectedComp, Timer_1, TMAX, 48214
+STAT, 5, ConnectedComp, Timer_1, ThreadValues, 48214
+STAT, 6, ConnectedComp, Timer_1, TMAX, 44595
+STAT, 6, ConnectedComp, Timer_1, ThreadValues, 44595
+STAT, 7, ConnectedComp, Timer_1, TMAX, 47937
+STAT, 7, ConnectedComp, Timer_1, ThreadValues, 47937
+STAT, 8, ConnectedComp, Timer_1, TMAX, 48075
+STAT, 8, ConnectedComp, Timer_1, ThreadValues, 48075
+STAT, 9, ConnectedComp, Timer_1, TMAX, 48232
+STAT, 9, ConnectedComp, Timer_1, ThreadValues, 48232
+STAT, 10, ConnectedComp, Timer_1, TMAX, 45070
+STAT, 10, ConnectedComp, Timer_1, ThreadValues, 45070
+STAT, 11, ConnectedComp, Timer_1, TMAX, 48166
+STAT, 11, ConnectedComp, Timer_1, ThreadValues, 48166
+STAT, 12, ConnectedComp, Timer_1, TMAX, 47685
+STAT, 12, ConnectedComp, Timer_1, ThreadValues, 47685
+STAT, 13, ConnectedComp, Timer_1, TMAX, 47907
+STAT, 13, ConnectedComp, Timer_1, ThreadValues, 47907
+STAT, 14, ConnectedComp, Timer_1, TMAX, 44687
+STAT, 14, ConnectedComp, Timer_1, ThreadValues, 44687
+STAT, 15, ConnectedComp, Timer_1, TMAX, 47848
+STAT, 15, ConnectedComp, Timer_1, ThreadValues, 47848
+STAT, 0, ConnectedComp, NumWorkItems_2, HSUM, 37753
+STAT, 0, ConnectedComp, NumWorkItems_2, TSUM, 0
+STAT, 0, ConnectedComp, NumWorkItems_2, ThreadValues, 0
+STAT, 1, ConnectedComp, NumWorkItems_2, TSUM, 0
+STAT, 1, ConnectedComp, NumWorkItems_2, ThreadValues, 0
+STAT, 2, ConnectedComp, NumWorkItems_2, TSUM, 0
+STAT, 2, ConnectedComp, NumWorkItems_2, ThreadValues, 0
+STAT, 3, ConnectedComp, NumWorkItems_2, TSUM, 8
+STAT, 3, ConnectedComp, NumWorkItems_2, ThreadValues, 8
+STAT, 4, ConnectedComp, NumWorkItems_2, TSUM, 56
+STAT, 4, ConnectedComp, NumWorkItems_2, ThreadValues, 56
+STAT, 5, ConnectedComp, NumWorkItems_2, TSUM, 192
+STAT, 5, ConnectedComp, NumWorkItems_2, ThreadValues, 192
+STAT, 6, ConnectedComp, NumWorkItems_2, TSUM, 357
+STAT, 6, ConnectedComp, NumWorkItems_2, ThreadValues, 357
+STAT, 7, ConnectedComp, NumWorkItems_2, TSUM, 719
+STAT, 7, ConnectedComp, NumWorkItems_2, ThreadValues, 719
+STAT, 8, ConnectedComp, NumWorkItems_2, TSUM, 1067
+STAT, 8, ConnectedComp, NumWorkItems_2, ThreadValues, 1067
+STAT, 9, ConnectedComp, NumWorkItems_2, TSUM, 2018
+STAT, 9, ConnectedComp, NumWorkItems_2, ThreadValues, 2018
+STAT, 10, ConnectedComp, NumWorkItems_2, TSUM, 2290
+STAT, 10, ConnectedComp, NumWorkItems_2, ThreadValues, 2290
+STAT, 11, ConnectedComp, NumWorkItems_2, TSUM, 2678
+STAT, 11, ConnectedComp, NumWorkItems_2, ThreadValues, 2678
+STAT, 12, ConnectedComp, NumWorkItems_2, TSUM, 3379
+STAT, 12, ConnectedComp, NumWorkItems_2, ThreadValues, 3379
+STAT, 13, ConnectedComp, NumWorkItems_2, TSUM, 6150
+STAT, 13, ConnectedComp, NumWorkItems_2, ThreadValues, 6150
+STAT, 14, ConnectedComp, NumWorkItems_2, TSUM, 4749
+STAT, 14, ConnectedComp, NumWorkItems_2, ThreadValues, 4749
+STAT, 15, ConnectedComp, NumWorkItems_2, TSUM, 14090
+STAT, 15, ConnectedComp, NumWorkItems_2, ThreadValues, 14090
+STAT, 0, ConnectedComp, NumIterations_2, HOST_0, 3
+STAT, 0, ConnectedComp, NumIterations_2, SINGLE, 3
+STAT, 0, ConnectedComp, NumIterations_2, ThreadValues, 3
+STAT, 0, ConnectedComp, Timer_2, HMAX, 43743
+STAT, 0, ConnectedComp, Timer_2, TMAX, 39719
+STAT, 0, ConnectedComp, Timer_2, ThreadValues, 39719
+STAT, 1, ConnectedComp, Timer_2, TMAX, 42339
+STAT, 1, ConnectedComp, Timer_2, ThreadValues, 42339
+STAT, 2, ConnectedComp, Timer_2, TMAX, 41912
+STAT, 2, ConnectedComp, Timer_2, ThreadValues, 41912
+STAT, 3, ConnectedComp, Timer_2, TMAX, 43453
+STAT, 3, ConnectedComp, Timer_2, ThreadValues, 43453
+STAT, 4, ConnectedComp, Timer_2, TMAX, 40623
+STAT, 4, ConnectedComp, Timer_2, ThreadValues, 40623
+STAT, 5, ConnectedComp, Timer_2, TMAX, 42454
+STAT, 5, ConnectedComp, Timer_2, ThreadValues, 42454
+STAT, 6, ConnectedComp, Timer_2, TMAX, 38092
+STAT, 6, ConnectedComp, Timer_2, ThreadValues, 38092
+STAT, 7, ConnectedComp, Timer_2, TMAX, 43565
+STAT, 7, ConnectedComp, Timer_2, ThreadValues, 43565
+STAT, 8, ConnectedComp, Timer_2, TMAX, 39882
+STAT, 8, ConnectedComp, Timer_2, ThreadValues, 39882
+STAT, 9, ConnectedComp, Timer_2, TMAX, 42240
+STAT, 9, ConnectedComp, Timer_2, ThreadValues, 42240
+STAT, 10, ConnectedComp, Timer_2, TMAX, 42370
+STAT, 10, ConnectedComp, Timer_2, ThreadValues, 42370
+STAT, 11, ConnectedComp, Timer_2, TMAX, 43383
+STAT, 11, ConnectedComp, Timer_2, ThreadValues, 43383
+STAT, 12, ConnectedComp, Timer_2, TMAX, 40608
+STAT, 12, ConnectedComp, Timer_2, ThreadValues, 40608
+STAT, 13, ConnectedComp, Timer_2, TMAX, 42688
+STAT, 13, ConnectedComp, Timer_2, ThreadValues, 42688
+STAT, 14, ConnectedComp, Timer_2, TMAX, 37991
+STAT, 14, ConnectedComp, Timer_2, ThreadValues, 37991
+STAT, 15, ConnectedComp, Timer_2, TMAX, 43743
+STAT, 15, ConnectedComp, Timer_2, ThreadValues, 43743
+STAT, 0, ConnectedComp, TimerTotal, HMAX, 182072
+STAT, 0, ConnectedComp, TimerTotal, TMAX, 178963
+STAT, 0, ConnectedComp, TimerTotal, ThreadValues, 178963
+STAT, 1, ConnectedComp, TimerTotal, TMAX, 177621
+STAT, 1, ConnectedComp, TimerTotal, ThreadValues, 177621
+STAT, 2, ConnectedComp, TimerTotal, TMAX, 177538
+STAT, 2, ConnectedComp, TimerTotal, ThreadValues, 177538
+STAT, 3, ConnectedComp, TimerTotal, TMAX, 178182
+STAT, 3, ConnectedComp, TimerTotal, ThreadValues, 178182
+STAT, 4, ConnectedComp, TimerTotal, TMAX, 178739
+STAT, 4, ConnectedComp, TimerTotal, ThreadValues, 178739
+STAT, 5, ConnectedComp, TimerTotal, TMAX, 182072
+STAT, 5, ConnectedComp, TimerTotal, ThreadValues, 182072
+STAT, 6, ConnectedComp, TimerTotal, TMAX, 179844
+STAT, 6, ConnectedComp, TimerTotal, ThreadValues, 179844
+STAT, 7, ConnectedComp, TimerTotal, TMAX, 178172
+STAT, 7, ConnectedComp, TimerTotal, ThreadValues, 178172
+STAT, 8, ConnectedComp, TimerTotal, TMAX, 178480
+STAT, 8, ConnectedComp, TimerTotal, ThreadValues, 178480
+STAT, 9, ConnectedComp, TimerTotal, TMAX, 178337
+STAT, 9, ConnectedComp, TimerTotal, ThreadValues, 178337
+STAT, 10, ConnectedComp, TimerTotal, TMAX, 177546
+STAT, 10, ConnectedComp, TimerTotal, ThreadValues, 177546
+STAT, 11, ConnectedComp, TimerTotal, TMAX, 178068
+STAT, 11, ConnectedComp, TimerTotal, ThreadValues, 178068
+STAT, 12, ConnectedComp, TimerTotal, TMAX, 178884
+STAT, 12, ConnectedComp, TimerTotal, ThreadValues, 178884
+STAT, 13, ConnectedComp, TimerTotal, TMAX, 181927
+STAT, 13, ConnectedComp, TimerTotal, ThreadValues, 181927
+STAT, 14, ConnectedComp, TimerTotal, TMAX, 179701
+STAT, 14, ConnectedComp, TimerTotal, ThreadValues, 179701
+STAT, 15, ConnectedComp, TimerTotal, TMAX, 178210
+STAT, 15, ConnectedComp, TimerTotal, ThreadValues, 178210
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 4.61679
+STAT, 0, Gluon, ReplicationFactor, SINGLE, 4.61679
+STAT, 0, Gluon, ReplicationFactor, ThreadValues, 4.61679
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../connected-components/connected-components-pull-dist ../rmat15.sgr -symmetricGraph -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, SINGLE, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../connected-components/connected-components-pull-dist ../rmat15.sgr -symmetricGraph -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, ThreadValues, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../connected-components/connected-components-pull-dist ../rmat15.sgr -symmetricGraph -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Threads, SINGLE, 1
+PARAM, 0, DistBench, Threads, ThreadValues, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 16
+PARAM, 0, DistBench, Hosts, SINGLE, 16
+PARAM, 0, DistBench, Hosts, ThreadValues, 16
+PARAM, 0, DistBench, Runs, HOST_0, 3
+PARAM, 0, DistBench, Runs, SINGLE, 3
+PARAM, 0, DistBench, Runs, ThreadValues, 3
+PARAM, 0, DistBench, Run_UUID, HOST_0, 6c2ccbc8-71ae-475e-8829-a2f35043c949
+PARAM, 0, DistBench, Run_UUID, SINGLE, 6c2ccbc8-71ae-475e-8829-a2f35043c949
+PARAM, 0, DistBench, Run_UUID, ThreadValues, 6c2ccbc8-71ae-475e-8829-a2f35043c949
+PARAM, 0, DistBench, Input, HOST_0, ../rmat15.sgr
+PARAM, 0, DistBench, Input, SINGLE, ../rmat15.sgr
+PARAM, 0, DistBench, Input, ThreadValues, ../rmat15.sgr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, PartitionScheme, SINGLE, oec
+PARAM, 0, DistBench, PartitionScheme, ThreadValues, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c314-094.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 2, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 2, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 3, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 3, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 4, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 4, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 5, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 5, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 6, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 6, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 7, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 7, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 8, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 8, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 9, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 9, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 10, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 10, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 11, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 11, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 12, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 12, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 13, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 13, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 14, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 14, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 15, DistBench, Hostname, SINGLE, c314-094.ls6.tacc.utexas.edu
+PARAM, 15, DistBench, Hostname, ThreadValues, c314-094.ls6.tacc.utexas.edu
+PARAM, 0, ConnectedComp, Max Iterations, HOST_0, 1000
+PARAM, 0, ConnectedComp, Max Iterations, SINGLE, 1000
+PARAM, 0, ConnectedComp, Max Iterations, ThreadValues, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0
+PARAM, 0, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 0, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 1, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 1, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 2, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 2, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 3, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 3, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 4, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 4, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 5, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 5, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 6, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 6, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 7, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 7, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 8, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 8, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 9, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 9, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 10, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 10, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 11, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 11, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 12, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 12, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 13, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 13, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 14, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 14, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 15, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 15, dGraph, GenericPartitioner, ThreadValues, 0

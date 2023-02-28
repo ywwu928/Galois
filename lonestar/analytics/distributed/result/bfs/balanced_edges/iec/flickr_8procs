@@ -1,0 +1,77 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS pull - Distributed Heterogeneous
+BFS pull on Distributed Galois.
+
+[5] Master distribution time : 0.323846 seconds to read 280 bytes in 35 seeks (0.000864609 MBPS)
+[5] Starting graph reading.
+[5] Reading graph complete.
+[5] Edge inspection time: 0.001711 seconds to read 683620 bytes (399.544 MBPS)
+[5] Edge loading time: 0.002253 seconds to read 683620 bytes (303.427 MBPS)
+[5] Graph construction complete.
+[3] Master distribution time : 0.479034 seconds to read 272 bytes in 33 seeks (0.000567809 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.001529 seconds to read 618600 bytes (404.578 MBPS)
+[3] Edge loading time: 0.00214 seconds to read 618600 bytes (289.065 MBPS)
+[3] Graph construction complete.
+[4] Master distribution time : 0.4359 seconds to read 280 bytes in 35 seeks (0.000642349 MBPS)
+[4] Starting graph reading.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.001587 seconds to read 651760 bytes (410.687 MBPS)
+[4] Edge loading time: 0.002228 seconds to read 651760 bytes (292.531 MBPS)
+[4] Graph construction complete.
+[7] Master distribution time : 0.287264 seconds to read 264 bytes in 32 seeks (0.000919015 MBPS)
+[7] Starting graph reading.
+[7] Reading graph complete.
+[7] Edge inspection time: 0.001735 seconds to read 755108 bytes (435.221 MBPS)
+[7] Edge loading time: 0.002086 seconds to read 755108 bytes (361.988 MBPS)
+[7] Graph construction complete.
+[1] Master distribution time : 0.533971 seconds to read 272 bytes in 33 seeks (0.000509391 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.001634 seconds to read 532572 bytes (325.931 MBPS)
+[1] Edge loading time: 0.002082 seconds to read 532572 bytes (255.798 MBPS)
+[1] Graph construction complete.
+[2] Master distribution time : 0.504132 seconds to read 280 bytes in 34 seeks (0.00055541 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.001779 seconds to read 579440 bytes (325.711 MBPS)
+[2] Edge loading time: 0.002063 seconds to read 579440 bytes (280.873 MBPS)
+[2] Graph construction complete.
+[6] Master distribution time : 0.568377 seconds to read 264 bytes in 32 seeks (0.00046448 MBPS)
+[6] Starting graph reading.
+[6] Reading graph complete.
+[6] Edge inspection time: 0.001695 seconds to read 717688 bytes (423.415 MBPS)
+[6] Edge loading time: 0.002121 seconds to read 717688 bytes (338.372 MBPS)
+[6] Graph construction complete.
+[0] Master distribution time : 0.604402 seconds to read 136 bytes in 16 seeks (0.000225016 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.001409 seconds to read 488172 bytes (346.467 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.002071 seconds to read 488172 bytes (235.718 MBPS)
+[0] Graph construction complete.
+[7] InitializeGraph::go called
+[3] InitializeGraph::go called
+[1] InitializeGraph::go called
+[5] InitializeGraph::go called
+[4] InitializeGraph::go called
+[0] InitializeGraph::go called
+[6] InitializeGraph::go called
+[2] InitializeGraph::go called
+[6] BFS::go run 0 called
+[0] BFS::go run 0 called
+[2] BFS::go run 0 called
+[4] BFS::go run 0 called
+[7] BFS::go run 0 called
+[3] BFS::go run 0 called
+[1] BFS::go run 0 called
+[5] BFS::go run 0 called
+Total access to nodes: 4945030
+Total access to mirror nodes: 3918260
+Write access to mirror nodes: 0
+Number of nodes visited from source 50 is 89250
+Max distance from source 50 is 4

@@ -1,0 +1,25 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 1407
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 28
+STAT, 0, DistBench, GraphConstructTime, HMAX, 8602
+STAT, 0, BFS_0, Time, HMAX, 515
+STAT, 0, Gluon, BroadcastSendBytes_BFS_0, HSUM, 36396312
+STAT, 0, Gluon, BroadcastNumMessages_BFS_0, HSUM, 40320
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 862675
+STAT, 0, BFS, NumWorkItems_0, HSUM, 961813
+STAT, 0, BFS, NumIterations_0, HOST_0, 10
+STAT, 0, BFS, Timer_0, HMAX, 1514346
+STAT, 0, BFS, TimerTotal, HMAX, 1784546
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 11.148
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/yelp.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/yelp.tgr -startNode=662666 -t=2 --runs=1 -partition=iec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/iec/yelp_64procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 64
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, 168f747b-16c6-4770-be98-f8795e48fc18
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/yelp.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, iec
+PARAM, 0, DistBench, Hostname, HOST_0, c306-016.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 662666
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

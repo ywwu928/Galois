@@ -1,0 +1,214 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: PageRank - Compiler Generated Distributed Heterogeneous
+PageRank Residual Pull version on Distributed Galois.
+
+[1] Master distribution time : 0.000101 seconds to read 176 bytes in 21 seeks (1.74257 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.000474 seconds to read 45756 bytes (96.5316 MBPS)
+[1] Edge loading time: 4.6e-05 seconds to read 45756 bytes (994.696 MBPS)
+[1] Graph construction complete.
+[0] Master distribution time : 0.073099 seconds to read 88 bytes in 11 seeks (0.00120385 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.000464 seconds to read 36148 bytes (77.9052 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 9.6e-05 seconds to read 36148 bytes (376.542 MBPS)
+[0] Graph construction complete.
+[1] InitializeGraph::go called
+[0] InitializeGraph::go called
+[0] PageRank::go run 0 called
+[1] PageRank::go run 0 called
+Max rank is 1.20549
+Min rank is 0.15
+Rank sum is 187.106
+Residual sum is 0
+# nodes with residual over 1e-06 (tolerance) is 0
+Max residual is 1.17549e-38
+Min residual is 0
+[0] PageRank::go run 1 called
+[1] PageRank::go run 1 called
+Max rank is 1.20549
+Min rank is 0.15
+Rank sum is 187.106
+Residual sum is 0
+# nodes with residual over 1e-06 (tolerance) is 0
+Max residual is 1.17549e-38
+Min residual is 0
+[0] PageRank::go run 2 called
+[1] PageRank::go run 2 called
+Max rank is 1.20549
+Min rank is 0.15
+Rank sum is 187.106
+Residual sum is 0
+# nodes with residual over 1e-06 (tolerance) is 0
+Max residual is 1.17549e-38
+Min residual is 0
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, SINGLE, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, ThreadValues, 100
+STAT, 0, DistBench, GraphConstructTime, HMAX, 86
+STAT, 0, DistBench, GraphConstructTime, TMAX, 86
+STAT, 0, DistBench, GraphConstructTime, ThreadValues, 86
+STAT, 1, DistBench, GraphConstructTime, TMAX, 47
+STAT, 1, DistBench, GraphConstructTime, ThreadValues, 47
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_0, HSUM, 1
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_0, TSUM, 0
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_0, ThreadValues, 0
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_0, TSUM, 1
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_0, ThreadValues, 1
+STAT, 0, Gluon, Sync_InitializeGraph_0, HMAX, 77
+STAT, 0, Gluon, Sync_InitializeGraph_0, TMAX, 77
+STAT, 0, Gluon, Sync_InitializeGraph_0, ThreadValues, 77
+STAT, 0, Gluon, ReduceSendBytes_PageRank_0, HSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_0, TSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_0, ThreadValues, 12896
+STAT, 0, Gluon, ReduceNumMessages_PageRank_0, HSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_0, TSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_0, ThreadValues, 76
+STAT, 1, Gluon, ReduceNumMessages_PageRank_0, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_PageRank_0, ThreadValues, 0
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_1, HSUM, 1
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_1, TSUM, 0
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_1, ThreadValues, 0
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_1, TSUM, 1
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_1, ThreadValues, 1
+STAT, 0, Gluon, Sync_InitializeGraph_1, HMAX, 442
+STAT, 0, Gluon, Sync_InitializeGraph_1, TMAX, 442
+STAT, 0, Gluon, Sync_InitializeGraph_1, ThreadValues, 442
+STAT, 0, Gluon, ReduceSendBytes_PageRank_1, HSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_1, TSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_1, ThreadValues, 12896
+STAT, 0, Gluon, ReduceNumMessages_PageRank_1, HSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_1, TSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_1, ThreadValues, 76
+STAT, 1, Gluon, ReduceNumMessages_PageRank_1, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_PageRank_1, ThreadValues, 0
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_2, HSUM, 1
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_2, TSUM, 0
+STAT, 0, Gluon, BroadcastNumMessages_InitializeGraph_2, ThreadValues, 0
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_2, TSUM, 1
+STAT, 1, Gluon, BroadcastNumMessages_InitializeGraph_2, ThreadValues, 1
+STAT, 0, Gluon, Sync_InitializeGraph_2, HMAX, 73
+STAT, 0, Gluon, Sync_InitializeGraph_2, TMAX, 73
+STAT, 0, Gluon, Sync_InitializeGraph_2, ThreadValues, 73
+STAT, 0, Gluon, ReduceSendBytes_PageRank_2, HSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_2, TSUM, 12896
+STAT, 0, Gluon, ReduceSendBytes_PageRank_2, ThreadValues, 12896
+STAT, 0, Gluon, ReduceNumMessages_PageRank_2, HSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_2, TSUM, 76
+STAT, 0, Gluon, ReduceNumMessages_PageRank_2, ThreadValues, 76
+STAT, 1, Gluon, ReduceNumMessages_PageRank_2, TSUM, 0
+STAT, 1, Gluon, ReduceNumMessages_PageRank_2, ThreadValues, 0
+STAT, 0, Gluon, BroadcastSendBytes_InitializeGraph_0, HSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_0, TSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_0, ThreadValues, 916
+STAT, 0, Gluon, Sync_PageRank_0, HMAX, 55644
+STAT, 1, Gluon, Sync_PageRank_0, TMAX, 55644
+STAT, 1, Gluon, Sync_PageRank_0, ThreadValues, 55644
+STAT, 0, Gluon, BroadcastSendBytes_InitializeGraph_1, HSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_1, TSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_1, ThreadValues, 916
+STAT, 0, Gluon, Sync_PageRank_1, HMAX, 50774
+STAT, 1, Gluon, Sync_PageRank_1, TMAX, 50774
+STAT, 1, Gluon, Sync_PageRank_1, ThreadValues, 50774
+STAT, 0, Gluon, BroadcastSendBytes_InitializeGraph_2, HSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_2, TSUM, 916
+STAT, 1, Gluon, BroadcastSendBytes_InitializeGraph_2, ThreadValues, 916
+STAT, 0, Gluon, Sync_PageRank_2, HMAX, 48477
+STAT, 1, Gluon, Sync_PageRank_2, TMAX, 48477
+STAT, 1, Gluon, Sync_PageRank_2, ThreadValues, 48477
+STAT, 0, PageRank, NumWorkItems_0, HSUM, 1245184
+STAT, 0, PageRank, NumWorkItems_0, TSUM, 686660
+STAT, 0, PageRank, NumWorkItems_0, ThreadValues, 686660
+STAT, 1, PageRank, NumWorkItems_0, TSUM, 558524
+STAT, 1, PageRank, NumWorkItems_0, ThreadValues, 558524
+STAT, 0, PageRank, NumIterations_0, HMAX, 76
+STAT, 0, PageRank, NumIterations_0, TMAX, 76
+STAT, 0, PageRank, NumIterations_0, ThreadValues, 76
+STAT, 1, PageRank, NumIterations_0, TMAX, 76
+STAT, 1, PageRank, NumIterations_0, ThreadValues, 76
+STAT, 0, PageRank, Timer_0, HMAX, 68320
+STAT, 0, PageRank, Timer_0, TMAX, 68320
+STAT, 0, PageRank, Timer_0, ThreadValues, 68320
+STAT, 1, PageRank, Timer_0, TMAX, 68275
+STAT, 1, PageRank, Timer_0, ThreadValues, 68275
+STAT, 0, PageRank, NumWorkItems_1, HSUM, 1245184
+STAT, 0, PageRank, NumWorkItems_1, TSUM, 686660
+STAT, 0, PageRank, NumWorkItems_1, ThreadValues, 686660
+STAT, 1, PageRank, NumWorkItems_1, TSUM, 558524
+STAT, 1, PageRank, NumWorkItems_1, ThreadValues, 558524
+STAT, 0, PageRank, NumIterations_1, HMAX, 76
+STAT, 0, PageRank, NumIterations_1, TMAX, 76
+STAT, 0, PageRank, NumIterations_1, ThreadValues, 76
+STAT, 1, PageRank, NumIterations_1, TMAX, 76
+STAT, 1, PageRank, NumIterations_1, ThreadValues, 76
+STAT, 0, PageRank, Timer_1, HMAX, 64383
+STAT, 0, PageRank, Timer_1, TMAX, 64383
+STAT, 0, PageRank, Timer_1, ThreadValues, 64383
+STAT, 1, PageRank, Timer_1, TMAX, 63561
+STAT, 1, PageRank, Timer_1, ThreadValues, 63561
+STAT, 0, PageRank, NumWorkItems_2, HSUM, 1245184
+STAT, 0, PageRank, NumWorkItems_2, TSUM, 686660
+STAT, 0, PageRank, NumWorkItems_2, ThreadValues, 686660
+STAT, 1, PageRank, NumWorkItems_2, TSUM, 558524
+STAT, 1, PageRank, NumWorkItems_2, ThreadValues, 558524
+STAT, 0, PageRank, NumIterations_2, HMAX, 76
+STAT, 0, PageRank, NumIterations_2, TMAX, 76
+STAT, 0, PageRank, NumIterations_2, ThreadValues, 76
+STAT, 1, PageRank, NumIterations_2, TMAX, 76
+STAT, 1, PageRank, NumIterations_2, ThreadValues, 76
+STAT, 0, PageRank, Timer_2, HMAX, 62114
+STAT, 0, PageRank, Timer_2, TMAX, 62114
+STAT, 0, PageRank, Timer_2, ThreadValues, 62114
+STAT, 1, PageRank, Timer_2, TMAX, 61906
+STAT, 1, PageRank, Timer_2, ThreadValues, 61906
+STAT, 0, PageRank, TimerTotal, HMAX, 196243
+STAT, 0, PageRank, TimerTotal, TMAX, 196229
+STAT, 0, PageRank, TimerTotal, ThreadValues, 196229
+STAT, 1, PageRank, TimerTotal, TMAX, 196243
+STAT, 1, PageRank, TimerTotal, ThreadValues, 196243
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 1.7666
+STAT, 0, Gluon, ReplicationFactor, SINGLE, 1.7666
+STAT, 0, Gluon, ReplicationFactor, ThreadValues, 1.7666
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../pagerank/pagerank-pull-dist ../rmat10.gr -graphTranspose=../rmat10.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, SINGLE, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../pagerank/pagerank-pull-dist ../rmat10.gr -graphTranspose=../rmat10.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, ThreadValues, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../pagerank/pagerank-pull-dist ../rmat10.gr -graphTranspose=../rmat10.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Threads, SINGLE, 1
+PARAM, 0, DistBench, Threads, ThreadValues, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 2
+PARAM, 0, DistBench, Hosts, SINGLE, 2
+PARAM, 0, DistBench, Hosts, ThreadValues, 2
+PARAM, 0, DistBench, Runs, HOST_0, 3
+PARAM, 0, DistBench, Runs, SINGLE, 3
+PARAM, 0, DistBench, Runs, ThreadValues, 3
+PARAM, 0, DistBench, Run_UUID, HOST_0, 734fbafb-c003-45d0-8f04-20f8e225b447
+PARAM, 0, DistBench, Run_UUID, SINGLE, 734fbafb-c003-45d0-8f04-20f8e225b447
+PARAM, 0, DistBench, Run_UUID, ThreadValues, 734fbafb-c003-45d0-8f04-20f8e225b447
+PARAM, 0, DistBench, Input, HOST_0, ../rmat10.gr
+PARAM, 0, DistBench, Input, SINGLE, ../rmat10.gr
+PARAM, 0, DistBench, Input, ThreadValues, ../rmat10.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, PartitionScheme, SINGLE, oec
+PARAM, 0, DistBench, PartitionScheme, ThreadValues, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, PageRank, Max Iterations, HOST_0, 1000
+PARAM, 0, PageRank, Max Iterations, SINGLE, 1000
+PARAM, 0, PageRank, Max Iterations, ThreadValues, 1000
+PARAM, 0, PageRank, Tolerance, HOST_0, 1e-06
+PARAM, 0, PageRank, Tolerance, SINGLE, 1e-06
+PARAM, 0, PageRank, Tolerance, ThreadValues, 1e-06
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0
+PARAM, 0, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 0, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 1, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 1, dGraph, GenericPartitioner, ThreadValues, 0

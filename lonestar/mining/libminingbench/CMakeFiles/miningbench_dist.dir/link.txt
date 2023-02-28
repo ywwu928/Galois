@@ -1,0 +1,2 @@
+/usr/bin/ar qc libminingbench_dist.a CMakeFiles/miningbench_dist.dir/src/Start.cpp.o
+/usr/bin/ranlib libminingbench_dist.a

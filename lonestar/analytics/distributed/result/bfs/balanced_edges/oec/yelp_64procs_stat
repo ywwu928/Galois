@@ -1,0 +1,28 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 1407
+STAT, 0, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, HMAX, 1397
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 7
+STAT, 0, TRANSPOSE_EDGEINTDATA_INC, Time, HMAX, 1
+STAT, 0, TRANSPOSE_EDGEDST, Time, HMAX, 1395
+STAT, 0, DistBench, GraphConstructTime, HMAX, 8415
+STAT, 0, BFS_0, Time, HMAX, 9705
+STAT, 0, Gluon, ReduceSendBytes_BFS_0, HSUM, 39622752
+STAT, 0, Gluon, ReduceNumMessages_BFS_0, HSUM, 44352
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 678662
+STAT, 0, BFS, NumWorkItems_0, HSUM, 9604737
+STAT, 0, BFS, NumIterations_0, HOST_0, 11
+STAT, 0, BFS, Timer_0, HMAX, 1451742
+STAT, 0, BFS, TimerTotal, HMAX, 1742897
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 11.148
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/yelp.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/yelp.tgr -startNode=662666 -t=2 --runs=1 -partition=oec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/mirror_read/yelp_64procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 64
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, 218907be-d83b-40e9-8ae6-c95e04f86d3b
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/yelp.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c308-020.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 662666
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

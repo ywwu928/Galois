@@ -1,0 +1,22 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, DistBench, GraphConstructTime, HMAX, 443
+STAT, 0, Gluon, BroadcastSendBytes_BFS_0, HSUM, 99800
+STAT, 0, Gluon, BroadcastNumMessages_BFS_0, HSUM, 60
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 10564
+STAT, 0, BFS, NumWorkItems_0, HSUM, 12321
+STAT, 0, BFS, NumIterations_0, HOST_0, 5
+STAT, 0, BFS, Timer_0, HMAX, 18225
+STAT, 0, BFS, TimerTotal, HMAX, 20918
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 2.45217
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/rmat14.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/rmat14.tgr -t=32 --runs=1 -partition=iec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/iec/rmat14_4procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 4
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, ddc68e56-b785-4b70-a117-0791bc95ed1e
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/rmat14.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, iec
+PARAM, 0, DistBench, Hostname, HOST_0, c313-072.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 0
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

@@ -1,0 +1,40 @@
+### flickr ###
+Total access: 4945030 4945030 4945030 4945030 -1 -1 
+Mirror access: 3918260 4137640 4246290 4301640 -1 -1 
+Mirror write access: 0 0 0 0 -1 -1 
+
+### yelp ###
+Total access: 146716660 146716660 146716660 146716660 161388326 -1 
+Mirror access: 115471000 123760640 128021800 130176340 144389960 -1 
+Mirror write access: 0 0 0 0 0 -1 
+
+### rmat15 ###
+Total access: 2785045 2785045 2785045 2785045 -1 -1 
+Mirror access: 2322885 2477990 2550535 2586120 -1 -1 
+Mirror write access: 0 0 0 0 -1 -1 
+
+### rmat26 ###
+Total access: 7985935622 7985935622 7985935622 7985935622 7985935622 -1 
+Mirror access: 6642283431 7093314494 7306476688 7412459229 7464565010 -1 
+Mirror write access: 0 0 0 0 0 -1 
+
+### rmat28 ###
+Total access: -1 -1 -1 -1 31943805936 -1 
+Mirror access: -1 -1 -1 -1 29857798474 -1 
+Mirror write access: -1 -1 -1 -1 0 -1 
+
+### data_01 ###
+Total access: 1617234 1617234 1617234 1617234 -1 -1 
+Mirror access: 831375 869022 886677 895206 -1 -1 
+Mirror write access: 0 0 0 0 -1 -1 
+
+### data_10 ###
+Total access: 14483124 14483124 14483124 14483124 9655416 -1 
+Mirror access: 8431674 8787555 8961147 9046179 6059324 -1 
+Mirror write access: 0 0 0 0 0 -1 
+
+### data_200 ###
+Total access: 266552658 266552658 266552658 266552658 177701772 -1 
+Mirror access: 177251523 186717867 191045868 195441225 131837708 -1 
+Mirror write access: 0 0 0 0 0 -1 
+

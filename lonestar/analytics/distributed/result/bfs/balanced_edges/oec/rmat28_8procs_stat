@@ -1,0 +1,34 @@
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, EdgeLoading, HMAX, 1206093
+STAT, 0, dGraph_Generic, TIMER_GRAPH_TRANSPOSE, HMAX, 708932
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, EdgeInspection, HMAX, 184322
+STAT, 0, dGraph_Generic, GraphReading, HMAX, 70150
+STAT, 0, TRANSPOSE_EDGEINTDATA_COPY, Time, HMAX, 1758
+STAT, 0, TRANSPOSE_EDGEINTDATA_INC, Time, HMAX, 149609
+STAT, 0, TRANSPOSE_EDGEINTDATA_SET, Time, HMAX, 1062
+STAT, 0, TRANSPOSE_EDGEINTDATA_TEMP, Time, HMAX, 1226
+STAT, 0, TRANSPOSE_EDGEDST, Time, HMAX, 571840
+STAT, 0, DistBench, GraphConstructTime, HMAX, 2198840
+STAT, 0, InitializeGraph_0, Time, HMAX, 1320
+STAT, 0, BFS_0, Time, HMAX, 2942421
+STAT, 0, Gluon, ReduceSendBytes_BFS_0, HSUM, 1414713696
+STAT, 0, Gluon, ReduceNumMessages_BFS_0, HSUM, 336
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 2171090
+STAT, 0, BFS, NumWorkItems_0, HSUM, 427366997
+STAT, 0, BFS, NumIterations_0, HOST_0, 6
+STAT, 0, BFS, Timer_0, HMAX, 2984488
+STAT, 0, BFS, TimerTotal, HMAX, 5226829
+STAT, 0, BFSSanityCheck, Time, HMAX, 3247
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 2.26186
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-pull-dist /work/08474/ywwu/ls6/graphs/galois/rmat28.gr -graphTranspose=/work/08474/ywwu/ls6/graphs/galois/rmat28.tgr -t=16 --runs=1 -partition=oec --exec=Sync -statFile=/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/mirror_read/rmat28_8procs_stat
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 8
+PARAM, 0, DistBench, Runs, HOST_0, 1
+PARAM, 0, DistBench, Run_UUID, HOST_0, ddcf1cc0-7624-469b-b2f9-46c611c411b0
+PARAM, 0, DistBench, Input, HOST_0, /work/08474/ywwu/ls6/graphs/galois/rmat28.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c313-093.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 0
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0

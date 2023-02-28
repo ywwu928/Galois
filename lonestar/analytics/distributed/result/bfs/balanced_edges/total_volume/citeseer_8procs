@@ -1,0 +1,448 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS pull - Distributed Heterogeneous
+BFS pull on Distributed Galois.
+
+[6] Master distribution time : 0.331392 seconds to read 224 bytes in 28 seeks (0.000675937 MBPS)
+[6] Starting graph reading.
+[6] Reading graph complete.
+[6] Edge inspection time: 0.000382 seconds to read 10888 bytes (28.5026 MBPS)
+[6] Edge loading time: 1.3e-05 seconds to read 10888 bytes (837.538 MBPS)
+[6] Graph construction complete.
+[3] Master distribution time : 0.332498 seconds to read 232 bytes in 28 seeks (0.000697749 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.000566 seconds to read 7128 bytes (12.5936 MBPS)
+[3] Edge loading time: 1.1e-05 seconds to read 7128 bytes (648 MBPS)
+[3] Graph construction complete.
+[7] Master distribution time : 0.517361 seconds to read 216 bytes in 26 seeks (0.000417503 MBPS)
+[7] Starting graph reading.
+[7] Reading graph complete.
+[7] Edge inspection time: 0.000423 seconds to read 113440 bytes (268.18 MBPS)
+[7] Edge loading time: 3.8e-05 seconds to read 113440 bytes (2985.26 MBPS)
+[7] Graph construction complete.
+[1] Master distribution time : 0.651757 seconds to read 224 bytes in 28 seeks (0.000343686 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.000394 seconds to read 6188 bytes (15.7056 MBPS)
+[1] Edge loading time: 1.1e-05 seconds to read 6188 bytes (562.545 MBPS)
+[1] Graph construction complete.
+[4] Master distribution time : 0.518418 seconds to read 224 bytes in 26 seeks (0.000432084 MBPS)
+[4] Starting graph reading.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.000361 seconds to read 6876 bytes (19.0471 MBPS)
+[4] Edge loading time: 1.1e-05 seconds to read 6876 bytes (625.091 MBPS)
+[4] Graph construction complete.
+[0] Master distribution time : 0.642311 seconds to read 112 bytes in 14 seeks (0.00017437 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.000364 seconds to read 5692 bytes (15.6374 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 1.1e-05 seconds to read 5692 bytes (517.455 MBPS)
+[0] Graph construction complete.
+[5] Master distribution time : 0.422359 seconds to read 224 bytes in 28 seeks (0.000530355 MBPS)
+[5] Starting graph reading.
+[5] Reading graph complete.
+[5] Edge inspection time: 0.000365 seconds to read 8296 bytes (22.7288 MBPS)
+[5] Edge loading time: 1.1e-05 seconds to read 8296 bytes (754.182 MBPS)
+[5] Graph construction complete.
+[2] Master distribution time : 0.741545 seconds to read 224 bytes in 28 seeks (0.000302072 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.000391 seconds to read 5816 bytes (14.8747 MBPS)
+[2] Edge loading time: 1.1e-05 seconds to read 5816 bytes (528.727 MBPS)
+[2] Graph construction complete.
+[6] InitializeGraph::go called
+[2] InitializeGraph::go called
+[4] InitializeGraph::go called
+[5] InitializeGraph::go called
+[7] InitializeGraph::go called
+[3] InitializeGraph::go called
+[0] InitializeGraph::go called
+[1] InitializeGraph::go called
+[3] BFS::go run 0 called
+[5] BFS::go run 0 called
+[7] BFS::go run 0 called
+[1] BFS::go run 0 called
+[4] BFS::go run 0 called
+[0] BFS::go run 0 called
+[6] BFS::go run 0 called
+[2] BFS::go run 0 called
+Number of nodes visited from source 0 is 2
+Max distance from source 0 is 1
+[6] BFS::go run 1 called
+[0] BFS::go run 1 called
+[4] BFS::go run 1 called
+[2] BFS::go run 1 called
+[7] BFS::go run 1 called
+[1] BFS::go run 1 called
+[3] BFS::go run 1 called
+[5] BFS::go run 1 called
+Number of nodes visited from source 0 is 2
+Max distance from source 0 is 1
+[6] BFS::go run 2 called
+[5] BFS::go run 2 called
+[4] BFS::go run 2 called
+[2] BFS::go run 2 called
+[7] BFS::go run 2 called
+[3] BFS::go run 2 called
+[0] BFS::go run 2 called
+[1] BFS::go run 2 called
+Number of nodes visited from source 0 is 2
+Max distance from source 0 is 1
+STAT_TYPE, HOST_ID, REGION, CATEGORY, TOTAL_TYPE, TOTAL
+STAT, 0, dGraph_Generic, CuSPStateRounds, HOST_0, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, SINGLE, 100
+STAT, 0, dGraph_Generic, CuSPStateRounds, ThreadValues, 100
+STAT, 0, DistBench, GraphConstructTime, HMAX, 753
+STAT, 0, DistBench, GraphConstructTime, TMAX, 678
+STAT, 0, DistBench, GraphConstructTime, ThreadValues, 678
+STAT, 1, DistBench, GraphConstructTime, TMAX, 663
+STAT, 1, DistBench, GraphConstructTime, ThreadValues, 663
+STAT, 2, DistBench, GraphConstructTime, TMAX, 753
+STAT, 2, DistBench, GraphConstructTime, ThreadValues, 753
+STAT, 3, DistBench, GraphConstructTime, TMAX, 333
+STAT, 3, DistBench, GraphConstructTime, ThreadValues, 333
+STAT, 4, DistBench, GraphConstructTime, TMAX, 519
+STAT, 4, DistBench, GraphConstructTime, ThreadValues, 519
+STAT, 5, DistBench, GraphConstructTime, TMAX, 731
+STAT, 5, DistBench, GraphConstructTime, ThreadValues, 731
+STAT, 6, DistBench, GraphConstructTime, TMAX, 332
+STAT, 6, DistBench, GraphConstructTime, ThreadValues, 332
+STAT, 7, DistBench, GraphConstructTime, TMAX, 518
+STAT, 7, DistBench, GraphConstructTime, ThreadValues, 518
+STAT, 0, Gluon, ReduceSendBytes_BFS_0, HSUM, 256
+STAT, 0, Gluon, ReduceSendBytes_BFS_0, TSUM, 88
+STAT, 0, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 88
+STAT, 1, Gluon, ReduceSendBytes_BFS_0, TSUM, 48
+STAT, 1, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 48
+STAT, 2, Gluon, ReduceSendBytes_BFS_0, TSUM, 40
+STAT, 2, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 40
+STAT, 3, Gluon, ReduceSendBytes_BFS_0, TSUM, 32
+STAT, 3, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 32
+STAT, 4, Gluon, ReduceSendBytes_BFS_0, TSUM, 24
+STAT, 4, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 24
+STAT, 5, Gluon, ReduceSendBytes_BFS_0, TSUM, 16
+STAT, 5, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 16
+STAT, 6, Gluon, ReduceSendBytes_BFS_0, TSUM, 8
+STAT, 6, Gluon, ReduceSendBytes_BFS_0, ThreadValues, 8
+STAT, 0, Gluon, ReduceNumMessages_BFS_0, HSUM, 56
+STAT, 0, Gluon, ReduceNumMessages_BFS_0, TSUM, 14
+STAT, 0, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 14
+STAT, 1, Gluon, ReduceNumMessages_BFS_0, TSUM, 12
+STAT, 1, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 12
+STAT, 2, Gluon, ReduceNumMessages_BFS_0, TSUM, 10
+STAT, 2, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 10
+STAT, 3, Gluon, ReduceNumMessages_BFS_0, TSUM, 8
+STAT, 3, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 8
+STAT, 4, Gluon, ReduceNumMessages_BFS_0, TSUM, 6
+STAT, 4, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 6
+STAT, 5, Gluon, ReduceNumMessages_BFS_0, TSUM, 4
+STAT, 5, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 4
+STAT, 6, Gluon, ReduceNumMessages_BFS_0, TSUM, 2
+STAT, 6, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 2
+STAT, 7, Gluon, ReduceNumMessages_BFS_0, TSUM, 0
+STAT, 7, Gluon, ReduceNumMessages_BFS_0, ThreadValues, 0
+STAT, 0, Gluon, ReduceSendBytes_BFS_1, HSUM, 256
+STAT, 0, Gluon, ReduceSendBytes_BFS_1, TSUM, 88
+STAT, 0, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 88
+STAT, 1, Gluon, ReduceSendBytes_BFS_1, TSUM, 48
+STAT, 1, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 48
+STAT, 2, Gluon, ReduceSendBytes_BFS_1, TSUM, 40
+STAT, 2, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 40
+STAT, 3, Gluon, ReduceSendBytes_BFS_1, TSUM, 32
+STAT, 3, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 32
+STAT, 4, Gluon, ReduceSendBytes_BFS_1, TSUM, 24
+STAT, 4, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 24
+STAT, 5, Gluon, ReduceSendBytes_BFS_1, TSUM, 16
+STAT, 5, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 16
+STAT, 6, Gluon, ReduceSendBytes_BFS_1, TSUM, 8
+STAT, 6, Gluon, ReduceSendBytes_BFS_1, ThreadValues, 8
+STAT, 0, Gluon, ReduceNumMessages_BFS_1, HSUM, 56
+STAT, 0, Gluon, ReduceNumMessages_BFS_1, TSUM, 14
+STAT, 0, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 14
+STAT, 1, Gluon, ReduceNumMessages_BFS_1, TSUM, 12
+STAT, 1, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 12
+STAT, 2, Gluon, ReduceNumMessages_BFS_1, TSUM, 10
+STAT, 2, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 10
+STAT, 3, Gluon, ReduceNumMessages_BFS_1, TSUM, 8
+STAT, 3, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 8
+STAT, 4, Gluon, ReduceNumMessages_BFS_1, TSUM, 6
+STAT, 4, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 6
+STAT, 5, Gluon, ReduceNumMessages_BFS_1, TSUM, 4
+STAT, 5, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 4
+STAT, 6, Gluon, ReduceNumMessages_BFS_1, TSUM, 2
+STAT, 6, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 2
+STAT, 7, Gluon, ReduceNumMessages_BFS_1, TSUM, 0
+STAT, 7, Gluon, ReduceNumMessages_BFS_1, ThreadValues, 0
+STAT, 0, Gluon, ReduceSendBytes_BFS_2, HSUM, 256
+STAT, 0, Gluon, ReduceSendBytes_BFS_2, TSUM, 88
+STAT, 0, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 88
+STAT, 1, Gluon, ReduceSendBytes_BFS_2, TSUM, 48
+STAT, 1, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 48
+STAT, 2, Gluon, ReduceSendBytes_BFS_2, TSUM, 40
+STAT, 2, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 40
+STAT, 3, Gluon, ReduceSendBytes_BFS_2, TSUM, 32
+STAT, 3, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 32
+STAT, 4, Gluon, ReduceSendBytes_BFS_2, TSUM, 24
+STAT, 4, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 24
+STAT, 5, Gluon, ReduceSendBytes_BFS_2, TSUM, 16
+STAT, 5, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 16
+STAT, 6, Gluon, ReduceSendBytes_BFS_2, TSUM, 8
+STAT, 6, Gluon, ReduceSendBytes_BFS_2, ThreadValues, 8
+STAT, 0, Gluon, ReduceNumMessages_BFS_2, HSUM, 56
+STAT, 0, Gluon, ReduceNumMessages_BFS_2, TSUM, 14
+STAT, 0, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 14
+STAT, 1, Gluon, ReduceNumMessages_BFS_2, TSUM, 12
+STAT, 1, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 12
+STAT, 2, Gluon, ReduceNumMessages_BFS_2, TSUM, 10
+STAT, 2, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 10
+STAT, 3, Gluon, ReduceNumMessages_BFS_2, TSUM, 8
+STAT, 3, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 8
+STAT, 4, Gluon, ReduceNumMessages_BFS_2, TSUM, 6
+STAT, 4, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 6
+STAT, 5, Gluon, ReduceNumMessages_BFS_2, TSUM, 4
+STAT, 5, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 4
+STAT, 6, Gluon, ReduceNumMessages_BFS_2, TSUM, 2
+STAT, 6, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 2
+STAT, 7, Gluon, ReduceNumMessages_BFS_2, TSUM, 0
+STAT, 7, Gluon, ReduceNumMessages_BFS_2, ThreadValues, 0
+STAT, 0, Gluon, Sync_BFS_0, HMAX, 8072
+STAT, 1, Gluon, Sync_BFS_0, TMAX, 5137
+STAT, 1, Gluon, Sync_BFS_0, ThreadValues, 5137
+STAT, 2, Gluon, Sync_BFS_0, TMAX, 5494
+STAT, 2, Gluon, Sync_BFS_0, ThreadValues, 5494
+STAT, 3, Gluon, Sync_BFS_0, TMAX, 8072
+STAT, 3, Gluon, Sync_BFS_0, ThreadValues, 8072
+STAT, 4, Gluon, Sync_BFS_0, TMAX, 7058
+STAT, 4, Gluon, Sync_BFS_0, ThreadValues, 7058
+STAT, 5, Gluon, Sync_BFS_0, TMAX, 5748
+STAT, 5, Gluon, Sync_BFS_0, ThreadValues, 5748
+STAT, 6, Gluon, Sync_BFS_0, TMAX, 6908
+STAT, 6, Gluon, Sync_BFS_0, ThreadValues, 6908
+STAT, 7, Gluon, Sync_BFS_0, TMAX, 7816
+STAT, 7, Gluon, Sync_BFS_0, ThreadValues, 7816
+STAT, 0, Gluon, Sync_BFS_1, HMAX, 13151
+STAT, 1, Gluon, Sync_BFS_1, TMAX, 12073
+STAT, 1, Gluon, Sync_BFS_1, ThreadValues, 12073
+STAT, 2, Gluon, Sync_BFS_1, TMAX, 9161
+STAT, 2, Gluon, Sync_BFS_1, ThreadValues, 9161
+STAT, 3, Gluon, Sync_BFS_1, TMAX, 13144
+STAT, 3, Gluon, Sync_BFS_1, ThreadValues, 13144
+STAT, 4, Gluon, Sync_BFS_1, TMAX, 9227
+STAT, 4, Gluon, Sync_BFS_1, ThreadValues, 9227
+STAT, 5, Gluon, Sync_BFS_1, TMAX, 13045
+STAT, 5, Gluon, Sync_BFS_1, ThreadValues, 13045
+STAT, 6, Gluon, Sync_BFS_1, TMAX, 9299
+STAT, 6, Gluon, Sync_BFS_1, ThreadValues, 9299
+STAT, 7, Gluon, Sync_BFS_1, TMAX, 13151
+STAT, 7, Gluon, Sync_BFS_1, ThreadValues, 13151
+STAT, 0, Gluon, Sync_BFS_2, HMAX, 16219
+STAT, 1, Gluon, Sync_BFS_2, TMAX, 8213
+STAT, 1, Gluon, Sync_BFS_2, ThreadValues, 8213
+STAT, 2, Gluon, Sync_BFS_2, TMAX, 7755
+STAT, 2, Gluon, Sync_BFS_2, ThreadValues, 7755
+STAT, 3, Gluon, Sync_BFS_2, TMAX, 15794
+STAT, 3, Gluon, Sync_BFS_2, ThreadValues, 15794
+STAT, 4, Gluon, Sync_BFS_2, TMAX, 15656
+STAT, 4, Gluon, Sync_BFS_2, ThreadValues, 15656
+STAT, 5, Gluon, Sync_BFS_2, TMAX, 16219
+STAT, 5, Gluon, Sync_BFS_2, ThreadValues, 16219
+STAT, 6, Gluon, Sync_BFS_2, TMAX, 11289
+STAT, 6, Gluon, Sync_BFS_2, ThreadValues, 11289
+STAT, 7, Gluon, Sync_BFS_2, TMAX, 16030
+STAT, 7, Gluon, Sync_BFS_2, ThreadValues, 16030
+STAT, 0, BFS, NumWorkItems_0, HSUM, 1
+STAT, 0, BFS, NumWorkItems_0, TSUM, 1
+STAT, 0, BFS, NumWorkItems_0, ThreadValues, 1
+STAT, 1, BFS, NumWorkItems_0, TSUM, 0
+STAT, 1, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 2, BFS, NumWorkItems_0, TSUM, 0
+STAT, 2, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 3, BFS, NumWorkItems_0, TSUM, 0
+STAT, 3, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 4, BFS, NumWorkItems_0, TSUM, 0
+STAT, 4, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 5, BFS, NumWorkItems_0, TSUM, 0
+STAT, 5, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 6, BFS, NumWorkItems_0, TSUM, 0
+STAT, 6, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 7, BFS, NumWorkItems_0, TSUM, 0
+STAT, 7, BFS, NumWorkItems_0, ThreadValues, 0
+STAT, 0, BFS, NumIterations_0, HOST_0, 2
+STAT, 0, BFS, NumIterations_0, SINGLE, 2
+STAT, 0, BFS, NumIterations_0, ThreadValues, 2
+STAT, 0, BFS, Timer_0, HMAX, 11698
+STAT, 0, BFS, Timer_0, TMAX, 10149
+STAT, 0, BFS, Timer_0, ThreadValues, 10149
+STAT, 1, BFS, Timer_0, TMAX, 11698
+STAT, 1, BFS, Timer_0, ThreadValues, 11698
+STAT, 2, BFS, Timer_0, TMAX, 10181
+STAT, 2, BFS, Timer_0, ThreadValues, 10181
+STAT, 3, BFS, Timer_0, TMAX, 11593
+STAT, 3, BFS, Timer_0, ThreadValues, 11593
+STAT, 4, BFS, Timer_0, TMAX, 10192
+STAT, 4, BFS, Timer_0, ThreadValues, 10192
+STAT, 5, BFS, Timer_0, TMAX, 10942
+STAT, 5, BFS, Timer_0, ThreadValues, 10942
+STAT, 6, BFS, Timer_0, TMAX, 11438
+STAT, 6, BFS, Timer_0, ThreadValues, 11438
+STAT, 7, BFS, Timer_0, TMAX, 10907
+STAT, 7, BFS, Timer_0, ThreadValues, 10907
+STAT, 0, BFS, NumWorkItems_1, HSUM, 1
+STAT, 0, BFS, NumWorkItems_1, TSUM, 1
+STAT, 0, BFS, NumWorkItems_1, ThreadValues, 1
+STAT, 1, BFS, NumWorkItems_1, TSUM, 0
+STAT, 1, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 2, BFS, NumWorkItems_1, TSUM, 0
+STAT, 2, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 3, BFS, NumWorkItems_1, TSUM, 0
+STAT, 3, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 4, BFS, NumWorkItems_1, TSUM, 0
+STAT, 4, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 5, BFS, NumWorkItems_1, TSUM, 0
+STAT, 5, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 6, BFS, NumWorkItems_1, TSUM, 0
+STAT, 6, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 7, BFS, NumWorkItems_1, TSUM, 0
+STAT, 7, BFS, NumWorkItems_1, ThreadValues, 0
+STAT, 0, BFS, NumIterations_1, HOST_0, 2
+STAT, 0, BFS, NumIterations_1, SINGLE, 2
+STAT, 0, BFS, NumIterations_1, ThreadValues, 2
+STAT, 0, BFS, Timer_1, HMAX, 21928
+STAT, 0, BFS, Timer_1, TMAX, 21872
+STAT, 0, BFS, Timer_1, ThreadValues, 21872
+STAT, 1, BFS, Timer_1, TMAX, 20923
+STAT, 1, BFS, Timer_1, ThreadValues, 20923
+STAT, 2, BFS, Timer_1, TMAX, 21455
+STAT, 2, BFS, Timer_1, ThreadValues, 21455
+STAT, 3, BFS, Timer_1, TMAX, 20821
+STAT, 3, BFS, Timer_1, ThreadValues, 20821
+STAT, 4, BFS, Timer_1, TMAX, 21928
+STAT, 4, BFS, Timer_1, ThreadValues, 21928
+STAT, 5, BFS, Timer_1, TMAX, 20808
+STAT, 5, BFS, Timer_1, ThreadValues, 20808
+STAT, 6, BFS, Timer_1, TMAX, 21604
+STAT, 6, BFS, Timer_1, ThreadValues, 21604
+STAT, 7, BFS, Timer_1, TMAX, 20946
+STAT, 7, BFS, Timer_1, ThreadValues, 20946
+STAT, 0, BFS, NumWorkItems_2, HSUM, 1
+STAT, 0, BFS, NumWorkItems_2, TSUM, 1
+STAT, 0, BFS, NumWorkItems_2, ThreadValues, 1
+STAT, 1, BFS, NumWorkItems_2, TSUM, 0
+STAT, 1, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 2, BFS, NumWorkItems_2, TSUM, 0
+STAT, 2, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 3, BFS, NumWorkItems_2, TSUM, 0
+STAT, 3, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 4, BFS, NumWorkItems_2, TSUM, 0
+STAT, 4, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 5, BFS, NumWorkItems_2, TSUM, 0
+STAT, 5, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 6, BFS, NumWorkItems_2, TSUM, 0
+STAT, 6, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 7, BFS, NumWorkItems_2, TSUM, 0
+STAT, 7, BFS, NumWorkItems_2, ThreadValues, 0
+STAT, 0, BFS, NumIterations_2, HOST_0, 2
+STAT, 0, BFS, NumIterations_2, SINGLE, 2
+STAT, 0, BFS, NumIterations_2, ThreadValues, 2
+STAT, 0, BFS, Timer_2, HMAX, 19965
+STAT, 0, BFS, Timer_2, TMAX, 19832
+STAT, 0, BFS, Timer_2, ThreadValues, 19832
+STAT, 1, BFS, Timer_2, TMAX, 19114
+STAT, 1, BFS, Timer_2, ThreadValues, 19114
+STAT, 2, BFS, Timer_2, TMAX, 19965
+STAT, 2, BFS, Timer_2, ThreadValues, 19965
+STAT, 3, BFS, Timer_2, TMAX, 19600
+STAT, 3, BFS, Timer_2, ThreadValues, 19600
+STAT, 4, BFS, Timer_2, TMAX, 19910
+STAT, 4, BFS, Timer_2, ThreadValues, 19910
+STAT, 5, BFS, Timer_2, TMAX, 19707
+STAT, 5, BFS, Timer_2, ThreadValues, 19707
+STAT, 6, BFS, Timer_2, TMAX, 19852
+STAT, 6, BFS, Timer_2, ThreadValues, 19852
+STAT, 7, BFS, Timer_2, TMAX, 19578
+STAT, 7, BFS, Timer_2, ThreadValues, 19578
+STAT, 0, BFS, TimerTotal, HMAX, 72885
+STAT, 0, BFS, TimerTotal, TMAX, 72226
+STAT, 0, BFS, TimerTotal, ThreadValues, 72226
+STAT, 1, BFS, TimerTotal, TMAX, 68457
+STAT, 1, BFS, TimerTotal, ThreadValues, 68457
+STAT, 2, BFS, TimerTotal, TMAX, 72885
+STAT, 2, BFS, TimerTotal, ThreadValues, 72885
+STAT, 3, BFS, TimerTotal, TMAX, 68283
+STAT, 3, BFS, TimerTotal, ThreadValues, 68283
+STAT, 4, BFS, TimerTotal, TMAX, 72055
+STAT, 4, BFS, TimerTotal, ThreadValues, 72055
+STAT, 5, BFS, TimerTotal, TMAX, 68386
+STAT, 5, BFS, TimerTotal, ThreadValues, 68386
+STAT, 6, BFS, TimerTotal, TMAX, 72647
+STAT, 6, BFS, TimerTotal, ThreadValues, 72647
+STAT, 7, BFS, TimerTotal, TMAX, 68354
+STAT, 7, BFS, TimerTotal, ThreadValues, 68354
+STAT, 0, Gluon, ReplicationFactor, HOST_0, 1.34069
+STAT, 0, Gluon, ReplicationFactor, SINGLE, 1.34069
+STAT, 0, Gluon, ReplicationFactor, ThreadValues, 1.34069
+PARAM, 0, DistBench, CommandLine, HOST_0, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../bfs/bfs-pull-dist ../citeseer.gr -graphTranspose=../citeseer.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, SINGLE, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../bfs/bfs-pull-dist ../citeseer.gr -graphTranspose=../citeseer.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, CommandLine, ThreadValues, /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/scripts/../../bfs/bfs-pull-dist ../citeseer.gr -graphTranspose=../citeseer.tgr -t=4 -partition=oec --exec=Sync
+PARAM, 0, DistBench, Threads, HOST_0, 1
+PARAM, 0, DistBench, Threads, SINGLE, 1
+PARAM, 0, DistBench, Threads, ThreadValues, 1
+PARAM, 0, DistBench, Hosts, HOST_0, 8
+PARAM, 0, DistBench, Hosts, SINGLE, 8
+PARAM, 0, DistBench, Hosts, ThreadValues, 8
+PARAM, 0, DistBench, Runs, HOST_0, 3
+PARAM, 0, DistBench, Runs, SINGLE, 3
+PARAM, 0, DistBench, Runs, ThreadValues, 3
+PARAM, 0, DistBench, Run_UUID, HOST_0, 06d94051-44de-4d3d-b51e-c789c4c2338c
+PARAM, 0, DistBench, Run_UUID, SINGLE, 06d94051-44de-4d3d-b51e-c789c4c2338c
+PARAM, 0, DistBench, Run_UUID, ThreadValues, 06d94051-44de-4d3d-b51e-c789c4c2338c
+PARAM, 0, DistBench, Input, HOST_0, ../citeseer.gr
+PARAM, 0, DistBench, Input, SINGLE, ../citeseer.gr
+PARAM, 0, DistBench, Input, ThreadValues, ../citeseer.gr
+PARAM, 0, DistBench, PartitionScheme, HOST_0, oec
+PARAM, 0, DistBench, PartitionScheme, SINGLE, oec
+PARAM, 0, DistBench, PartitionScheme, ThreadValues, oec
+PARAM, 0, DistBench, Hostname, HOST_0, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 1, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 2, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 2, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 3, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 3, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 4, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 4, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 5, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 5, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 6, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 6, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 7, DistBench, Hostname, SINGLE, c311-133.ls6.tacc.utexas.edu
+PARAM, 7, DistBench, Hostname, ThreadValues, c311-133.ls6.tacc.utexas.edu
+PARAM, 0, BFS, Source Node ID, HOST_0, 0
+PARAM, 0, BFS, Source Node ID, SINGLE, 0
+PARAM, 0, BFS, Source Node ID, ThreadValues, 0
+PARAM, 0, BFS, Max Iterations, HOST_0, 1000
+PARAM, 0, BFS, Max Iterations, SINGLE, 1000
+PARAM, 0, BFS, Max Iterations, ThreadValues, 1000
+PARAM, 0, dGraph, GenericPartitioner, HOST_0, 0
+PARAM, 0, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 0, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 1, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 1, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 2, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 2, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 3, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 3, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 4, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 4, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 5, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 5, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 6, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 6, dGraph, GenericPartitioner, ThreadValues, 0
+PARAM, 7, dGraph, GenericPartitioner, SINGLE, 0
+PARAM, 7, dGraph, GenericPartitioner, ThreadValues, 0
