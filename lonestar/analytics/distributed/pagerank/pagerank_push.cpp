@@ -180,31 +180,79 @@ struct PageRank_delta {
   cll::opt<float>& local_tolerance;
   Graph* graph;
   
-  galois::DGAccumulator<uint64_t>& Master_access_total;
-  galois::DGAccumulator<uint64_t>& Master_access_write;
-  galois::DGAccumulator<uint64_t>& Mirror_access_total;
-  galois::DGAccumulator<uint64_t>& Mirror_access_write;
+  galois::DGAccumulator<uint64_t>& master_total;
+  galois::DGAccumulator<uint64_t>& master_write_total;
+  galois::DGAccumulator<uint64_t>& master_round;
+  galois::DGAccumulator<uint64_t>& master_write_round;
+  galois::DGAccumulator<uint64_t>& mirror_total;
+  galois::DGAccumulator<uint64_t>& mirror_write_total;
+  galois::DGAccumulator<uint64_t>& mirror_round;
+  galois::DGAccumulator<uint64_t>& mirror_write_round;
+  galois::DGReduceMax<uint64_t>& master_max_total;
+  galois::DGReduceMax<uint64_t>& master_write_max_total;
+  galois::DGReduceMax<uint64_t>& master_max_round;
+  galois::DGReduceMax<uint64_t>& master_write_max_round;
+  galois::DGReduceMax<uint64_t>& mirror_max_total;
+  galois::DGReduceMax<uint64_t>& mirror_write_max_total;
+  galois::DGReduceMax<uint64_t>& mirror_max_round;
+  galois::DGReduceMax<uint64_t>& mirror_write_max_round;
 
   PageRank_delta(const float& _local_alpha,
-          cll::opt<float>& _local_tolerance,
-          Graph* _graph,
-          galois::DGAccumulator<uint64_t>& _Master_access_total, 
-          galois::DGAccumulator<uint64_t>& _Master_access_write,
-          galois::DGAccumulator<uint64_t>& _Mirror_access_total, 
-          galois::DGAccumulator<uint64_t>& _Mirror_access_write)
-      : local_alpha(_local_alpha),
-      local_tolerance(_local_tolerance),
-      graph(_graph),
-      Master_access_total(_Master_access_total), 
-      Master_access_write(_Master_access_write),
-      Mirror_access_total(_Mirror_access_total), 
-      Mirror_access_write(_Mirror_access_write) {}
+                  cll::opt<float>& _local_tolerance,
+                  Graph* _graph,
+                  galois::DGAccumulator<uint64_t>& _master_total,
+                  galois::DGAccumulator<uint64_t>& _master_write_total,
+                  galois::DGAccumulator<uint64_t>& _master_round,
+                  galois::DGAccumulator<uint64_t>& _master_write_round,
+                  galois::DGAccumulator<uint64_t>& _mirror_total,
+                  galois::DGAccumulator<uint64_t>& _mirror_write_total,
+                  galois::DGAccumulator<uint64_t>& _mirror_round,
+                  galois::DGAccumulator<uint64_t>& _mirror_write_round,
+                  galois::DGReduceMax<uint64_t>& _master_max_total,
+                  galois::DGReduceMax<uint64_t>& _master_write_max_total,
+                  galois::DGReduceMax<uint64_t>& _master_max_round,
+                  galois::DGReduceMax<uint64_t>& _master_write_max_round,
+                  galois::DGReduceMax<uint64_t>& _mirror_max_total,
+                  galois::DGReduceMax<uint64_t>& _mirror_write_max_total,
+                  galois::DGReduceMax<uint64_t>& _mirror_max_round,
+                  galois::DGReduceMax<uint64_t>& _mirror_write_max_round)
+                  : local_alpha(_local_alpha),
+                  local_tolerance(_local_tolerance),
+                  graph(_graph),
+                  master_total(_master_total), 
+                  master_write_total(_master_write_total),
+                  master_round(_master_round), 
+                  master_write_round(_master_write_round),
+                  mirror_total(_mirror_total), 
+                  mirror_write_total(_mirror_write_total),
+                  mirror_round(_mirror_round), 
+                  mirror_write_round(_mirror_write_round),
+                  master_max_total(_master_max_total), 
+                  master_write_max_total(_master_write_max_total),
+                  master_max_round(_master_max_round), 
+                  master_write_max_round(_master_write_max_round),
+                  mirror_max_total(_mirror_max_total), 
+                  mirror_write_max_total(_mirror_write_max_total),
+                  mirror_max_round(_mirror_max_round), 
+                  mirror_write_max_round(_mirror_write_max_round) {}
 
   void static go(Graph& _graph,
-          galois::DGAccumulator<uint64_t>& Master_access_total, 
-          galois::DGAccumulator<uint64_t>& Master_access_write,
-          galois::DGAccumulator<uint64_t>& Mirror_access_total, 
-          galois::DGAccumulator<uint64_t>& Mirror_access_write) {
+                  galois::DGAccumulator<uint64_t>& master_total,
+                  galois::DGAccumulator<uint64_t>& master_write_total,
+                  galois::DGAccumulator<uint64_t>& master_round,
+                  galois::DGAccumulator<uint64_t>& master_write_round,
+                  galois::DGAccumulator<uint64_t>& mirror_total,
+                  galois::DGAccumulator<uint64_t>& mirror_write_total,
+                  galois::DGAccumulator<uint64_t>& mirror_round,
+                  galois::DGAccumulator<uint64_t>& mirror_write_round,
+                  galois::DGReduceMax<uint64_t>& master_max_total,
+                  galois::DGReduceMax<uint64_t>& master_write_max_total,
+                  galois::DGReduceMax<uint64_t>& master_max_round,
+                  galois::DGReduceMax<uint64_t>& master_write_max_round,
+                  galois::DGReduceMax<uint64_t>& mirror_max_total,
+                  galois::DGReduceMax<uint64_t>& mirror_write_max_total,
+                  galois::DGReduceMax<uint64_t>& mirror_max_round,
+                  galois::DGReduceMax<uint64_t>& mirror_write_max_round) {
     const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
 
     if (personality == GPU_CUDA) {
@@ -220,21 +268,41 @@ struct PageRank_delta {
     } else if (personality == CPU) {
       galois::do_all(
           galois::iterate(nodesWithEdges.begin(), nodesWithEdges.end()),
-          PageRank_delta{alpha, tolerance, &_graph, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("PageRank_delta").c_str()));
+          PageRank_delta{alpha, 
+                        tolerance, 
+                        &_graph, 
+                        master_total, 
+                        master_write_total, 
+                        master_round, 
+                        master_write_round,
+                        mirror_total, 
+                        mirror_write_total,
+                        mirror_round, 
+                        mirror_write_round,
+                        master_max_total, 
+                        master_write_max_total,
+                        master_max_round, 
+                        master_write_max_round,
+                        mirror_max_total, 
+                        mirror_write_max_total,
+                        mirror_max_round, 
+                        mirror_write_max_round},
+          galois::no_stats(),
+          galois::loopname(syncSubstrate->get_run_identifier("PageRank_delta").c_str()));
     }
   }
 
   void operator()(WorkItem src) const {
     NodeData& sdata = graph->getData(src);
     
+    /*
     if (graph->isOwned(graph->getGID(src))) {
-      Master_access_total += 1;
+      master_round += 1;
     }
     else {
-      Mirror_access_total += 1;
+      mirror_round += 1;
     }
+    */
 
     if (sdata.residual > 0) {
       float residual_old = sdata.residual;
@@ -245,16 +313,6 @@ struct PageRank_delta {
           sdata.delta = residual_old * (1 - local_alpha) / sdata.nout;
         }
       }
-      /*
-      if (graph->isOwned(graph->getGID(src))) {
-        Master_access_total += 1;
-        Master_access_write += 1;
-      }
-      else {
-        Mirror_access_total += 1;
-        Mirror_access_write += 1;
-      }
-      */
     }
   }
 };
@@ -268,41 +326,128 @@ struct PageRank {
 
   DGTerminatorDetector& active_vertices;
   
-  galois::DGAccumulator<uint64_t>& Master_access_total;
-  galois::DGAccumulator<uint64_t>& Master_access_write;
-  galois::DGAccumulator<uint64_t>& Mirror_access_total;
-  galois::DGAccumulator<uint64_t>& Mirror_access_write;
+  galois::DGAccumulator<uint64_t>& master_total;
+  galois::DGAccumulator<uint64_t>& master_write_total;
+  galois::DGAccumulator<uint64_t>& master_round;
+  galois::DGAccumulator<uint64_t>& master_write_round;
+  galois::DGAccumulator<uint64_t>& mirror_total;
+  galois::DGAccumulator<uint64_t>& mirror_write_total;
+  galois::DGAccumulator<uint64_t>& mirror_round;
+  galois::DGAccumulator<uint64_t>& mirror_write_round;
+  galois::DGReduceMax<uint64_t>& master_max_total;
+  galois::DGReduceMax<uint64_t>& master_write_max_total;
+  galois::DGReduceMax<uint64_t>& master_max_round;
+  galois::DGReduceMax<uint64_t>& master_write_max_round;
+  galois::DGReduceMax<uint64_t>& mirror_max_total;
+  galois::DGReduceMax<uint64_t>& mirror_write_max_total;
+  galois::DGReduceMax<uint64_t>& mirror_max_round;
+  galois::DGReduceMax<uint64_t>& mirror_write_max_round;
 
   PageRank(Graph* _g,
           DGTerminatorDetector& _dga,
-          galois::DGAccumulator<uint64_t>& _Master_access_total, 
-          galois::DGAccumulator<uint64_t>& _Master_access_write,
-          galois::DGAccumulator<uint64_t>& _Mirror_access_total, 
-          galois::DGAccumulator<uint64_t>& _Mirror_access_write)
-      : graph(_g),
-      active_vertices(_dga),
-      Master_access_total(_Master_access_total), 
-      Master_access_write(_Master_access_write),
-      Mirror_access_total(_Mirror_access_total), 
-      Mirror_access_write(_Mirror_access_write) {}
+          galois::DGAccumulator<uint64_t>& _master_total,
+          galois::DGAccumulator<uint64_t>& _master_write_total,
+          galois::DGAccumulator<uint64_t>& _master_round,
+          galois::DGAccumulator<uint64_t>& _master_write_round,
+          galois::DGAccumulator<uint64_t>& _mirror_total,
+          galois::DGAccumulator<uint64_t>& _mirror_write_total,
+          galois::DGAccumulator<uint64_t>& _mirror_round,
+          galois::DGAccumulator<uint64_t>& _mirror_write_round,
+          galois::DGReduceMax<uint64_t>& _master_max_total,
+          galois::DGReduceMax<uint64_t>& _master_write_max_total,
+          galois::DGReduceMax<uint64_t>& _master_max_round,
+          galois::DGReduceMax<uint64_t>& _master_write_max_round,
+          galois::DGReduceMax<uint64_t>& _mirror_max_total,
+          galois::DGReduceMax<uint64_t>& _mirror_write_max_total,
+          galois::DGReduceMax<uint64_t>& _mirror_max_round,
+          galois::DGReduceMax<uint64_t>& _mirror_write_max_round)
+          : graph(_g),
+          active_vertices(_dga),
+          master_total(_master_total), 
+          master_write_total(_master_write_total),
+          master_round(_master_round), 
+          master_write_round(_master_write_round),
+          mirror_total(_mirror_total), 
+          mirror_write_total(_mirror_write_total),
+          mirror_round(_mirror_round), 
+          mirror_write_round(_mirror_write_round),
+          master_max_total(_master_max_total), 
+          master_write_max_total(_master_write_max_total),
+          master_max_round(_master_max_round), 
+          master_write_max_round(_master_write_max_round),
+          mirror_max_total(_mirror_max_total), 
+          mirror_write_max_total(_mirror_write_max_total),
+          mirror_max_round(_mirror_max_round), 
+          mirror_write_max_round(_mirror_write_max_round) {}
 
   void static go(Graph& _graph, 
-          galois::DGAccumulator<uint64_t>& Master_access_total, 
-          galois::DGAccumulator<uint64_t>& Master_access_write,
-          galois::DGAccumulator<uint64_t>& Mirror_access_total, 
-          galois::DGAccumulator<uint64_t>& Mirror_access_write) {
+                  galois::DGAccumulator<uint64_t>& master_total,
+                  galois::DGAccumulator<uint64_t>& master_write_total,
+                  galois::DGAccumulator<uint64_t>& master_round,
+                  galois::DGAccumulator<uint64_t>& master_write_round,
+                  galois::DGAccumulator<uint64_t>& mirror_total,
+                  galois::DGAccumulator<uint64_t>& mirror_write_total,
+                  galois::DGAccumulator<uint64_t>& mirror_round,
+                  galois::DGAccumulator<uint64_t>& mirror_write_round,
+                  galois::DGReduceMax<uint64_t>& master_max_total,
+                  galois::DGReduceMax<uint64_t>& master_write_max_total,
+                  galois::DGReduceMax<uint64_t>& master_max_round,
+                  galois::DGReduceMax<uint64_t>& master_write_max_round,
+                  galois::DGReduceMax<uint64_t>& mirror_max_total,
+                  galois::DGReduceMax<uint64_t>& mirror_write_max_total,
+                  galois::DGReduceMax<uint64_t>& mirror_max_round,
+                  galois::DGReduceMax<uint64_t>& mirror_write_max_round) {
     unsigned _num_iterations   = 0;
     const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
     DGTerminatorDetector dga;
     
-    Master_access_total.reset();
-    Master_access_write.reset();
-    Mirror_access_total.reset();
-    Mirror_access_write.reset();
+    master_total.reset();
+    master_write_total.reset();
+    mirror_total.reset();
+    mirror_write_total.reset();
+    master_max_total.reset();
+    master_write_max_total.reset();
+    mirror_max_total.reset();
+    mirror_write_max_total.reset();
+    
+    uint64_t masterPerRound;
+    uint64_t masterWritePerRound;
+    uint64_t mirrorPerRound;
+    uint64_t mirrorWritePerRound;
+    uint64_t masterMaxPerRound;
+    uint64_t masterWriteMaxPerRound;
+    uint64_t mirrorMaxPerRound;
+    uint64_t mirrorWriteMaxPerRound;
 
     do {
       syncSubstrate->set_num_round(_num_iterations);
-      PageRank_delta::go(_graph, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write);
+      
+      master_round.reset();
+      master_write_round.reset();
+      mirror_round.reset();
+      mirror_write_round.reset();
+      master_max_round.reset();
+      master_write_max_round.reset();
+      mirror_max_round.reset();
+      mirror_write_max_round.reset();
+      
+      PageRank_delta::go(_graph, 
+                        master_total, 
+                        master_write_total, 
+                        master_round, 
+                        master_write_round,
+                        mirror_total, 
+                        mirror_write_total,
+                        mirror_round, 
+                        mirror_write_round,
+                        master_max_total, 
+                        master_write_max_total,
+                        master_max_round, 
+                        master_write_max_round,
+                        mirror_max_total, 
+                        mirror_write_max_total,
+                        mirror_max_round, 
+                        mirror_write_max_round);
       dga.reset();
       // reset residual on mirrors
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
@@ -322,14 +467,66 @@ struct PageRank {
 #endif
       } else if (personality == CPU) {
         galois::do_all(
-            galois::iterate(nodesWithEdges), PageRank{&_graph, dga, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write},
-            galois::no_stats(), galois::steal(),
-            galois::loopname(
-                syncSubstrate->get_run_identifier("PageRank").c_str()));
+            galois::iterate(nodesWithEdges), 
+            PageRank{&_graph, 
+                    dga, 
+                    master_total, 
+                    master_write_total, 
+                    master_round, 
+                    master_write_round,
+                    mirror_total, 
+                    mirror_write_total,
+                    mirror_round, 
+                    mirror_write_round,
+                    master_max_total, 
+                    master_write_max_total,
+                    master_max_round, 
+                    master_write_max_round,
+                    mirror_max_total, 
+                    mirror_write_max_total,
+                    mirror_max_round, 
+                    mirror_write_max_round},
+            galois::no_stats(), 
+            galois::steal(),
+            galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
       }
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
+      
+      master_max_round.update(master_round.read_local());
+      master_write_max_round.update(master_write_round.read_local());
+      mirror_max_round.update(mirror_round.read_local());
+      mirror_write_max_round.update(mirror_write_round.read_local());
+      
+      masterMaxPerRound = master_max_round.reduce();
+      masterWriteMaxPerRound = master_write_max_round.reduce();
+      mirrorMaxPerRound = mirror_max_round.reduce();
+      mirrorWriteMaxPerRound = mirror_write_max_round.reduce();
+
+      master_total += master_round.read_local();
+      master_write_total += master_write_round.read_local();
+      mirror_total += mirror_round.read_local();
+      mirror_write_total += mirror_write_round.read_local();
+
+      masterPerRound = master_round.reduce();
+      masterWritePerRound = master_write_round.reduce();
+      mirrorPerRound = mirror_round.reduce();
+      mirrorWritePerRound = mirror_write_round.reduce();
+    
+      // Only host 0 will print the info
+      if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("#####   Round ", _num_iterations, "   #####\n");
+        galois::gPrint("round master accesses: ", masterPerRound, "\n");
+        galois::gPrint("round master writes: ", masterWritePerRound, "\n");
+        galois::gPrint("round mirror accesses: ", mirrorPerRound, "\n");
+        galois::gPrint("round mirror writes: ", mirrorWritePerRound, "\n");
+        galois::gPrint("round max master accesses: ", masterMaxPerRound, "\n");
+        galois::gPrint("round max master writes: ", masterWriteMaxPerRound, "\n");
+        galois::gPrint("round max mirror accesses: ", mirrorMaxPerRound, "\n");
+        galois::gPrint("round max mirror writes: ", mirrorWriteMaxPerRound, "\n");
+      }
+
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
@@ -346,60 +543,76 @@ struct PageRank {
           (unsigned long)_num_iterations);
     }
     
-    uint64_t master  = Master_access_total.reduce();
-    uint64_t master_write  = Master_access_write.reduce();
-    uint64_t mirror  = Mirror_access_total.reduce();
-    uint64_t mirror_write  = Mirror_access_write.reduce();
+      master_max_total.update(master_total.read_local());
+    master_write_max_total.update(master_write_total.read_local());
+    mirror_max_total.update(mirror_total.read_local());
+    mirror_write_max_total.update(mirror_write_total.read_local());
+    
+    uint64_t masterMax  = master_max_total.reduce();
+    uint64_t masterWriteMax  = master_write_max_total.reduce();
+    uint64_t mirrorMax  = mirror_max_total.reduce();
+    uint64_t mirrorWriteMax  = mirror_write_max_total.reduce();
+    
+    uint64_t master  = master_total.reduce();
+    uint64_t masterWrite  = master_write_total.reduce();
+    uint64_t mirror  = mirror_total.reduce();
+    uint64_t mirrorWrite  = mirror_write_total.reduce();
 
     // Only host 0 will print the info
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Total access to master nodes: ", master, "\n");
-      galois::gPrint("Write access to master nodes: ", master_write, "\n");
-      galois::gPrint("Total access to mirror nodes: ", mirror, "\n");
-      galois::gPrint("Write access to mirror nodes: ", mirror_write, "\n");
+      galois::gPrint("#####   Summary   #####\n");
+      galois::gPrint("total master accesses: ", master, "\n");
+      galois::gPrint("total master writes: ", masterWrite, "\n");
+      galois::gPrint("total mirror accesses: ", mirror, "\n");
+      galois::gPrint("total mirror writes: ", mirrorWrite, "\n");
+      galois::gPrint("total max master accesses: ", masterMax, "\n");
+      galois::gPrint("total max master writes: ", masterWriteMax, "\n");
+      galois::gPrint("total max mirror accesses: ", mirrorMax, "\n");
+      galois::gPrint("total max mirror writes: ", mirrorWriteMax, "\n");
     }
+    
   }
 
   void operator()(WorkItem src) const {
     NodeData& sdata = graph->getData(src);
     
+    /*
     if (graph->isOwned(graph->getGID(src))) {
-      Master_access_total += 1;
+      master_round += 1;
     }
     else {
-      Mirror_access_total += 1;
+      mirror_round += 1;
     }
+    */
     
     if (sdata.delta > 0) {
       float _delta = sdata.delta;
       sdata.delta  = 0;
-      /*
-      if (graph->isOwned(graph->getGID(src))) {
-        Master_access_total += 1;
-        Master_access_write += 1;
-      }
-      else {
-        Mirror_access_total += 1;
-        Mirror_access_write += 1;
-      }
-      */
+      
       active_vertices += 1; // this should be moved to Pagerank_delta operator
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
         NodeData& ddata = graph->getData(dst);
+          
+        if (graph->isOwned(graph->getGID(dst))) {
+          master_round += 1;
+        }
+        else {
+          mirror_round += 1;
+        }
         
         galois::atomicAdd(ddata.residual, _delta);
 
         bitset_residual.set(dst);
         
         if (graph->isOwned(graph->getGID(dst))) {
-          Master_access_total += 2;
-          Master_access_write += 1;
+          master_round += 1;
+          master_write_round += 1;
         }
         else {
-          Mirror_access_total += 2;
-          Mirror_access_write += 1;
+          mirror_round += 1;
+          mirror_write_round += 1;
         }
       }
     }
@@ -620,10 +833,22 @@ int main(int argc, char** argv) {
   galois::DGReduceMin<float> min_value;
   galois::DGReduceMax<float> max_residual;
   galois::DGReduceMin<float> min_residual;
-  galois::DGAccumulator<uint64_t> Master_access_total;
-  galois::DGAccumulator<uint64_t> Master_access_write;
-  galois::DGAccumulator<uint64_t> Mirror_access_total;
-  galois::DGAccumulator<uint64_t> Mirror_access_write;
+  galois::DGAccumulator<uint64_t> master_total;
+  galois::DGAccumulator<uint64_t> master_write_total;
+  galois::DGAccumulator<uint64_t> master_round;
+  galois::DGAccumulator<uint64_t> master_write_round;
+  galois::DGAccumulator<uint64_t> mirror_total;
+  galois::DGAccumulator<uint64_t> mirror_write_total;
+  galois::DGAccumulator<uint64_t> mirror_round;
+  galois::DGAccumulator<uint64_t> mirror_write_round;
+  galois::DGReduceMax<uint64_t> master_max_total;
+  galois::DGReduceMax<uint64_t> master_write_max_total;
+  galois::DGReduceMax<uint64_t> master_max_round;
+  galois::DGReduceMax<uint64_t> master_write_max_round;
+  galois::DGReduceMax<uint64_t> mirror_max_total;
+  galois::DGReduceMax<uint64_t> mirror_write_max_total;
+  galois::DGReduceMax<uint64_t> mirror_max_round;
+  galois::DGReduceMax<uint64_t> mirror_write_max_round;
 
   for (auto run = 0; run < numRuns; ++run) {
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
@@ -632,9 +857,41 @@ int main(int argc, char** argv) {
 
     StatTimer_main.start();
     if (execution == Async) {
-      PageRank<true>::go(*hg, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write);
+      PageRank<true>::go(*hg, 
+                        master_total, 
+                        master_write_total, 
+                        master_round, 
+                        master_write_round,
+                        mirror_total, 
+                        mirror_write_total,
+                        mirror_round, 
+                        mirror_write_round,
+                        master_max_total, 
+                        master_write_max_total,
+                        master_max_round, 
+                        master_write_max_round,
+                        mirror_max_total, 
+                        mirror_write_max_total,
+                        mirror_max_round, 
+                        mirror_write_max_round);
     } else {
-      PageRank<false>::go(*hg, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write);
+      PageRank<false>::go(*hg, 
+                        master_total, 
+                        master_write_total, 
+                        master_round, 
+                        master_write_round,
+                        mirror_total, 
+                        mirror_write_total,
+                        mirror_round, 
+                        mirror_write_round,
+                        master_max_total, 
+                        master_write_max_total,
+                        master_max_round, 
+                        master_write_max_round,
+                        mirror_max_total, 
+                        mirror_write_max_total,
+                        mirror_max_round, 
+                        mirror_write_max_round);
     }
     StatTimer_main.stop();
 

@@ -1,0 +1,22 @@
+#!/bin/bash
+
+echo "flickr 8 hosts start time:"
+date
+srun -N 1 -n 8 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/flickr.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/flickr.tgr" --maxIterations=40 -t=16 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_8procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_8procs"
+echo "flickr 8 hosts end time:"
+date
+echo "flickr 16 hosts start time:"
+date
+srun -N 1 -n 16 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/flickr.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/flickr.tgr" --maxIterations=40 -t=8 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_16procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_16procs"
+echo "flickr 16 hosts end time:"
+date
+echo "flickr 32 hosts start time:"
+date
+srun -N 1 -n 32 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/flickr.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/flickr.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_32procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_32procs"
+echo "flickr 32 hosts end time:"
+date
+echo "flickr 64 hosts start time:"
+date
+srun -N 2 -n 64 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/flickr.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/flickr.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_64procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/flickr_64procs"
+echo "flickr 64 hosts end time:"
+date

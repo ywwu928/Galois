@@ -1,0 +1,137 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS - Distributed Heterogeneous with worklist.
+BFS on Distributed Galois.
+
+[6] Master distribution time : 0.379381 seconds to read 248 bytes in 30 seeks (0.000653696 MBPS)
+[6] Starting graph reading.
+[6] Reading graph complete.
+[6] Edge inspection time: 0.001131 seconds to read 322344 bytes (285.008 MBPS)
+[6] Edge loading time: 0.000841 seconds to read 322344 bytes (383.287 MBPS)
+[6] Graph construction complete.
+[1] Master distribution time : 0.374407 seconds to read 256 bytes in 32 seeks (0.000683748 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.000971 seconds to read 278284 bytes (286.595 MBPS)
+[1] Edge loading time: 0.000798 seconds to read 278284 bytes (348.727 MBPS)
+[1] Graph construction complete.
+[7] Master distribution time : 0.634447 seconds to read 240 bytes in 29 seeks (0.000378282 MBPS)
+[7] Starting graph reading.
+[7] Reading graph complete.
+[7] Edge inspection time: 0.001004 seconds to read 486568 bytes (484.629 MBPS)
+[7] Edge loading time: 0.000883 seconds to read 486568 bytes (551.04 MBPS)
+[7] Graph construction complete.
+[3] Master distribution time : 0.63772 seconds to read 256 bytes in 31 seeks (0.00040143 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.001082 seconds to read 300304 bytes (277.545 MBPS)
+[3] Edge loading time: 0.000869 seconds to read 300304 bytes (345.574 MBPS)
+[3] Graph construction complete.
+[5] Master distribution time : 0.575468 seconds to read 256 bytes in 32 seeks (0.000444855 MBPS)
+[5] Starting graph reading.
+[5] Reading graph complete.
+[5] Edge inspection time: 0.001182 seconds to read 364192 bytes (308.115 MBPS)
+[5] Edge loading time: 0.001006 seconds to read 364192 bytes (362.02 MBPS)
+[5] Graph construction complete.
+[4] Master distribution time : 0.579311 seconds to read 256 bytes in 32 seeks (0.000441904 MBPS)
+[4] Starting graph reading.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.001117 seconds to read 322988 bytes (289.157 MBPS)
+[4] Edge loading time: 0.000885 seconds to read 322988 bytes (364.958 MBPS)
+[4] Graph construction complete.
+[2] Master distribution time : 0.664484 seconds to read 256 bytes in 30 seeks (0.000385261 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.001017 seconds to read 281060 bytes (276.362 MBPS)
+[2] Edge loading time: 0.000824 seconds to read 281060 bytes (341.092 MBPS)
+[2] Graph construction complete.
+[0] Master distribution time : 0.711375 seconds to read 128 bytes in 15 seeks (0.000179933 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.000881 seconds to read 264884 bytes (300.663 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.000785 seconds to read 264884 bytes (337.432 MBPS)
+[0] Graph construction complete.
+[4] InitializeGraph::go called
+[2] InitializeGraph::go called
+[7] InitializeGraph::go called
+[3] InitializeGraph::go called
+[6] InitializeGraph::go called
+[5] InitializeGraph::go called
+[1] InitializeGraph::go called
+[0] InitializeGraph::go called
+[1] BFS::go run 0 called
+[2] BFS::go run 0 called
+[4] BFS::go run 0 called
+[0] BFS::go run 0 called
+[3] BFS::go run 0 called
+[5] BFS::go run 0 called
+[6] BFS::go run 0 called
+[7] BFS::go run 0 called
+#####   Round 0   #####
+round master accesses: 1056
+round master writes: 111
+round mirror accesses: 11016
+round mirror writes: 3733
+round max master accesses: 1056
+round max master writes: 111
+round max mirror accesses: 11016
+round max mirror writes: 3733
+#####   Round 1   #####
+round master accesses: 56576
+round master writes: 6833
+round mirror accesses: 459695
+round mirror writes: 74373
+round max master accesses: 7839
+round max master writes: 1674
+round max mirror accesses: 65752
+round max mirror writes: 10937
+#####   Round 2   #####
+round master accesses: 8833
+round master writes: 163
+round mirror accesses: 77524
+round mirror writes: 5433
+round max master accesses: 2552
+round max master writes: 109
+round max mirror accesses: 23824
+round max mirror writes: 1511
+#####   Round 3   #####
+round master accesses: 107
+round master writes: 1
+round mirror accesses: 825
+round mirror writes: 39
+round max master accesses: 42
+round max master writes: 1
+round max mirror accesses: 336
+round max mirror writes: 11
+#####   Round 4   #####
+round master accesses: 0
+round master writes: 0
+round mirror accesses: 4
+round mirror writes: 0
+round max master accesses: 0
+round max master writes: 0
+round max mirror accesses: 2
+round max mirror writes: 0
+#####   Round 5   #####
+round master accesses: 0
+round master writes: 0
+round mirror accesses: 0
+round mirror writes: 0
+round max master accesses: 0
+round max master writes: 0
+round max mirror accesses: 0
+round max mirror writes: 0
+#####   Summary   #####
+total master accesses: 66572
+total master writes: 7108
+total mirror accesses: 549064
+total mirror writes: 83578
+total max master accesses: 8946
+total max master writes: 1784
+total max mirror accesses: 69420
+total max mirror writes: 11437
+Number of nodes visited from source 0 is 21767
+Max distance from source 0 is 4

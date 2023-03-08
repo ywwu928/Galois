@@ -130,30 +130,45 @@ struct BFS {
 
   DGTerminatorDetector& active_vertices;
   
-  galois::DGAccumulator<uint64_t>& Access_total;
+  galois::DGAccumulator<uint64_t>& round_counter;
+  galois::DGAccumulator<uint64_t>& foreign_counter;
+  galois::DGAccumulator<uint64_t>& Master_access_total;
+  galois::DGAccumulator<uint64_t>& Master_access_write;
   galois::DGAccumulator<uint64_t>& Mirror_access_total;
   galois::DGAccumulator<uint64_t>& Mirror_access_write;
 
 
   BFS(Graph* _graph, 
           DGTerminatorDetector& _dga, 
-          galois::DGAccumulator<uint64_t>& _Access_total, 
+          galois::DGAccumulator<uint64_t>& _round_counter, 
+          galois::DGAccumulator<uint64_t>& _foreign_counter, 
+          galois::DGAccumulator<uint64_t>& _Master_access_total, 
+          galois::DGAccumulator<uint64_t>& _Master_access_write, 
           galois::DGAccumulator<uint64_t>& _Mirror_access_total, 
           galois::DGAccumulator<uint64_t>& _Mirror_access_write)
       : graph(_graph), 
       active_vertices(_dga), 
-      Access_total(_Access_total), 
+      round_counter(_round_counter), 
+      foreign_counter(_foreign_counter), 
+      Master_access_total(_Master_access_total), 
+      Master_access_write(_Master_access_write), 
       Mirror_access_total(_Mirror_access_total), 
       Mirror_access_write(_Mirror_access_write) {}
     
   void static go(Graph& _graph, 
-          galois::DGAccumulator<uint64_t>& Access_total, 
+          galois::DGAccumulator<uint64_t>& round_counter, 
+          galois::DGAccumulator<uint64_t>& foreign_counter, 
+          galois::DGAccumulator<uint64_t>& Master_access_total, 
+          galois::DGAccumulator<uint64_t>& Master_access_write, 
           galois::DGAccumulator<uint64_t>& Mirror_access_total, 
           galois::DGAccumulator<uint64_t>& Mirror_access_write) {
     unsigned _num_iterations = 0;
     DGTerminatorDetector dga;
 
-    Access_total.reset();
+    round_counter.reset();
+    foreign_counter.reset();
+    Master_access_total.reset();
+    Master_access_write.reset();
     Mirror_access_total.reset();
     Mirror_access_write.reset();
     
@@ -183,7 +198,7 @@ struct BFS {
 #endif
       } else if (personality == CPU) {
         galois::do_all(
-            galois::iterate(nodesWithEdges), BFS(&_graph, dga, Access_total, Mirror_access_total, Mirror_access_write),
+            galois::iterate(nodesWithEdges), BFS(&_graph, dga, round_counter, foreign_counter, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write),
             galois::no_stats(), galois::steal(),
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
@@ -197,6 +212,7 @@ struct BFS {
     // galois::runtime::reportStat_Single(REGION_NAME, "MirrorAccess", Mirror_access_total.reduce());
     // galois::runtime::reportStat_Single(REGION_NAME, "MirrorWriteAccess", Mirror_access_write.reduce());
       ++_num_iterations;
+      round_counter += 1;
     } while ((async || (_num_iterations < maxIterations)) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
 
@@ -207,19 +223,22 @@ struct BFS {
           (unsigned long)_num_iterations);
     }
     
-    uint64_t total  = Access_total.reduce();
+    // uint64_t round  = round_counter.reduce();
+    uint64_t foreign  = foreign_counter.reduce();
+    
+    uint64_t master  = Master_access_total.reduce();
+    uint64_t master_write  = Master_access_write.reduce();
     uint64_t mirror  = Mirror_access_total.reduce();
-    // uint64_t master  = total - mirror;
     uint64_t mirror_write  = Mirror_access_write.reduce();
-    // uint64_t mirror_read   = mirror - mirror_write;
 
     // Only host 0 will print the info
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Total access to nodes: ", total, "\n");
-      // galois::gPrint("Total access to master nodes: ", master, "\n");
+      galois::gPrint("Total number of rounds: ", _num_iterations, "\n");
+      galois::gPrint("Total number of foreign src node edge access: ", foreign, "\n");
+      galois::gPrint("Total access to master nodes: ", master, "\n");
+      galois::gPrint("Write access to master nodes: ", master_write, "\n");
       galois::gPrint("Total access to mirror nodes: ", mirror, "\n");
       galois::gPrint("Write access to mirror nodes: ", mirror_write, "\n");
-      // galois::gPrint("Read access to mirror nodes: ", mirror_read, "\n");
     }
   }
 
@@ -240,8 +259,10 @@ struct BFS {
         std::cout << std::endl;
     }
     */
-    Access_total += 1;
-    if (!graph->isOwned(graph->getGID(src))) {
+    if (graph->isOwned(graph->getGID(src))) {
+      Master_access_total += 1;
+    }
+    else {
       Mirror_access_total += 1;
     }
     
@@ -278,17 +299,26 @@ struct BFS {
             std::cout << "src dist = " << snode.dist_current << ", dst dist = " << dnode.dist_current << std::endl;
         }
         */
-        Access_total += 1;
-        if (!graph->isOwned(graph->getGID(dst))) {
+        if (graph->isOwned(graph->getGID(dst))) {
+            Master_access_total += 1;
+        }
+        else {
             Mirror_access_total += 1;
+        }
+        
+        if (!graph->isOwned(graph->getGID(src))) {
+            foreign_counter += 1;
         }
 
         uint32_t new_dist = dnode.dist_current + 1;
         uint32_t old_dist = galois::min(snode.dist_current, new_dist);
         if (old_dist > new_dist) {
             // if (src >= graph->numMasters()) {
-            if (!graph->isOwned(graph->getGID(src))) {
-            Mirror_access_write += 1;
+            if (graph->isOwned(graph->getGID(src))) {
+                Master_access_write += 1;
+            }
+            else {
+                Mirror_access_write += 1;
             }
             bitset_dist_current.set(src);
             active_vertices += 1;
@@ -459,7 +489,10 @@ int main(int argc, char** argv) {
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
-  galois::DGAccumulator<uint64_t> Access_total;
+  galois::DGAccumulator<uint64_t> round_counter;
+  galois::DGAccumulator<uint64_t> foreign_counter;
+  galois::DGAccumulator<uint64_t> Master_access_total;
+  galois::DGAccumulator<uint64_t> Master_access_write;
   galois::DGAccumulator<uint64_t> Mirror_access_total;
   galois::DGAccumulator<uint64_t> Mirror_access_write;
   galois::DGReduceMax<uint32_t> m;
@@ -471,9 +504,9 @@ int main(int argc, char** argv) {
 
     StatTimer_main.start();
     if (execution == Async) {
-      BFS<true>::go(*hg, Access_total, Mirror_access_total, Mirror_access_write);
+      BFS<true>::go(*hg, round_counter, foreign_counter, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write);
     } else {
-      BFS<false>::go(*hg, Access_total, Mirror_access_total, Mirror_access_write);
+      BFS<false>::go(*hg, round_counter, foreign_counter, Master_access_total, Master_access_write, Mirror_access_total, Mirror_access_write);
     }
     StatTimer_main.stop();
 

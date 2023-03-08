@@ -1,0 +1,172 @@
+rmat16
+hosts,8
+total master nodes,65524
+total mirror nodes,151623
+replication factor,3.31401
+
+master nodes (median),6223.5
+master nodes (average),8190.5
+master nodes (max),28532
+mirror nodes (median),18599.5
+mirror nodes (average),18952.875
+mirror nodes (max),42283
+
+rounds,6
+total master access,"[15157, 15397, 16154, 17274, 17983, 16638, 16378, 16879]"
+total mirror access,"[138269, 138373, 137848, 136761, 136102, 136975, 136224, 132790]"
+total mirror write,"[21852, 21856, 20970, 20728, 19944, 18634, 19315, 16500]"
+
+baseline time,2.462308125e-05
+gluon time,4.097187725937501e-06
+gluon speedup,6.00975178513839
+
+Round 0
+master access (median),0.0
+master access (average),205.625
+master access (max),1645
+mirror access (median),0.0
+mirror access (average),2230.5
+mirror access (max),17844
+mirror write (median),0.0
+mirror write (average),775
+mirror write (max),6200
+mirror nodes sending updates (median),0.0
+mirror nodes sending updates (average),775
+mirror nodes sending updates (max),6200
+master nodes receiving updates (median),845.0
+master nodes receiving updates (average),775
+master nodes receiving updates (max),1309
+
+baseline local time,4.1477625e-08
+baseline remote time,2.2305e-06
+baseline time,2.2305e-06
+gluon compute time,3.26981625e-07
+gluon communication time,9.6875e-08
+gluon time,4.2385662499999997e-07
+gluon speedup,5.262392678184517
+
+Round 1
+master access (median),14364.0
+master access (average),13993.75
+master access (max),15005
+mirror access (median),118466.0
+mirror access (average),115090.25
+mirror access (max),131449
+mirror write (median),18214.5
+mirror write (average),17907.375
+mirror write (max),21312
+mirror nodes sending updates (median),17154.0
+mirror nodes sending updates (average),16934.5
+mirror nodes sending updates (max),20349
+master nodes receiving updates (median),2754.0
+master nodes receiving updates (average),2798
+master nodes receiving updates (max),6265
+
+baseline local time,2.55237625e-07
+baseline remote time,1.6431125e-05
+baseline time,1.6431125e-05
+gluon compute time,2.3533976250000004e-06
+gluon communication time,3.17953125e-07
+gluon time,2.6713507500000002e-06
+gluon speedup,6.1508676836989675
+
+Round 2
+master access (median),2304.5
+master access (average),2258.625
+master access (max),5326
+mirror access (median),17811.0
+mirror access (average),19137.625
+mirror access (max),46819
+mirror write (median),1257.5
+mirror write (average),1280.375
+mirror write (max),2802
+mirror nodes sending updates (median),1256.5
+mirror nodes sending updates (average),1279.375
+mirror nodes sending updates (max),2799
+master nodes receiving updates (median),1009.0
+master nodes receiving updates (average),1045.625
+master nodes receiving updates (max),2617
+
+baseline local time,1.00373625e-07
+baseline remote time,5.852375e-06
+baseline time,5.852375e-06
+gluon compute time,8.49477625e-07
+gluon communication time,9.462131515625001e-08
+gluon time,9.4409894015625e-07
+gluon speedup,6.198900084594335
+
+Round 3
+master access (median),20.0
+master access (average),24.25
+master access (max),76
+mirror access (median),162.0
+mirror access (average),208.25
+mirror access (max),630
+mirror write (median),10.0
+mirror write (average),12
+mirror write (max),32
+mirror nodes sending updates (median),10.0
+mirror nodes sending updates (average),12
+mirror nodes sending updates (max),32
+master nodes receiving updates (median),10.5
+master nodes receiving updates (average),12
+master nodes receiving updates (max),28
+
+baseline local time,1.6373624999999998e-08
+baseline remote time,7.875e-08
+baseline time,7.875e-08
+gluon compute time,2.6453625e-08
+gluon communication time,1.012379375e-09
+gluon time,2.7466004375e-08
+gluon speedup,2.867180785556108
+
+Round 4
+master access (median),0.0
+master access (average),0.25
+master access (max),1
+mirror access (median),0.5
+mirror access (average),1.125
+mirror access (max),3
+mirror write (median),0.0
+mirror write (average),0.125
+mirror write (max),1
+mirror nodes sending updates (median),0.0
+mirror nodes sending updates (average),0.125
+mirror nodes sending updates (max),1
+master nodes receiving updates (median),0.0
+master nodes receiving updates (average),0.125
+master nodes receiving updates (max),1
+
+baseline local time,1.5173625e-08
+baseline remote time,3.75e-10
+baseline time,1.5173625e-08
+gluon compute time,1.5221625e-08
+gluon communication time,3.615640625e-11
+gluon time,1.5257781406249998e-08
+gluon speedup,0.99448436151959
+
+Round 5
+master access (median),0.0
+master access (average),0
+master access (max),0
+mirror access (median),0.0
+mirror access (average),0
+mirror access (max),0
+mirror write (median),0.0
+mirror write (average),0
+mirror write (max),0
+mirror nodes sending updates (median),0.0
+mirror nodes sending updates (average),0
+mirror nodes sending updates (max),0
+master nodes receiving updates (median),0.0
+master nodes receiving updates (average),0
+master nodes receiving updates (max),0
+
+baseline local time,1.5157625e-08
+baseline remote time,0.0
+baseline time,1.5157625e-08
+gluon compute time,1.5157625e-08
+gluon communication time,0.0
+gluon time,1.5157625e-08
+gluon speedup,1.0
+

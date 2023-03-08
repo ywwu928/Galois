@@ -133,10 +133,44 @@ struct InitializeGraph {
 template <bool async>
 struct FirstItr_BFS {
   Graph* graph;
+  
+  galois::DGAccumulator<uint64_t>& master_total;
+  galois::DGAccumulator<uint64_t>& master_write_total;
+  galois::DGAccumulator<uint64_t>& master_round;
+  galois::DGAccumulator<uint64_t>& master_write_round;
+  galois::DGAccumulator<uint64_t>& mirror_total;
+  galois::DGAccumulator<uint64_t>& mirror_write_total;
+  galois::DGAccumulator<uint64_t>& mirror_round;
+  galois::DGAccumulator<uint64_t>& mirror_write_round;
 
-  FirstItr_BFS(Graph* _graph) : graph(_graph) {}
+  FirstItr_BFS(Graph* _graph,
+              galois::DGAccumulator<uint64_t>& _master_total,
+              galois::DGAccumulator<uint64_t>& _master_write_total,
+              galois::DGAccumulator<uint64_t>& _master_round,
+              galois::DGAccumulator<uint64_t>& _master_write_round,
+              galois::DGAccumulator<uint64_t>& _mirror_total,
+              galois::DGAccumulator<uint64_t>& _mirror_write_total,
+              galois::DGAccumulator<uint64_t>& _mirror_round,
+              galois::DGAccumulator<uint64_t>& _mirror_write_round)
+              : graph(_graph),
+              master_total(_master_total), 
+              master_write_total(_master_write_total),
+              master_round(_master_round), 
+              master_write_round(_master_write_round),
+              mirror_total(_mirror_total), 
+              mirror_write_total(_mirror_write_total),
+              mirror_round(_mirror_round), 
+              mirror_write_round(_mirror_write_round) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph,
+                  galois::DGAccumulator<uint64_t>& master_total,
+                  galois::DGAccumulator<uint64_t>& master_write_total,
+                  galois::DGAccumulator<uint64_t>& master_round,
+                  galois::DGAccumulator<uint64_t>& master_write_round,
+                  galois::DGAccumulator<uint64_t>& mirror_total,
+                  galois::DGAccumulator<uint64_t>& mirror_write_total,
+                  galois::DGAccumulator<uint64_t>& mirror_round,
+                  galois::DGAccumulator<uint64_t>& mirror_write_round) {
     uint32_t __begin, __end;
     if (_graph.isLocal(src_node)) {
       __begin = _graph.getLID(src_node);
@@ -157,16 +191,52 @@ struct FirstItr_BFS {
       abort();
 #endif
     } else if (personality == CPU) {
+      master_round.reset();
+      master_write_round.reset();
+      mirror_round.reset();
+      mirror_write_round.reset();
+
       // one node
       galois::do_all(
-          galois::iterate(__begin, __end), FirstItr_BFS{&_graph},
+          galois::iterate(__begin, __end), 
+          FirstItr_BFS{&_graph,
+                        master_total, 
+                        master_write_total, 
+                        master_round, 
+                        master_write_round,
+                        mirror_total, 
+                        mirror_write_total,
+                        mirror_round, 
+                        mirror_write_round},
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
     }
 
-    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
-                        Bitset_dist_current, async>("BFS");
+    std::cout << "#####   Round 0   #####" << std::endl;
+    uint64_t host_id = galois::runtime::getSystemNetworkInterface().ID;
+    std::cout << "host " << host_id << " round master accesses: " << master_round.read_local() << std::endl;
+    std::cout << "host " << host_id << " round master write: " << master_write_round.read_local() << std::endl;
+    std::cout << "host " << host_id << " round mirror accesses: " << mirror_round.read_local() << std::endl;
+    std::cout << "host " << host_id << " round mirror writes: " << mirror_write_round.read_local() << std::endl;
+    
+    uint64_t count = 0;
+    for (uint64_t i=_graph.numMasters(); i<_graph.size(); i++) {
+      if (bitset_dist_current.test(i)) {
+        count += 1;
+      }
+    }
+    std::cout << "host " << host_id << " number of mirrors sending updates: " << count << std::endl;
 
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+      
+    master_total += master_round.read_local();
+    master_write_total += master_write_round.read_local();
+    mirror_total += mirror_round.read_local();
+    mirror_write_total += mirror_write_round.read_local();
+
+    // just a barrier to synchronize output
+    master_round.reduce();
+    
     galois::runtime::reportStat_Tsum(
         REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
         __end - __begin);
@@ -175,14 +245,41 @@ struct FirstItr_BFS {
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
     snode.dist_old  = snode.dist_current;
+    
+    /*
+    if (graph->isOwned(graph->getGID(src))) {
+      master_round += 1;
+    }
+    else {
+      mirror_round += 1;
+    }
+    */
 
     for (auto jj : graph->edges(src)) {
       GNode dst         = graph->getEdgeDst(jj);
       auto& dnode       = graph->getData(dst);
+      
+      if (graph->isOwned(graph->getGID(dst))) {
+        master_round += 1;
+      }
+      else {
+        mirror_round += 1;
+      }
+
       uint32_t new_dist = 1 + snode.dist_current;
       uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
-      if (old_dist > new_dist)
+      if (old_dist > new_dist) {
         bitset_dist_current.set(dst);
+
+        if (graph->isOwned(graph->getGID(dst))) {
+          master_round += 1;
+          master_write_round += 1;
+        }
+        else {
+          mirror_round += 1;
+          mirror_write_round += 1;
+        }
+      }
     }
   }
 };
@@ -198,14 +295,65 @@ struct BFS {
 
   DGTerminatorDetector& active_vertices;
   DGAccumulatorTy& work_edges;
+  
+  galois::DGAccumulator<uint64_t>& master_total;
+  galois::DGAccumulator<uint64_t>& master_write_total;
+  galois::DGAccumulator<uint64_t>& master_round;
+  galois::DGAccumulator<uint64_t>& master_write_round;
+  galois::DGAccumulator<uint64_t>& mirror_total;
+  galois::DGAccumulator<uint64_t>& mirror_write_total;
+  galois::DGAccumulator<uint64_t>& mirror_round;
+  galois::DGAccumulator<uint64_t>& mirror_write_round;
 
-  BFS(uint32_t _local_priority, Graph* _graph, DGTerminatorDetector& _dga,
-      DGAccumulatorTy& _work_edges)
-      : local_priority(_local_priority), graph(_graph), active_vertices(_dga),
-        work_edges(_work_edges) {}
+  BFS(uint32_t _local_priority,
+      Graph* _graph,
+      DGTerminatorDetector& _dga,
+      DGAccumulatorTy& _work_edges,
+      galois::DGAccumulator<uint64_t>& _master_total,
+      galois::DGAccumulator<uint64_t>& _master_write_total,
+      galois::DGAccumulator<uint64_t>& _master_round,
+      galois::DGAccumulator<uint64_t>& _master_write_round,
+      galois::DGAccumulator<uint64_t>& _mirror_total,
+      galois::DGAccumulator<uint64_t>& _mirror_write_total,
+      galois::DGAccumulator<uint64_t>& _mirror_round,
+      galois::DGAccumulator<uint64_t>& _mirror_write_round)
+      : local_priority(_local_priority),
+      graph(_graph),
+      active_vertices(_dga),
+      work_edges(_work_edges),
+      master_total(_master_total), 
+      master_write_total(_master_write_total),
+      master_round(_master_round), 
+      master_write_round(_master_write_round),
+      mirror_total(_mirror_total), 
+      mirror_write_total(_mirror_write_total),
+      mirror_round(_mirror_round), 
+      mirror_write_round(_mirror_write_round) {}
 
-  void static go(Graph& _graph) {
-    FirstItr_BFS<async>::go(_graph);
+  void static go(Graph& _graph,
+                  galois::DGAccumulator<uint64_t>& master_total,
+                  galois::DGAccumulator<uint64_t>& master_write_total,
+                  galois::DGAccumulator<uint64_t>& master_round,
+                  galois::DGAccumulator<uint64_t>& master_write_round,
+                  galois::DGAccumulator<uint64_t>& mirror_total,
+                  galois::DGAccumulator<uint64_t>& mirror_write_total,
+                  galois::DGAccumulator<uint64_t>& mirror_round,
+                  galois::DGAccumulator<uint64_t>& mirror_write_round) {
+    
+    master_total.reset();
+    master_write_total.reset();
+    mirror_total.reset();
+    mirror_write_total.reset();
+    
+    FirstItr_BFS<async>::go(_graph,
+                            master_total, 
+                            master_write_total, 
+                            master_round, 
+                            master_write_round,
+                            mirror_total, 
+                            mirror_write_total,
+                            mirror_round, 
+                            mirror_write_round);
 
     unsigned _num_iterations = 1;
 
@@ -219,8 +367,10 @@ struct BFS {
     DGTerminatorDetector dga;
     DGAccumulatorTy work_edges;
     
-    bool transposed = syncSubstrate->get_transposed();
-    std::cout << "Transpose = " << transposed << std::endl;
+    // bool transposed = syncSubstrate->get_transposed();
+    // std::cout << "Transpose = " << transposed << std::endl;
+    
+    uint64_t host_id = galois::runtime::getSystemNetworkInterface().ID;
 
     do {
 
@@ -230,6 +380,12 @@ struct BFS {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();
+        
+      master_round.reset();
+      master_write_round.reset();
+      mirror_round.reset();
+      mirror_write_round.reset();
+
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
         std::string impl_str(syncSubstrate->get_run_identifier("BFS"));
@@ -247,12 +403,42 @@ struct BFS {
       } else if (personality == CPU) {
         galois::do_all(
             galois::iterate(nodesWithEdges),
-            BFS(priority, &_graph, dga, work_edges), galois::steal(),
+            BFS(priority, 
+                &_graph, 
+                dga, 
+                work_edges, 
+                master_total, 
+                master_write_total, 
+                master_round, 
+                master_write_round,
+                mirror_total, 
+                mirror_write_total,
+                mirror_round, 
+                mirror_write_round),
+            galois::steal(),
             galois::no_stats(),
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current,
-                          Bitset_dist_current, async>("BFS");
+      std::cout << "#####   Round " << _num_iterations << "   #####" << std::endl;
+      std::cout << "host " << host_id << " round master accesses: " << master_round.read_local() << std::endl;
+      std::cout << "host " << host_id << " round master write: " << master_write_round.read_local() << std::endl;
+      std::cout << "host " << host_id << " round mirror accesses: " << mirror_round.read_local() << std::endl;
+      std::cout << "host " << host_id << " round mirror writes: " << mirror_write_round.read_local() << std::endl;
+      
+      uint64_t count = 0;
+      for (uint64_t i=_graph.numMasters(); i<_graph.size(); i++) {
+        if (bitset_dist_current.test(i)) {
+          count += 1;
+        }
+      }
+      std::cout << "host " << host_id << " number of mirrors sending updates: " << count << std::endl;
+
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+      
+      master_total += master_round.read_local();
+      master_write_total += master_write_round.read_local();
+      mirror_total += mirror_round.read_local();
+      mirror_write_total += mirror_write_round.read_local();
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
@@ -266,11 +452,25 @@ struct BFS {
         REGION_NAME,
         "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
         (unsigned long)_num_iterations);
+    
+    std::cout << "#####   Summary   #####" << std::endl;
+    std::cout << "host " << host_id << " total master accesses: " << master_total.read_local() << std::endl;
+    std::cout << "host " << host_id << " total master write: " << master_write_total.read_local() << std::endl;
+    std::cout << "host " << host_id << " total mirror accesses: " << mirror_total.read_local() << std::endl;
+    std::cout << "host " << host_id << " total mirror writes: " << mirror_write_total.read_local() << std::endl;
   }
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-
+    
+    /*
+    if (graph->isOwned(graph->getGID(src))) {
+      master_round += 1;
+    }
+    else {
+      mirror_round += 1;
+    }
+    */
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
 
@@ -282,10 +482,29 @@ struct BFS {
 
           GNode dst         = graph->getEdgeDst(jj);
           auto& dnode       = graph->getData(dst);
+          
+          if (graph->isOwned(graph->getGID(dst))) {
+            master_round += 1;
+          }
+          else {
+            mirror_round += 1;
+          }
+          
           uint32_t new_dist = 1 + snode.dist_current;
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
-          if (old_dist > new_dist)
+          
+          if (old_dist > new_dist) {
             bitset_dist_current.set(dst);
+            
+            if (graph->isOwned(graph->getGID(dst))) {
+              master_round += 1;
+              master_write_round += 1;
+            }
+            else {
+              mirror_round += 1;
+              mirror_write_round += 1;
+            }
+          }
         }
       }
     }
@@ -438,6 +657,14 @@ int main(int argc, char** argv) {
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
+  galois::DGAccumulator<uint64_t> master_total;
+  galois::DGAccumulator<uint64_t> master_write_total;
+  galois::DGAccumulator<uint64_t> master_round;
+  galois::DGAccumulator<uint64_t> master_write_round;
+  galois::DGAccumulator<uint64_t> mirror_total;
+  galois::DGAccumulator<uint64_t> mirror_write_total;
+  galois::DGAccumulator<uint64_t> mirror_round;
+  galois::DGAccumulator<uint64_t> mirror_write_round;
   galois::DGReduceMax<uint32_t> m;
 
   for (auto run = 0; run < numRuns; ++run) {
@@ -447,9 +674,25 @@ int main(int argc, char** argv) {
 
     StatTimer_main.start();
     if (execution == Async) {
-      BFS<true>::go(*hg);
+      BFS<true>::go(*hg, 
+                    master_total, 
+                    master_write_total, 
+                    master_round, 
+                    master_write_round,
+                    mirror_total, 
+                    mirror_write_total,
+                    mirror_round, 
+                    mirror_write_round);
     } else {
-      BFS<false>::go(*hg);
+      BFS<false>::go(*hg, 
+                    master_total, 
+                    master_write_total, 
+                    master_round, 
+                    master_write_round,
+                    mirror_total, 
+                    mirror_write_total,
+                    mirror_round, 
+                    mirror_write_round);
     }
     StatTimer_main.stop();
 

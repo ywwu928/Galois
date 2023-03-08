@@ -1,0 +1,242 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: PageRank - Compiler Generated Distributed Heterogeneous
+Residual PageRank on Distributed Galois.
+
+[3] Master distribution time : 1.1948 seconds to read 408 bytes in 50 seeks (0.000341479 MBPS)
+[3] Starting graph reading.
+[11] Master distribution time : 1.31818 seconds to read 392 bytes in 48 seeks (0.00029738 MBPS)
+[11] Starting graph reading.
+[3] Reading graph complete.
+[7] Master distribution time : 1.37095 seconds to read 400 bytes in 48 seeks (0.000291769 MBPS)
+[7] Starting graph reading.
+[4] Master distribution time : 1.05038 seconds to read 400 bytes in 49 seeks (0.000380814 MBPS)
+[4] Starting graph reading.
+[14] Master distribution time : 0.730409 seconds to read 400 bytes in 50 seeks (0.000547638 MBPS)
+[14] Starting graph reading.
+[12] Master distribution time : 1.43192 seconds to read 408 bytes in 51 seeks (0.000284932 MBPS)
+[12] Starting graph reading.
+[4] Reading graph complete.
+[6] Master distribution time : 1.31477 seconds to read 400 bytes in 50 seeks (0.000304236 MBPS)
+[6] Starting graph reading.
+[9] Master distribution time : 1.15347 seconds to read 400 bytes in 49 seeks (0.00034678 MBPS)
+[9] Starting graph reading.
+[11] Reading graph complete.
+[15] Master distribution time : 1.51944 seconds to read 376 bytes in 45 seeks (0.000247459 MBPS)
+[15] Starting graph reading.
+[1] Master distribution time : 1.54271 seconds to read 408 bytes in 50 seeks (0.000264469 MBPS)
+[1] Starting graph reading.
+[2] Master distribution time : 1.54562 seconds to read 400 bytes in 50 seeks (0.000258796 MBPS)
+[2] Starting graph reading.
+[7] Reading graph complete.
+[8] Master distribution time : 1.13432 seconds to read 400 bytes in 50 seeks (0.000352634 MBPS)
+[8] Starting graph reading.
+[13] Master distribution time : 1.58852 seconds to read 400 bytes in 50 seeks (0.000251807 MBPS)
+[13] Starting graph reading.
+[0] Master distribution time : 1.55754 seconds to read 200 bytes in 24 seeks (0.000128407 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[5] Master distribution time : 1.6885 seconds to read 400 bytes in 49 seeks (0.000236897 MBPS)
+[5] Starting graph reading.
+[1] Reading graph complete.
+[6] Reading graph complete.
+[2] Reading graph complete.
+[9] Reading graph complete.
+[5] Reading graph complete.
+[14] Reading graph complete.
+[10] Master distribution time : 1.76425 seconds to read 400 bytes in 49 seeks (0.000226725 MBPS)
+[10] Starting graph reading.
+[8] Reading graph complete.
+[15] Reading graph complete.
+[13] Reading graph complete.
+[12] Reading graph complete.
+[10] Reading graph complete.
+[0] Edge inspection time: 0.675589 seconds to read 17659704 bytes (26.1397 MBPS)
+[3] Edge inspection time: 1.39279 seconds to read 18881992 bytes (13.557 MBPS)
+[4] Edge inspection time: 1.44669 seconds to read 19329500 bytes (13.3612 MBPS)
+[1] Edge inspection time: 1.40821 seconds to read 21788348 bytes (15.4724 MBPS)
+[5] Edge inspection time: 1.43783 seconds to read 17942060 bytes (12.4785 MBPS)
+Loading edge-data while creating edges
+[2] Edge inspection time: 1.78409 seconds to read 27303356 bytes (15.3038 MBPS)
+[6] Edge inspection time: 2.11674 seconds to read 32083412 bytes (15.157 MBPS)
+[7] Edge inspection time: 2.46535 seconds to read 41358364 bytes (16.7759 MBPS)
+[8] Edge inspection time: 2.54452 seconds to read 43201352 bytes (16.9782 MBPS)
+[14] Edge inspection time: 2.74535 seconds to read 57580748 bytes (20.974 MBPS)
+[15] Edge inspection time: 2.83289 seconds to read 59323940 bytes (20.9412 MBPS)
+[13] Edge inspection time: 2.83828 seconds to read 55944416 bytes (19.7106 MBPS)
+[9] Edge inspection time: 3.17152 seconds to read 39123952 bytes (12.336 MBPS)
+[11] Edge inspection time: 3.52651 seconds to read 39339956 bytes (11.1555 MBPS)
+[12] Edge inspection time: 3.12222 seconds to read 50719588 bytes (16.2447 MBPS)
+[0] Edge loading time: 2.08058 seconds to read 17659704 bytes (8.48788 MBPS)
+[0] Graph construction complete.
+[10] Edge inspection time: 3.50214 seconds to read 37953664 bytes (10.8373 MBPS)
+[1] Edge loading time: 6.10945 seconds to read 21788348 bytes (3.56634 MBPS)
+[1] Graph construction complete.
+[7] Edge loading time: 6.76411 seconds to read 41358364 bytes (6.11438 MBPS)
+[7] Graph construction complete.
+[8] Edge loading time: 6.06647 seconds to read 43201352 bytes (7.12134 MBPS)
+[8] Graph construction complete.
+[2] Edge loading time: 7.70082 seconds to read 27303356 bytes (3.54551 MBPS)
+[2] Graph construction complete.
+[3] Edge loading time: 6.19827 seconds to read 18881992 bytes (3.04633 MBPS)
+[3] Graph construction complete.
+[4] Edge loading time: 7.44079 seconds to read 19329500 bytes (2.59777 MBPS)
+[4] Graph construction complete.
+[6] Edge loading time: 9.23461 seconds to read 32083412 bytes (3.47426 MBPS)
+[6] Graph construction complete.
+[5] Edge loading time: 12.394 seconds to read 17942060 bytes (1.44764 MBPS)
+[5] Graph construction complete.
+[15] Edge loading time: 15.6113 seconds to read 59323940 bytes (3.80007 MBPS)
+[15] Graph construction complete.
+[9] Edge loading time: 13.2578 seconds to read 39123952 bytes (2.95101 MBPS)
+[9] Graph construction complete.
+[12] Edge loading time: 13.0717 seconds to read 50719588 bytes (3.8801 MBPS)
+[12] Graph construction complete.
+[13] Edge loading time: 14.5693 seconds to read 55944416 bytes (3.83988 MBPS)
+[13] Graph construction complete.
+[14] Edge loading time: 15.7794 seconds to read 57580748 bytes (3.64912 MBPS)
+[14] Graph construction complete.
+[10] Edge loading time: 15.2333 seconds to read 37953664 bytes (2.4915 MBPS)
+[10] Graph construction complete.
+[11] Edge loading time: 15.6779 seconds to read 39339956 bytes (2.50927 MBPS)
+[11] Graph construction complete.
+[8] InitializeGraph::go called
+[5] InitializeGraph::go called
+[0] InitializeGraph::go called
+[2] InitializeGraph::go called
+[3] InitializeGraph::go called
+[13] InitializeGraph::go called
+[9] InitializeGraph::go called
+[14] InitializeGraph::go called
+[6] InitializeGraph::go called
+[15] InitializeGraph::go called
+[7] InitializeGraph::go called
+[12] InitializeGraph::go called
+[11] InitializeGraph::go called
+[4] InitializeGraph::go called
+[10] InitializeGraph::go called
+[1] InitializeGraph::go called
+[12] PageRank::go run 0 called
+[0] PageRank::go run 0 called
+[13] PageRank::go run 0 called
+[15] PageRank::go run 0 called
+[14] PageRank::go run 0 called
+[7] PageRank::go run 0 called
+[6] PageRank::go run 0 called
+[5] PageRank::go run 0 called
+[4] PageRank::go run 0 called
+[8] PageRank::go run 0 called
+[2] PageRank::go run 0 called
+[10] PageRank::go run 0 called
+[3] PageRank::go run 0 called
+[11] PageRank::go run 0 called
+[1] PageRank::go run 0 called
+[9] PageRank::go run 0 called
+#####   Round 0   #####
+round master accesses: 17249752
+round master writes: 8624876
+round mirror accesses: 123096864
+round mirror writes: 61548432
+round max master accesses: 3467990
+round max master writes: 1733995
+round max mirror accesses: 9321970
+round max mirror writes: 4660985
+#####   Round 1   #####
+round master accesses: 12431508
+round master writes: 6215754
+round mirror accesses: 85297960
+round mirror writes: 42648980
+round max master accesses: 3180306
+round max master writes: 1590153
+round max mirror accesses: 8217880
+round max mirror writes: 4108940
+#####   Round 2   #####
+round master accesses: 10587128
+round master writes: 5293564
+round mirror accesses: 66826234
+round mirror writes: 33413117
+round max master accesses: 2570070
+round max master writes: 1285035
+round max mirror accesses: 6414786
+round max mirror writes: 3207393
+#####   Round 3   #####
+round master accesses: 9705468
+round master writes: 4852734
+round mirror accesses: 59986140
+round mirror writes: 29993070
+round max master accesses: 2279948
+round max master writes: 1139974
+round max mirror accesses: 5666270
+round max mirror writes: 2833135
+#####   Round 4   #####
+round master accesses: 9240964
+round master writes: 4620482
+round mirror accesses: 56144068
+round mirror writes: 28072034
+round max master accesses: 2134996
+round max master writes: 1067498
+round max mirror accesses: 5298804
+round max mirror writes: 2649402
+#####   Round 5   #####
+round master accesses: 8984908
+round master writes: 4492454
+round mirror accesses: 53395330
+round mirror writes: 26697665
+round max master accesses: 2054156
+round max master writes: 1027078
+round max mirror accesses: 5095868
+round max mirror writes: 2547934
+#####   Round 6   #####
+round master accesses: 8821766
+round master writes: 4410883
+round mirror accesses: 51303780
+round mirror writes: 25651890
+round max master accesses: 2003990
+round max master writes: 1001995
+round max mirror accesses: 4968806
+round max mirror writes: 2484403
+#####   Round 7   #####
+round master accesses: 8647824
+round master writes: 4323912
+round mirror accesses: 49052164
+round mirror writes: 24526082
+round max master accesses: 1954986
+round max master writes: 977493
+round max mirror accesses: 4843476
+round max mirror writes: 2421738
+#####   Round 8   #####
+round master accesses: 8374042
+round master writes: 4187021
+round mirror accesses: 46369272
+round mirror writes: 23184636
+round max master accesses: 1880188
+round max master writes: 940094
+round max mirror accesses: 4657216
+round max mirror writes: 2328608
+#####   Round 9   #####
+round master accesses: 7940810
+round master writes: 3970405
+round mirror accesses: 43026436
+round mirror writes: 21513218
+round max master accesses: 1761276
+round max master writes: 880638
+round max mirror accesses: 4360544
+round max mirror writes: 2180272
+#####   Summary   #####
+total master accesses: 101984170
+total master writes: 50992085
+total mirror accesses: 634498248
+total mirror writes: 317249124
+total max master accesses: 23287906
+total max master writes: 11643953
+total max mirror accesses: 57764374
+total max mirror writes: 28882187
+Max rank is 8307.96
+Min rank is 0.15
+Rank sum is 6.06933e+06
+Residual sum is 497.937
+# nodes with residual over 1e-06 (tolerance) is 7085811
+Max residual is 0.695686
+Min residual is 0

@@ -456,6 +456,9 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
+    
+    std::string master_nodes_str = "NumMasterNodesOf_" + std::to_string(id);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, userGraph.numMasters());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1453,7 +1456,7 @@ private:
   void setSubset(const std::string& loopName, const IndicesVecTy& indices,
                  size_t size,
                  const galois::PODResizeableArray<unsigned int>& offsets,
-                 VecTy& val_vec, galois::DynamicBitSet& bit_set_compute,
+                 VecTy& val_vec, galois::DynamicBitSet& bit_set_compute, std::vector<bool>& recv_touched,
                  size_t start = 0) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string doall_str(syncTypeStr + "SetVal_" +
@@ -1471,6 +1474,7 @@ private:
             auto lid = indices[offset];
             setWrapper<FnTy, syncType, async>(lid, val_vec[n - start],
                                               bit_set_compute);
+            recv_touched[offset] = true;
           },
 #if GALOIS_COMM_STATS
           galois::loopname(get_run_identifier(doall_str).c_str()),
@@ -1486,6 +1490,7 @@ private:
         auto lid = indices[offset];
         setWrapper<FnTy, syncType, async>(lid, val_vec[n - start],
                                           bit_set_compute);
+        recv_touched[offset] = true;
       }
     }
   }
@@ -1862,6 +1867,9 @@ private:
             loopName, indices, bit_set_compute, bit_set_comm, offsets,
             bit_set_count, data_mode);
 
+        std::string node_type = (syncType == syncReduce) ? "mirror" : "master";
+        std::cout << "Host " << id << " sending updates to host " << from_id << ": " << bit_set_count << " " << node_type << " nodes" << std::endl;
+
         if (data_mode == onlyData) {
           bit_set_count = indices.size();
           extractSubset<SyncFnTy, syncType, VecTy, true, true>(
@@ -2213,7 +2221,7 @@ private:
       bool async,
       typename std::enable_if<!BitsetFnTy::is_vector_bitset()>::type* = nullptr>
   size_t syncRecvApply(uint32_t from_id, galois::runtime::RecvBuffer& buf,
-                       std::string loopName) {
+                   std::string loopName, std::vector<bool>& recv_touched) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string set_timer_str(syncTypeStr + "Set_" +
                               get_run_identifier(loopName));
@@ -2268,26 +2276,29 @@ private:
                                            bit_set_count2);
             assert(bit_set_count == bit_set_count2);
           }
+        
+          // std::string node_type = (syncType == syncReduce) ? "master" : "mirror";
+          // std::cout << "Host " << id << " from host " << from_id << ": " << bit_set_count << " " << node_type << " nodes receiving updates" << std::endl;
 
           if (data_mode == onlyData) {
             setSubset<decltype(sharedNodes[from_id]), SyncFnTy, syncType, VecTy,
                       async, true, true>(loopName, sharedNodes[from_id],
                                          bit_set_count, offsets, val_vec,
-                                         bit_set_compute);
+                                         bit_set_compute, recv_touched);
           } else if (data_mode == dataSplit || data_mode == dataSplitFirst) {
             setSubset<decltype(sharedNodes[from_id]), SyncFnTy, syncType, VecTy,
                       async, true, true>(loopName, sharedNodes[from_id],
                                          bit_set_count, offsets, val_vec,
-                                         bit_set_compute, buf_start);
+                                         bit_set_compute, recv_touched, buf_start);
           } else if (data_mode == gidsData) {
             setSubset<decltype(offsets), SyncFnTy, syncType, VecTy, async, true,
                       true>(loopName, offsets, bit_set_count, offsets, val_vec,
-                            bit_set_compute);
+                            bit_set_compute, recv_touched);
           } else { // bitsetData or offsetsData
             setSubset<decltype(sharedNodes[from_id]), SyncFnTy, syncType, VecTy,
                       async, false, true>(loopName, sharedNodes[from_id],
                                           bit_set_count, offsets, val_vec,
-                                          bit_set_compute);
+                                          bit_set_compute, recv_touched);
           }
           // TODO: reduce could update the bitset, so it needs to be copied
           // back to the device
@@ -2492,6 +2503,14 @@ private:
     std::string wait_timer_str("Wait_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> Twait(wait_timer_str.c_str(),
                                                    RNAME);
+      
+    std::vector<bool> recv_touched;
+    if (syncType == syncReduce) {
+      recv_touched.assign(userGraph.numMasters(), false);
+    }
+    else {
+      recv_touched.assign(userGraph.size() - userGraph.numMasters(), false);
+    }
 
     if (async) {
       size_t syncTypePhase = 0;
@@ -2505,7 +2524,7 @@ private:
 
         if (p) {
           syncRecvApply<syncType, SyncFnTy, BitsetFnTy, VecTy, async>(
-              p->first, p->second, loopName);
+              p->first, p->second, loopName, recv_touched);
         }
       } while (p);
     } else {
@@ -2523,10 +2542,13 @@ private:
         Twait.stop();
 
         syncRecvApply<syncType, SyncFnTy, BitsetFnTy, VecTy, async>(
-            p->first, p->second, loopName);
+            p->first, p->second, loopName, recv_touched);
       }
       incrementEvilPhase();
     }
+
+    std::string node_type = (syncType == syncReduce) ? "master" : "mirror";
+    std::cout << "Host " << id << " receiving updates: " << std::count(recv_touched.begin(), recv_touched.end(), true) << " " << node_type << " nodes" << std::endl;
   }
 
   /**

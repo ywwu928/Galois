@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "yelp 8 hosts start time:"
+date
+srun -N 1 -n 8 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/yelp.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/yelp.tgr" --maxIterations=40 -t=16 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_8procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_8procs"
+echo "yelp 8 hosts end time:"
+date
+echo "yelp 16 hosts start time:"
+date
+srun -N 1 -n 16 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/yelp.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/yelp.tgr" --maxIterations=40 -t=8 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_16procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_16procs"
+echo "yelp 16 hosts end time:"
+date
+echo "yelp 32 hosts start time:"
+date
+srun -N 1 -n 32 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/yelp.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/yelp.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_32procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_32procs"
+echo "yelp 32 hosts end time:"
+date
+echo "yelp 64 hosts start time:"
+date
+srun -N 2 -n 64 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/yelp.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/yelp.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_64procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_64procs"
+echo "yelp 64 hosts end time:"
+date
+echo "yelp 128 hosts start time:"
+date
+srun -N 4 -n 128 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/yelp.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/yelp.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_128procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/yelp_128procs"
+echo "yelp 128 hosts end time:"
+date

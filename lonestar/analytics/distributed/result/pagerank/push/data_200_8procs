@@ -1,0 +1,178 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: PageRank - Compiler Generated Distributed Heterogeneous
+Residual PageRank on Distributed Galois.
+
+[3] Master distribution time : 0.53783 seconds to read 400 bytes in 49 seeks (0.000743729 MBPS)
+[3] Starting graph reading.
+[1] Master distribution time : 0.614942 seconds to read 400 bytes in 49 seeks (0.000650468 MBPS)
+[1] Starting graph reading.
+[6] Master distribution time : 0.593227 seconds to read 400 bytes in 50 seeks (0.000674278 MBPS)
+[6] Starting graph reading.
+[2] Master distribution time : 0.65835 seconds to read 400 bytes in 49 seeks (0.00060758 MBPS)
+[2] Starting graph reading.
+[0] Master distribution time : 0.507499 seconds to read 200 bytes in 24 seeks (0.000394089 MBPS)
+[0] Starting graph reading.
+[5] Master distribution time : 0.679417 seconds to read 392 bytes in 48 seeks (0.000576965 MBPS)
+[5] Starting graph reading.
+[7] Master distribution time : 0.637888 seconds to read 392 bytes in 48 seeks (0.000614528 MBPS)
+[7] Starting graph reading.
+[4] Master distribution time : 0.725947 seconds to read 400 bytes in 50 seeks (0.000551004 MBPS)
+[4] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.442703 seconds to read 46185356 bytes (104.326 MBPS)
+[6] Reading graph complete.
+[2] Reading graph complete.
+[0] Reading graph complete.
+[5] Reading graph complete.
+[2] Edge inspection time: 0.462779 seconds to read 37271568 bytes (80.5386 MBPS)
+[0] Edge inspection time: 0.401205 seconds to read 39448060 bytes (98.324 MBPS)
+[4] Reading graph complete.
+[7] Reading graph complete.
+[3] Reading graph complete.
+[6] Edge inspection time: 1.98682 seconds to read 106664012 bytes (53.6859 MBPS)
+[5] Edge inspection time: 2.23801 seconds to read 77293628 bytes (34.5368 MBPS)
+[3] Edge inspection time: 1.58768 seconds to read 73441784 bytes (46.2574 MBPS)
+[4] Edge inspection time: 2.00653 seconds to read 82325312 bytes (41.0288 MBPS)
+Loading edge-data while creating edges
+[7] Edge inspection time: 2.2329 seconds to read 116904696 bytes (52.3555 MBPS)
+[0] Edge loading time: 3.86289 seconds to read 39448060 bytes (10.2121 MBPS)
+[0] Graph construction complete.
+[1] Edge loading time: 7.98964 seconds to read 46185356 bytes (5.78066 MBPS)
+[1] Graph construction complete.
+[3] Edge loading time: 7.13029 seconds to read 73441784 bytes (10.3 MBPS)
+[3] Graph construction complete.
+[4] Edge loading time: 10.0461 seconds to read 82325312 bytes (8.19477 MBPS)
+[4] Graph construction complete.
+[6] Edge loading time: 10.7806 seconds to read 106664012 bytes (9.89406 MBPS)
+[6] Graph construction complete.
+[7] Edge loading time: 10.2456 seconds to read 116904696 bytes (11.4102 MBPS)
+[7] Graph construction complete.
+[2] Edge loading time: 11.0736 seconds to read 37271568 bytes (3.36581 MBPS)
+[2] Graph construction complete.
+[5] Edge loading time: 13.3335 seconds to read 77293628 bytes (5.79696 MBPS)
+[5] Graph construction complete.
+[7] InitializeGraph::go called
+[3] InitializeGraph::go called
+[0] InitializeGraph::go called
+[5] InitializeGraph::go called
+[2] InitializeGraph::go called
+[4] InitializeGraph::go called
+[6] InitializeGraph::go called
+[1] InitializeGraph::go called
+[5] PageRank::go run 0 called
+[7] PageRank::go run 0 called
+[6] PageRank::go run 0 called
+[1] PageRank::go run 0 called
+[3] PageRank::go run 0 called
+[0] PageRank::go run 0 called
+[2] PageRank::go run 0 called
+[4] PageRank::go run 0 called
+#####   Round 0   #####
+round master accesses: 26322524
+round master writes: 13161262
+round mirror accesses: 114024092
+round mirror writes: 57012046
+round max master accesses: 8494772
+round max master writes: 4247386
+round max mirror accesses: 16641950
+round max mirror writes: 8320975
+#####   Round 1   #####
+round master accesses: 20213708
+round master writes: 10106854
+round mirror accesses: 77515760
+round mirror writes: 38757880
+round max master accesses: 7875866
+round max master writes: 3937933
+round max mirror accesses: 16191224
+round max mirror writes: 8095612
+#####   Round 2   #####
+round master accesses: 17041748
+round master writes: 8520874
+round mirror accesses: 60371614
+round mirror writes: 30185807
+round max master accesses: 6303440
+round max master writes: 3151720
+round max mirror accesses: 12379732
+round max mirror writes: 6189866
+#####   Round 3   #####
+round master accesses: 15537358
+round master writes: 7768679
+round mirror accesses: 54154250
+round mirror writes: 27077125
+round max master accesses: 5574698
+round max master writes: 2787349
+round max mirror accesses: 10887746
+round max mirror writes: 5443873
+#####   Round 4   #####
+round master accesses: 14760746
+round master writes: 7380373
+round mirror accesses: 50624286
+round mirror writes: 25312143
+round max master accesses: 5214848
+round max master writes: 2607424
+round max mirror accesses: 10159372
+round max mirror writes: 5079686
+#####   Round 5   #####
+round master accesses: 14329432
+round master writes: 7164716
+round mirror accesses: 48050806
+round mirror writes: 24025403
+round max master accesses: 5015148
+round max master writes: 2507574
+round max mirror accesses: 9759506
+round max mirror writes: 4879753
+#####   Round 6   #####
+round master accesses: 14054640
+round master writes: 7027320
+round mirror accesses: 46070906
+round mirror writes: 23035453
+round max master accesses: 4890658
+round max master writes: 2445329
+round max mirror accesses: 9510316
+round max mirror writes: 4755158
+#####   Round 7   #####
+round master accesses: 13767754
+round master writes: 6883877
+round mirror accesses: 43932234
+round mirror writes: 21966117
+round max master accesses: 4768812
+round max master writes: 2384406
+round max mirror accesses: 9271540
+round max mirror writes: 4635770
+#####   Round 8   #####
+round master accesses: 13322686
+round master writes: 6661343
+round mirror accesses: 41420628
+round mirror writes: 20710314
+round max master accesses: 4584652
+round max master writes: 2292326
+round max mirror accesses: 8910560
+round max mirror writes: 4455280
+#####   Round 9   #####
+round master accesses: 12609930
+round master writes: 6304965
+round mirror accesses: 38357316
+round mirror writes: 19178658
+round max master accesses: 4292032
+round max master writes: 2146016
+round max mirror accesses: 8336508
+round max mirror writes: 4168254
+#####   Summary   #####
+total master accesses: 161960526
+total master writes: 80980263
+total mirror accesses: 574521892
+total mirror writes: 287260946
+total max master accesses: 57014926
+total max master writes: 28507463
+total max mirror accesses: 111941596
+total max mirror writes: 55970798
+Max rank is 8309.75
+Min rank is 0.15
+Rank sum is 6.0614e+06
+Residual sum is 496.574
+# nodes with residual over 1e-06 (tolerance) is 7085811
+Max residual is 0.695688
+Min residual is 0

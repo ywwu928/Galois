@@ -1,0 +1,1079 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS - Distributed Heterogeneous with worklist.
+BFS on Distributed Galois.
+
+[16] Master distribution time : 1.66377 seconds to read 400 bytes in 50 seeks (0.000240418 MBPS)
+[16] Starting graph reading.
+[52] Master distribution time : 1.49793 seconds to read 408 bytes in 51 seeks (0.000272376 MBPS)
+[52] Starting graph reading.
+[54] Master distribution time : 1.83135 seconds to read 408 bytes in 50 seeks (0.000222787 MBPS)
+[54] Starting graph reading.
+[44] Master distribution time : 1.57811 seconds to read 400 bytes in 49 seeks (0.000253467 MBPS)
+[44] Starting graph reading.
+[19] Master distribution time : 1.66547 seconds to read 400 bytes in 49 seeks (0.000240172 MBPS)
+[19] Starting graph reading.
+[45] Master distribution time : 1.63739 seconds to read 400 bytes in 50 seeks (0.000244291 MBPS)
+[45] Starting graph reading.
+[16] Reading graph complete.
+[44] Reading graph complete.
+[52] Reading graph complete.
+[56] Master distribution time : 1.6312 seconds to read 400 bytes in 49 seeks (0.000245218 MBPS)
+[56] Starting graph reading.
+[54] Reading graph complete.
+[20] Master distribution time : 1.74832 seconds to read 408 bytes in 51 seeks (0.000233367 MBPS)
+[20] Starting graph reading.
+[45] Reading graph complete.
+[31] Master distribution time : 1.74845 seconds to read 392 bytes in 48 seeks (0.000224198 MBPS)
+[55] Master distribution time : 1.60545 seconds to read 400 bytes in 49 seeks (0.000249151 MBPS)
+[31] Starting graph reading.
+[31] Reading graph complete.
+[55] Starting graph reading.
+[31] Edge inspection time: 0.00091 seconds to read 0 bytes (0 MBPS)
+[31] Edge loading time: 3e-06 seconds to read 0 bytes (0 MBPS)
+[31] Graph construction complete.
+[19] Reading graph complete.
+[108] Master distribution time : 1.72847 seconds to read 392 bytes in 49 seeks (0.00022679 MBPS)
+[108] Starting graph reading.
+[18] Master distribution time : 1.73848 seconds to read 400 bytes in 49 seeks (0.000230086 MBPS)
+[18] Starting graph reading.
+[5] Master distribution time : 1.65055 seconds to read 408 bytes in 51 seeks (0.00024719 MBPS)
+[5] Starting graph reading.
+[20] Reading graph complete.
+[25] Master distribution time : 1.47416 seconds to read 408 bytes in 50 seeks (0.000276768 MBPS)
+[25] Starting graph reading.
+[18] Reading graph complete.
+[5] Reading graph complete.
+[56] Reading graph complete.
+[5] Edge inspection time: 0.009713 seconds to read 2194992 bytes (225.985 MBPS)
+[55] Reading graph complete.
+[25] Reading graph complete.
+[123] Master distribution time : 1.70622 seconds to read 376 bytes in 46 seeks (0.00022037 MBPS)
+[123] Starting graph reading.
+[76] Master distribution time : 1.71988 seconds to read 408 bytes in 51 seeks (0.000237226 MBPS)
+[76] Starting graph reading.
+[105] Master distribution time : 1.66166 seconds to read 392 bytes in 49 seeks (0.000235909 MBPS)
+[105] Starting graph reading.
+[8] Master distribution time : 1.44555 seconds to read 400 bytes in 48 seeks (0.000276711 MBPS)
+[8] Starting graph reading.
+[8] Reading graph complete.
+[8] Edge inspection time: 0.009474 seconds to read 2204268 bytes (232.665 MBPS)
+[66] Master distribution time : 1.74139 seconds to read 400 bytes in 50 seeks (0.000229702 MBPS)
+[66] Starting graph reading.
+[78] Master distribution time : 1.60139 seconds to read 408 bytes in 51 seeks (0.000254778 MBPS)
+[78] Starting graph reading.
+[67] Master distribution time : 0.876369 seconds to read 392 bytes in 49 seeks (0.0004473 MBPS)
+[67] Starting graph reading.
+[125] Master distribution time : 1.51923 seconds to read 368 bytes in 44 seeks (0.000242229 MBPS)
+[125] Starting graph reading.
+[69] Master distribution time : 1.63246 seconds to read 400 bytes in 49 seeks (0.000245029 MBPS)
+[69] Starting graph reading.
+[21] Master distribution time : 1.56758 seconds to read 408 bytes in 50 seeks (0.000260273 MBPS)
+[21] Starting graph reading.
+[65] Master distribution time : 1.70274 seconds to read 400 bytes in 48 seeks (0.000234915 MBPS)
+[65] Starting graph reading.
+[6] Master distribution time : 1.4238 seconds to read 400 bytes in 50 seeks (0.000280939 MBPS)
+[6] Starting graph reading.
+[74] Master distribution time : 1.62561 seconds to read 392 bytes in 48 seeks (0.00024114 MBPS)
+[74] Starting graph reading.
+[86] Master distribution time : 1.63299 seconds to read 400 bytes in 49 seeks (0.00024495 MBPS)
+[86] Starting graph reading.
+[123] Reading graph complete.
+[15] Master distribution time : 1.51348 seconds to read 408 bytes in 51 seeks (0.000269577 MBPS)
+[15] Starting graph reading.
+[113] Master distribution time : 2.38583 seconds to read 392 bytes in 48 seeks (0.000164303 MBPS)
+[113] Starting graph reading.
+[105] Reading graph complete.
+[87] Master distribution time : 1.66748 seconds to read 392 bytes in 48 seeks (0.000235085 MBPS)
+[87] Starting graph reading.
+[6] Reading graph complete.
+[84] Master distribution time : 1.66387 seconds to read 392 bytes in 47 seeks (0.000235595 MBPS)
+[84] Starting graph reading.
+[108] Reading graph complete.
+[6] Edge inspection time: 0.009668 seconds to read 2202284 bytes (227.791 MBPS)
+[21] Reading graph complete.
+[80] Master distribution time : 1.66352 seconds to read 400 bytes in 49 seeks (0.000240454 MBPS)
+[80] Starting graph reading.
+[103] Master distribution time : 1.48949 seconds to read 392 bytes in 48 seeks (0.000263178 MBPS)
+[103] Starting graph reading.
+[125] Reading graph complete.
+[85] Master distribution time : 1.60198 seconds to read 400 bytes in 49 seeks (0.00024969 MBPS)
+[85] Starting graph reading.
+[72] Master distribution time : 1.63673 seconds to read 400 bytes in 50 seeks (0.00024439 MBPS)
+[72] Starting graph reading.
+[94] Master distribution time : 1.66782 seconds to read 400 bytes in 49 seeks (0.000239834 MBPS)
+[94] Starting graph reading.
+[73] Master distribution time : 2.01224 seconds to read 400 bytes in 49 seeks (0.000198783 MBPS)
+[73] Starting graph reading.
+[11] Master distribution time : 1.65124 seconds to read 408 bytes in 50 seeks (0.000247087 MBPS)
+[11] Starting graph reading.
+[3] Master distribution time : 1.49268 seconds to read 408 bytes in 50 seeks (0.000273334 MBPS)
+[3] Starting graph reading.
+[95] Master distribution time : 1.67114 seconds to read 392 bytes in 49 seeks (0.00023457 MBPS)
+[95] Starting graph reading.
+[79] Master distribution time : 2.01651 seconds to read 392 bytes in 49 seeks (0.000194395 MBPS)
+[79] Starting graph reading.
+[64] Master distribution time : 1.65067 seconds to read 400 bytes in 50 seeks (0.000242325 MBPS)
+[64] Starting graph reading.
+[89] Master distribution time : 1.61506 seconds to read 408 bytes in 51 seeks (0.000252622 MBPS)
+[89] Starting graph reading.
+[78] Reading graph complete.
+[113] Reading graph complete.
+[15] Reading graph complete.
+[74] Reading graph complete.
+[122] Master distribution time : 1.44739 seconds to read 376 bytes in 45 seeks (0.000259777 MBPS)
+[122] Starting graph reading.
+[53] Master distribution time : 2.27791 seconds to read 400 bytes in 48 seeks (0.0001756 MBPS)
+[53] Starting graph reading.
+[76] Reading graph complete.
+[17] Master distribution time : 2.09272 seconds to read 400 bytes in 48 seeks (0.000191139 MBPS)
+[17] Starting graph reading.
+[4] Master distribution time : 1.38761 seconds to read 400 bytes in 49 seeks (0.000288265 MBPS)
+[4] Starting graph reading.
+[58] Master distribution time : 2.31158 seconds to read 400 bytes in 48 seeks (0.000173042 MBPS)
+[58] Starting graph reading.
+[65] Reading graph complete.
+[114] Master distribution time : 2.43148 seconds to read 384 bytes in 48 seeks (0.000157928 MBPS)
+[114] Starting graph reading.
+[101] Master distribution time : 1.46937 seconds to read 392 bytes in 48 seeks (0.000266782 MBPS)
+[3] Reading graph complete.
+[101] Starting graph reading.
+[3] Edge inspection time: 0.0095 seconds to read 2201400 bytes (231.726 MBPS)
+[12] Master distribution time : 1.48159 seconds to read 400 bytes in 48 seeks (0.00026998 MBPS)
+[12] Starting graph reading.
+[103] Reading graph complete.
+[66] Reading graph complete.
+[11] Reading graph complete.
+[57] Master distribution time : 2.31152 seconds to read 400 bytes in 49 seeks (0.000173046 MBPS)
+[57] Starting graph reading.
+[86] Reading graph complete.
+[99] Master distribution time : 1.50101 seconds to read 392 bytes in 48 seeks (0.000261157 MBPS)
+[99] Starting graph reading.
+[107] Master distribution time : 1.47813 seconds to read 392 bytes in 48 seeks (0.0002652 MBPS)
+[107] Starting graph reading.
+[53] Reading graph complete.
+[84] Reading graph complete.
+[1] Master distribution time : 1.51401 seconds to read 416 bytes in 52 seeks (0.000274766 MBPS)
+[1] Starting graph reading.
+[124] Master distribution time : 1.50025 seconds to read 368 bytes in 46 seeks (0.000245292 MBPS)
+[124] Starting graph reading.
+[87] Reading graph complete.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.0097 seconds to read 2201648 bytes (226.974 MBPS)
+[67] Reading graph complete.
+[17] Reading graph complete.
+[41] Master distribution time : 2.35548 seconds to read 408 bytes in 50 seeks (0.000173213 MBPS)
+[41] Starting graph reading.
+[80] Reading graph complete.
+[118] Master distribution time : 2.25705 seconds to read 376 bytes in 46 seeks (0.000166589 MBPS)
+[118] Starting graph reading.
+[96] Master distribution time : 2.22469 seconds to read 400 bytes in 49 seeks (0.000179801 MBPS)
+[96] Starting graph reading.
+[102] Master distribution time : 2.26336 seconds to read 392 bytes in 48 seeks (0.000173194 MBPS)
+[102] Starting graph reading.
+[85] Reading graph complete.
+[91] Master distribution time : 1.58228 seconds to read 392 bytes in 48 seeks (0.000247744 MBPS)
+[91] Starting graph reading.
+[12] Reading graph complete.
+[58] Reading graph complete.
+[110] Master distribution time : 2.27397 seconds to read 392 bytes in 49 seeks (0.000172385 MBPS)
+[110] Starting graph reading.
+[72] Reading graph complete.
+[111] Master distribution time : 2.24287 seconds to read 392 bytes in 49 seeks (0.000174776 MBPS)
+[111] Starting graph reading.
+[122] Reading graph complete.
+[2] Master distribution time : 1.37505 seconds to read 408 bytes in 50 seeks (0.000296716 MBPS)
+[2] Starting graph reading.
+[94] Reading graph complete.
+[1] Reading graph complete.
+[121] Master distribution time : 2.28464 seconds to read 376 bytes in 47 seeks (0.000164577 MBPS)
+[121] Starting graph reading.
+[127] Master distribution time : 2.26977 seconds to read 352 bytes in 43 seeks (0.000155082 MBPS)
+[127] Starting graph reading.
+[99] Reading graph complete.
+[126] Master distribution time : 2.29629 seconds to read 368 bytes in 45 seeks (0.000160259 MBPS)
+[126] Starting graph reading.
+[109] Master distribution time : 2.2871 seconds to read 384 bytes in 48 seeks (0.000167898 MBPS)
+[109] Starting graph reading.
+[107] Reading graph complete.
+[37] Master distribution time : 2.44679 seconds to read 400 bytes in 50 seeks (0.000163479 MBPS)
+[37] Starting graph reading.
+[49] Master distribution time : 2.42253 seconds to read 400 bytes in 50 seeks (0.000165117 MBPS)
+[49] Starting graph reading.
+[114] Reading graph complete.
+[89] Reading graph complete.
+[35] Master distribution time : 2.40545 seconds to read 400 bytes in 50 seeks (0.000166289 MBPS)
+[35] Starting graph reading.
+[97] Master distribution time : 2.30634 seconds to read 400 bytes in 49 seeks (0.000173435 MBPS)
+[97] Starting graph reading.
+[101] Reading graph complete.
+[14] Master distribution time : 1.50955 seconds to read 400 bytes in 48 seeks (0.00026498 MBPS)
+[14] Starting graph reading.
+[64] Reading graph complete.
+[98] Master distribution time : 2.33408 seconds to read 392 bytes in 48 seeks (0.000167946 MBPS)
+[98] Starting graph reading.
+[73] Reading graph complete.
+[2] Reading graph complete.
+[106] Master distribution time : 2.3056 seconds to read 392 bytes in 49 seeks (0.000170021 MBPS)
+[106] Starting graph reading.
+[100] Master distribution time : 2.2966 seconds to read 392 bytes in 48 seeks (0.000170687 MBPS)
+[100] Starting graph reading.
+[43] Master distribution time : 2.44251 seconds to read 408 bytes in 51 seeks (0.000167041 MBPS)
+[43] Starting graph reading.
+[124] Reading graph complete.
+[79] Reading graph complete.
+[2] Edge inspection time: 0.009897 seconds to read 2202216 bytes (222.513 MBPS)
+[27] Master distribution time : 1.39854 seconds to read 400 bytes in 49 seeks (0.000286013 MBPS)
+[27] Starting graph reading.
+[7] Master distribution time : 2.27184 seconds to read 400 bytes in 48 seeks (0.000176069 MBPS)
+[7] Starting graph reading.
+[10] Master distribution time : 2.2604 seconds to read 408 bytes in 50 seeks (0.000180499 MBPS)
+[10] Starting graph reading.
+[22] Master distribution time : 2.29516 seconds to read 408 bytes in 51 seeks (0.000177766 MBPS)
+[22] Starting graph reading.
+[95] Reading graph complete.
+[51] Master distribution time : 2.45239 seconds to read 408 bytes in 50 seeks (0.000166368 MBPS)
+[51] Starting graph reading.
+[35] Reading graph complete.
+[104] Master distribution time : 2.29838 seconds to read 400 bytes in 50 seeks (0.000174035 MBPS)
+[104] Starting graph reading.
+[69] Reading graph complete.
+[120] Master distribution time : 2.25573 seconds to read 376 bytes in 45 seeks (0.000166686 MBPS)
+[120] Starting graph reading.
+[102] Reading graph complete.
+[35] Edge inspection time: 0.007715 seconds to read 620084 bytes (80.3738 MBPS)
+[68] Master distribution time : 2.27959 seconds to read 400 bytes in 48 seeks (0.00017547 MBPS)
+[68] Starting graph reading.
+[118] Reading graph complete.
+[13] Master distribution time : 1.48075 seconds to read 400 bytes in 49 seeks (0.000270133 MBPS)
+[13] Starting graph reading.
+[27] Reading graph complete.
+[41] Reading graph complete.
+[88] Master distribution time : 2.29303 seconds to read 392 bytes in 49 seeks (0.000170953 MBPS)
+[88] Starting graph reading.
+[82] Master distribution time : 2.27363 seconds to read 392 bytes in 48 seeks (0.000172412 MBPS)
+[82] Starting graph reading.
+[70] Master distribution time : 2.27588 seconds to read 400 bytes in 49 seeks (0.000175756 MBPS)
+[70] Starting graph reading.
+[91] Reading graph complete.
+[14] Reading graph complete.
+[33] Master distribution time : 2.48477 seconds to read 416 bytes in 52 seeks (0.00016742 MBPS)
+[33] Starting graph reading.
+[96] Reading graph complete.
+[7] Reading graph complete.
+[57] Reading graph complete.
+[93] Master distribution time : 2.15899 seconds to read 400 bytes in 49 seeks (0.000185272 MBPS)
+[93] Starting graph reading.
+[7] Edge inspection time: 0.009694 seconds to read 2199284 bytes (226.871 MBPS)
+[121] Reading graph complete.
+[63] Master distribution time : 2.47146 seconds to read 392 bytes in 48 seeks (0.000158611 MBPS)
+[63] Starting graph reading.
+[10] Reading graph complete.
+[92] Master distribution time : 1.50154 seconds to read 400 bytes in 50 seeks (0.000266393 MBPS)
+[92] Starting graph reading.
+[88] Reading graph complete.
+[81] Master distribution time : 2.28945 seconds to read 400 bytes in 49 seeks (0.000174714 MBPS)
+[81] Starting graph reading.
+[49] Reading graph complete.
+[30] Master distribution time : 2.36161 seconds to read 392 bytes in 48 seeks (0.000165988 MBPS)
+[30] Starting graph reading.
+[30] Reading graph complete.
+[30] Edge inspection time: 0.000739 seconds to read 0 bytes (0 MBPS)
+[30] Edge loading time: 2e-06 seconds to read 0 bytes (0 MBPS)
+[30] Graph construction complete.
+[127] Reading graph complete.
+[68] Reading graph complete.
+[43] Reading graph complete.
+[82] Reading graph complete.
+[37] Reading graph complete.
+[22] Reading graph complete.
+[32] Master distribution time : 2.65119 seconds to read 408 bytes in 50 seeks (0.000153893 MBPS)
+[32] Starting graph reading.
+[51] Reading graph complete.
+[13] Reading graph complete.
+[33] Reading graph complete.
+[93] Reading graph complete.
+[70] Reading graph complete.
+[60] Master distribution time : 2.30774 seconds to read 408 bytes in 51 seeks (0.000176797 MBPS)
+[60] Starting graph reading.
+[36] Master distribution time : 2.30765 seconds to read 400 bytes in 49 seeks (0.000173336 MBPS)
+[36] Starting graph reading.
+[9] Master distribution time : 2.37387 seconds to read 400 bytes in 49 seeks (0.000168501 MBPS)
+[9] Starting graph reading.
+[16] Edge inspection time: 0.697766 seconds to read 3321772 bytes (4.76058 MBPS)
+[92] Reading graph complete.
+[32] Reading graph complete.
+[111] Reading graph complete.
+[0] Master distribution time : 2.42187 seconds to read 208 bytes in 26 seeks (8.58841e-05 MBPS)
+[0] Starting graph reading.
+[81] Reading graph complete.
+[40] Master distribution time : 2.29093 seconds to read 400 bytes in 50 seeks (0.000174602 MBPS)
+[40] Starting graph reading.
+[34] Master distribution time : 2.25717 seconds to read 400 bytes in 50 seeks (0.000177213 MBPS)
+[34] Starting graph reading.
+[59] Master distribution time : 2.16267 seconds to read 408 bytes in 51 seeks (0.000188656 MBPS)
+[59] Starting graph reading.
+[110] Reading graph complete.
+[90] Master distribution time : 1.49144 seconds to read 392 bytes in 49 seeks (0.000262834 MBPS)
+[90] Starting graph reading.
+[71] Master distribution time : 2.34585 seconds to read 400 bytes in 50 seeks (0.000170514 MBPS)
+[71] Starting graph reading.
+[83] Master distribution time : 2.3347 seconds to read 400 bytes in 50 seeks (0.000171328 MBPS)
+[83] Starting graph reading.
+[97] Reading graph complete.
+[23] Master distribution time : 2.43035 seconds to read 400 bytes in 49 seeks (0.000164585 MBPS)
+[23] Starting graph reading.
+[19] Edge inspection time: 0.660125 seconds to read 3131292 bytes (4.74348 MBPS)
+[63] Reading graph complete.
+[24] Master distribution time : 2.4279 seconds to read 400 bytes in 49 seeks (0.000164752 MBPS)
+[24] Starting graph reading.
+[9] Reading graph complete.
+[36] Reading graph complete.
+[0] Reading graph complete.
+[90] Reading graph complete.
+[40] Reading graph complete.
+[23] Reading graph complete.
+[71] Reading graph complete.
+[39] Master distribution time : 2.20823 seconds to read 400 bytes in 49 seeks (0.00018114 MBPS)
+[39] Starting graph reading.
+[60] Reading graph complete.
+[24] Reading graph complete.
+[98] Reading graph complete.
+[18] Edge inspection time: 0.692287 seconds to read 3359900 bytes (4.85333 MBPS)
+[126] Reading graph complete.
+[50] Master distribution time : 2.78941 seconds to read 400 bytes in 50 seeks (0.0001434 MBPS)
+[50] Starting graph reading.
+[34] Reading graph complete.
+[39] Reading graph complete.
+[75] Master distribution time : 2.39819 seconds to read 400 bytes in 49 seeks (0.000166793 MBPS)
+[75] Starting graph reading.
+[83] Reading graph complete.
+[109] Reading graph complete.
+[59] Reading graph complete.
+[25] Edge inspection time: 0.711827 seconds to read 834960 bytes (1.17298 MBPS)
+[47] Master distribution time : 2.09053 seconds to read 400 bytes in 49 seeks (0.000191339 MBPS)
+[47] Starting graph reading.
+[50] Reading graph complete.
+[77] Master distribution time : 2.29203 seconds to read 408 bytes in 51 seeks (0.000178009 MBPS)
+[77] Starting graph reading.
+[106] Reading graph complete.
+[46] Master distribution time : 2.86725 seconds to read 400 bytes in 49 seeks (0.000139507 MBPS)
+[46] Starting graph reading.
+[120] Reading graph complete.
+[62] Master distribution time : 2.8783 seconds to read 400 bytes in 50 seeks (0.000138971 MBPS)
+[62] Starting graph reading.
+[47] Reading graph complete.
+[100] Reading graph complete.
+[61] Master distribution time : 2.1474 seconds to read 408 bytes in 51 seeks (0.000189997 MBPS)
+[28] Master distribution time : 2.08457 seconds to read 400 bytes in 49 seeks (0.000191886 MBPS)
+[28] Starting graph reading.
+[61] Starting graph reading.
+[104] Reading graph complete.
+[38] Master distribution time : 2.90214 seconds to read 392 bytes in 49 seeks (0.000135073 MBPS)
+[38] Starting graph reading.
+[38] Reading graph complete.
+[38] Edge inspection time: 0.000862 seconds to read 0 bytes (0 MBPS)
+[38] Edge loading time: 1e-06 seconds to read 0 bytes (0 MBPS)
+[38] Graph construction complete.
+[29] Master distribution time : 2.08555 seconds to read 400 bytes in 50 seeks (0.000191796 MBPS)
+[29] Starting graph reading.
+[26] Master distribution time : 2.03778 seconds to read 408 bytes in 50 seeks (0.000200218 MBPS)
+[26] Starting graph reading.
+[46] Reading graph complete.
+[28] Reading graph complete.
+[117] Master distribution time : 3.06896 seconds to read 384 bytes in 47 seeks (0.000125124 MBPS)
+[117] Starting graph reading.
+[112] Master distribution time : 3.07025 seconds to read 400 bytes in 50 seeks (0.000130283 MBPS)
+[112] Starting graph reading.
+[48] Master distribution time : 2.92623 seconds to read 400 bytes in 50 seeks (0.000136694 MBPS)
+[48] Starting graph reading.
+[115] Master distribution time : 3.08288 seconds to read 392 bytes in 49 seeks (0.000127154 MBPS)
+[115] Starting graph reading.
+[62] Reading graph complete.
+[21] Edge inspection time: 0.693851 seconds to read 3695744 bytes (5.32642 MBPS)
+[48] Reading graph complete.
+[61] Reading graph complete.
+[26] Reading graph complete.
+[112] Reading graph complete.
+[75] Reading graph complete.
+[15] Edge inspection time: 0.703676 seconds to read 3236624 bytes (4.59959 MBPS)
+[77] Reading graph complete.
+[117] Reading graph complete.
+[29] Reading graph complete.
+[115] Reading graph complete.
+[11] Edge inspection time: 0.705756 seconds to read 2399364 bytes (3.39971 MBPS)
+[116] Master distribution time : 3.18435 seconds to read 384 bytes in 46 seeks (0.00012059 MBPS)
+[1] Edge inspection time: 0.626521 seconds to read 2216468 bytes (3.53774 MBPS)
+[116] Starting graph reading.
+[119] Master distribution time : 3.17153 seconds to read 384 bytes in 47 seeks (0.000121077 MBPS)
+[119] Starting graph reading.
+[42] Master distribution time : 3.0523 seconds to read 400 bytes in 48 seeks (0.000131049 MBPS)
+[42] Starting graph reading.
+[17] Edge inspection time: 0.711793 seconds to read 3307372 bytes (4.64654 MBPS)
+[12] Edge inspection time: 0.71046 seconds to read 2848524 bytes (4.00941 MBPS)
+[119] Reading graph complete.
+[116] Reading graph complete.
+[42] Reading graph complete.
+[10] Edge inspection time: 0.721712 seconds to read 2307440 bytes (3.19718 MBPS)
+[22] Edge inspection time: 0.693891 seconds to read 3491676 bytes (5.03202 MBPS)
+[13] Edge inspection time: 0.706461 seconds to read 3077716 bytes (4.35653 MBPS)
+[54] Edge inspection time: 1.35024 seconds to read 4990920 bytes (3.69633 MBPS)
+[32] Edge inspection time: 0.705181 seconds to read 1103220 bytes (1.56445 MBPS)
+[52] Edge inspection time: 1.38465 seconds to read 4774624 bytes (3.44824 MBPS)
+[9] Edge inspection time: 0.687287 seconds to read 2439692 bytes (3.54974 MBPS)
+[0] Edge inspection time: 0.684339 seconds to read 2241356 bytes (3.27521 MBPS)
+[23] Edge inspection time: 0.689058 seconds to read 3279760 bytes (4.75977 MBPS)
+[20] Edge inspection time: 1.39157 seconds to read 3715784 bytes (2.67021 MBPS)
+[56] Edge inspection time: 1.38947 seconds to read 4437128 bytes (3.19339 MBPS)
+[65] Edge inspection time: 1.44504 seconds to read 5397672 bytes (3.73532 MBPS)
+[66] Edge inspection time: 1.44476 seconds to read 5468988 bytes (3.78539 MBPS)
+[67] Edge inspection time: 1.45576 seconds to read 5501600 bytes (3.7792 MBPS)
+[72] Edge inspection time: 1.4267 seconds to read 5444444 bytes (3.8161 MBPS)
+[58] Edge inspection time: 1.43345 seconds to read 5244160 bytes (3.65843 MBPS)
+[64] Edge inspection time: 1.42868 seconds to read 5367668 bytes (3.75707 MBPS)
+[73] Edge inspection time: 1.42844 seconds to read 5756736 bytes (4.0301 MBPS)
+[14] Edge inspection time: 1.38006 seconds to read 3274664 bytes (2.37284 MBPS)
+[69] Edge inspection time: 1.43975 seconds to read 5511084 bytes (3.82782 MBPS)
+[57] Edge inspection time: 1.41826 seconds to read 5173556 bytes (3.64782 MBPS)
+[51] Edge inspection time: 1.34933 seconds to read 3024952 bytes (2.24182 MBPS)
+[49] Edge inspection time: 1.40953 seconds to read 3049124 bytes (2.16322 MBPS)
+[44] Edge inspection time: 2.05646 seconds to read 2116664 bytes (1.02928 MBPS)
+[33] Edge inspection time: 1.41411 seconds to read 2577416 bytes (1.82264 MBPS)
+[68] Edge inspection time: 1.45164 seconds to read 5542516 bytes (3.81812 MBPS)
+[70] Edge inspection time: 1.42959 seconds to read 5619876 bytes (3.9311 MBPS)
+[60] Edge inspection time: 1.35644 seconds to read 5310632 bytes (3.91512 MBPS)
+[63] Edge inspection time: 1.41107 seconds to read 5266940 bytes (3.7326 MBPS)
+[36] Edge inspection time: 1.4092 seconds to read 2761864 bytes (1.95988 MBPS)
+[5] Edge loading time: 0.005238 seconds to read 2194992 bytes (419.052 MBPS)
+[5] Graph construction complete.
+[39] Edge inspection time: 1.3958 seconds to read 2040720 bytes (1.46205 MBPS)
+[59] Edge inspection time: 1.40969 seconds to read 5301248 bytes (3.76057 MBPS)
+[55] Edge inspection time: 2.11639 seconds to read 4980472 bytes (2.35329 MBPS)
+[8] Edge loading time: 0.005871 seconds to read 2204268 bytes (375.45 MBPS)
+[8] Graph construction complete.
+[6] Edge loading time: 0.005619 seconds to read 2202284 bytes (391.935 MBPS)
+[6] Graph construction complete.
+[62] Edge inspection time: 1.394 seconds to read 5318940 bytes (3.81561 MBPS)
+[123] Edge inspection time: 2.13649 seconds to read 7398696 bytes (3.46301 MBPS)
+[61] Edge inspection time: 1.39342 seconds to read 5305704 bytes (3.80768 MBPS)
+[105] Edge inspection time: 2.12661 seconds to read 6927560 bytes (3.25756 MBPS)
+[3] Edge loading time: 0.005117 seconds to read 2201400 bytes (430.213 MBPS)
+[3] Graph construction complete.
+[108] Edge inspection time: 2.13748 seconds to read 7002524 bytes (3.27606 MBPS)
+[125] Edge inspection time: 2.14352 seconds to read 7453452 bytes (3.4772 MBPS)
+[113] Edge inspection time: 2.15686 seconds to read 7135864 bytes (3.30845 MBPS)
+[74] Edge inspection time: 2.14926 seconds to read 4936352 bytes (2.29677 MBPS)
+[4] Edge loading time: 0.005295 seconds to read 2201648 bytes (415.798 MBPS)
+[4] Graph construction complete.
+[53] Edge inspection time: 2.12135 seconds to read 4086212 bytes (1.92623 MBPS)
+[103] Edge inspection time: 2.16657 seconds to read 6883956 bytes (3.17735 MBPS)
+[122] Edge inspection time: 2.10541 seconds to read 7380660 bytes (3.50558 MBPS)
+[107] Edge inspection time: 2.08985 seconds to read 6977256 bytes (3.33863 MBPS)
+[2] Edge loading time: 0.006387 seconds to read 2202216 bytes (344.797 MBPS)
+[27] Edge inspection time: 2.01729 seconds to read 2095024 bytes (1.03853 MBPS)
+[101] Edge inspection time: 2.10154 seconds to read 6829840 bytes (3.24992 MBPS)
+[99] Edge inspection time: 2.14864 seconds to read 6792220 bytes (3.16117 MBPS)
+[114] Edge inspection time: 2.13283 seconds to read 7158972 bytes (3.35656 MBPS)
+[42] Edge inspection time: 1.39403 seconds to read 1607656 bytes (1.15325 MBPS)
+[7] Edge loading time: 0.005097 seconds to read 2199284 bytes (431.486 MBPS)
+[7] Graph construction complete.
+[102] Edge inspection time: 2.10867 seconds to read 6860776 bytes (3.2536 MBPS)
+[124] Edge inspection time: 2.14285 seconds to read 7425768 bytes (3.46537 MBPS)
+[121] Edge inspection time: 2.09355 seconds to read 7346764 bytes (3.50924 MBPS)
+[118] Edge inspection time: 2.14984 seconds to read 7267484 bytes (3.38048 MBPS)
+[127] Edge inspection time: 2.12425 seconds to read 7518216 bytes (3.53923 MBPS)
+Loading edge-data while creating edges
+[110] Edge inspection time: 2.10583 seconds to read 7055500 bytes (3.35046 MBPS)
+[45] Edge inspection time: 2.76166 seconds to read 2366064 bytes (0.856754 MBPS)
+[111] Edge inspection time: 2.13816 seconds to read 7083612 bytes (3.31294 MBPS)
+[40] Edge inspection time: 2.10081 seconds to read 2233772 bytes (1.06329 MBPS)
+[71] Edge inspection time: 2.10445 seconds to read 4791892 bytes (2.27703 MBPS)
+[28] Edge inspection time: 1.99002 seconds to read 2030972 bytes (1.02058 MBPS)
+[126] Edge inspection time: 2.12339 seconds to read 7483488 bytes (3.52431 MBPS)
+[109] Edge inspection time: 2.12666 seconds to read 7030460 bytes (3.30587 MBPS)
+[50] Edge inspection time: 2.09372 seconds to read 4513600 bytes (2.15578 MBPS)
+[47] Edge inspection time: 2.08285 seconds to read 2000436 bytes (0.960433 MBPS)
+[26] Edge inspection time: 2.01032 seconds to read 2262364 bytes (1.12537 MBPS)
+[106] Edge inspection time: 2.11571 seconds to read 6956128 bytes (3.28784 MBPS)
+[120] Edge inspection time: 2.12454 seconds to read 7316840 bytes (3.44396 MBPS)
+[46] Edge inspection time: 2.09031 seconds to read 2015264 bytes (0.964098 MBPS)
+[100] Edge inspection time: 2.12861 seconds to read 6820664 bytes (3.20428 MBPS)
+[104] Edge inspection time: 2.1269 seconds to read 6911320 bytes (3.24948 MBPS)
+[1] Edge loading time: 0.643204 seconds to read 2216468 bytes (3.44598 MBPS)
+[1] Graph construction complete.
+[112] Edge inspection time: 2.11886 seconds to read 7100032 bytes (3.35087 MBPS)
+[117] Edge inspection time: 2.11798 seconds to read 7240344 bytes (3.41852 MBPS)
+[78] Edge inspection time: 2.84332 seconds to read 4636812 bytes (1.63077 MBPS)
+[115] Edge inspection time: 2.11878 seconds to read 7178916 bytes (3.38822 MBPS)
+[76] Edge inspection time: 2.85331 seconds to read 4547140 bytes (1.59364 MBPS)
+[2] Graph construction complete.
+[86] Edge inspection time: 2.82062 seconds to read 4824224 bytes (1.71034 MBPS)
+[84] Edge inspection time: 2.85315 seconds to read 4744780 bytes (1.663 MBPS)
+[80] Edge inspection time: 2.81887 seconds to read 4676748 bytes (1.65909 MBPS)
+[87] Edge inspection time: 2.86601 seconds to read 4836832 bytes (1.68765 MBPS)
+[94] Edge inspection time: 2.83954 seconds to read 4975928 bytes (1.75237 MBPS)
+[10] Edge loading time: 0.009992 seconds to read 2307440 bytes (230.929 MBPS)
+[89] Edge inspection time: 2.83917 seconds to read 4870208 bytes (1.71536 MBPS)
+[116] Edge inspection time: 2.10318 seconds to read 7211192 bytes (3.42871 MBPS)
+[119] Edge inspection time: 2.12491 seconds to read 7287888 bytes (3.42974 MBPS)
+[79] Edge inspection time: 2.8376 seconds to read 4654640 bytes (1.64035 MBPS)
+[95] Edge inspection time: 2.83924 seconds to read 4980020 bytes (1.754 MBPS)
+[41] Edge inspection time: 2.80902 seconds to read 3301960 bytes (1.17548 MBPS)
+[82] Edge inspection time: 2.75218 seconds to read 4655704 bytes (1.69164 MBPS)
+[91] Edge inspection time: 2.84518 seconds to read 4926156 bytes (1.7314 MBPS)
+[0] Edge loading time: 0.617088 seconds to read 2241356 bytes (3.63215 MBPS)
+[0] Graph construction complete.
+[85] Edge inspection time: 3.00467 seconds to read 4789888 bytes (1.59415 MBPS)
+[96] Edge inspection time: 2.85916 seconds to read 5009568 bytes (1.75211 MBPS)
+[43] Edge inspection time: 2.79777 seconds to read 2300188 bytes (0.82215 MBPS)
+[93] Edge inspection time: 2.7721 seconds to read 4932596 bytes (1.77937 MBPS)
+[88] Edge inspection time: 2.84952 seconds to read 4859532 bytes (1.70539 MBPS)
+[24] Edge inspection time: 2.67704 seconds to read 4213064 bytes (1.57378 MBPS)
+[92] Edge inspection time: 2.81561 seconds to read 4894436 bytes (1.73832 MBPS)
+[81] Edge inspection time: 2.81514 seconds to read 4703432 bytes (1.67076 MBPS)
+[97] Edge inspection time: 2.83456 seconds to read 5049644 bytes (1.78146 MBPS)
+[34] Edge inspection time: 2.77765 seconds to read 4815912 bytes (1.73381 MBPS)
+[90] Edge inspection time: 2.82163 seconds to read 4901024 bytes (1.73695 MBPS)
+[98] Edge inspection time: 2.82066 seconds to read 6472864 bytes (2.2948 MBPS)
+[83] Edge inspection time: 2.78732 seconds to read 4722000 bytes (1.6941 MBPS)
+[11] Edge loading time: 0.631636 seconds to read 2399364 bytes (3.79865 MBPS)
+[11] Graph construction complete.
+[48] Edge inspection time: 2.78463 seconds to read 2663452 bytes (0.956485 MBPS)
+[75] Edge inspection time: 2.79845 seconds to read 4539820 bytes (1.62226 MBPS)
+[77] Edge inspection time: 2.82039 seconds to read 4607952 bytes (1.6338 MBPS)
+[10] Graph construction complete.
+[35] Edge loading time: 0.691123 seconds to read 620084 bytes (0.897212 MBPS)
+[35] Graph construction complete.
+[19] Edge loading time: 0.568332 seconds to read 3131292 bytes (5.50962 MBPS)
+[9] Edge loading time: 1.12401 seconds to read 2439692 bytes (2.17053 MBPS)
+[9] Graph construction complete.
+[25] Edge loading time: 0.549221 seconds to read 834960 bytes (1.52026 MBPS)
+[25] Graph construction complete.
+[37] Edge inspection time: 4.19002 seconds to read 5410236 bytes (1.29122 MBPS)
+[19] Graph construction complete.
+[23] Edge loading time: 1.13242 seconds to read 3279760 bytes (2.89623 MBPS)
+[23] Graph construction complete.
+[18] Edge loading time: 1.12774 seconds to read 3359900 bytes (2.97932 MBPS)
+[18] Graph construction complete.
+[29] Edge inspection time: 4.28293 seconds to read 7445568 bytes (1.73843 MBPS)
+[72] Edge loading time: 0.697386 seconds to read 5444444 bytes (7.80693 MBPS)
+[72] Graph construction complete.
+[12] Edge loading time: 1.12962 seconds to read 2848524 bytes (2.52165 MBPS)
+[12] Graph construction complete.
+[16] Edge loading time: 1.12731 seconds to read 3321772 bytes (2.94664 MBPS)
+[16] Graph construction complete.
+[32] Edge loading time: 0.710108 seconds to read 1103220 bytes (1.55359 MBPS)
+[32] Graph construction complete.
+[22] Edge loading time: 1.1248 seconds to read 3491676 bytes (3.10425 MBPS)
+[22] Graph construction complete.
+[56] Edge loading time: 0.711125 seconds to read 4437128 bytes (6.23959 MBPS)
+[56] Graph construction complete.
+[21] Edge loading time: 1.11983 seconds to read 3695744 bytes (3.30027 MBPS)
+[21] Graph construction complete.
+[15] Edge loading time: 1.09439 seconds to read 3236624 bytes (2.95746 MBPS)
+[15] Graph construction complete.
+[17] Edge loading time: 1.63591 seconds to read 3307372 bytes (2.02174 MBPS)
+[17] Graph construction complete.
+[13] Edge loading time: 1.02372 seconds to read 3077716 bytes (3.00641 MBPS)
+[13] Graph construction complete.
+[73] Edge loading time: 1.37612 seconds to read 5756736 bytes (4.1833 MBPS)
+[73] Graph construction complete.
+[20] Edge loading time: 1.57289 seconds to read 3715784 bytes (2.3624 MBPS)
+[20] Graph construction complete.
+[49] Edge loading time: 1.40472 seconds to read 3049124 bytes (2.17063 MBPS)
+[49] Graph construction complete.
+[14] Edge loading time: 1.47425 seconds to read 3274664 bytes (2.22124 MBPS)
+[14] Graph construction complete.
+[65] Edge loading time: 1.39137 seconds to read 5397672 bytes (3.87939 MBPS)
+[65] Graph construction complete.
+[66] Edge loading time: 1.38796 seconds to read 5468988 bytes (3.9403 MBPS)
+[66] Graph construction complete.
+[67] Edge loading time: 1.37075 seconds to read 5501600 bytes (4.01358 MBPS)
+[67] Graph construction complete.
+[64] Edge loading time: 1.35892 seconds to read 5367668 bytes (3.94996 MBPS)
+[64] Graph construction complete.
+[69] Edge loading time: 1.33094 seconds to read 5511084 bytes (4.14076 MBPS)
+[69] Graph construction complete.
+[52] Edge loading time: 1.34396 seconds to read 4774624 bytes (3.55266 MBPS)
+[52] Graph construction complete.
+[54] Edge loading time: 1.37364 seconds to read 4990920 bytes (3.63334 MBPS)
+[54] Graph construction complete.
+[60] Edge loading time: 1.35156 seconds to read 5310632 bytes (3.92925 MBPS)
+[60] Graph construction complete.
+[68] Edge loading time: 1.35438 seconds to read 5542516 bytes (4.0923 MBPS)
+[68] Graph construction complete.
+[70] Edge loading time: 1.34739 seconds to read 5619876 bytes (4.17094 MBPS)
+[70] Graph construction complete.
+[63] Edge loading time: 1.34994 seconds to read 5266940 bytes (3.90161 MBPS)
+[63] Graph construction complete.
+[59] Edge loading time: 1.33862 seconds to read 5301248 bytes (3.96024 MBPS)
+[59] Graph construction complete.
+[62] Edge loading time: 1.33545 seconds to read 5318940 bytes (3.98288 MBPS)
+[62] Graph construction complete.
+[61] Edge loading time: 1.33449 seconds to read 5305704 bytes (3.97583 MBPS)
+[61] Graph construction complete.
+[58] Edge loading time: 1.98703 seconds to read 5244160 bytes (2.6392 MBPS)
+[58] Graph construction complete.
+[57] Edge loading time: 1.28861 seconds to read 5173556 bytes (4.01483 MBPS)
+[57] Graph construction complete.
+[127] Edge loading time: 2.12705 seconds to read 7518216 bytes (3.53457 MBPS)
+[51] Edge loading time: 1.66846 seconds to read 3024952 bytes (1.81303 MBPS)
+[51] Graph construction complete.
+[39] Edge loading time: 1.11225 seconds to read 2040720 bytes (1.83477 MBPS)
+[39] Graph construction complete.
+[113] Edge loading time: 2.11907 seconds to read 7135864 bytes (3.36746 MBPS)
+[124] Edge loading time: 2.8234 seconds to read 7425768 bytes (2.63008 MBPS)
+[124] Graph construction complete.
+[121] Edge loading time: 2.82036 seconds to read 7346764 bytes (2.6049 MBPS)
+[121] Graph construction complete.
+[118] Edge loading time: 2.81768 seconds to read 7267484 bytes (2.57924 MBPS)
+[118] Graph construction complete.
+[127] Graph construction complete.
+[36] Edge loading time: 2.25323 seconds to read 2761864 bytes (1.22574 MBPS)
+[36] Graph construction complete.
+[126] Edge loading time: 2.81972 seconds to read 7483488 bytes (2.65398 MBPS)
+[55] Edge loading time: 1.67948 seconds to read 4980472 bytes (2.96548 MBPS)
+[55] Graph construction complete.
+[28] Edge loading time: 0.838771 seconds to read 2030972 bytes (2.42137 MBPS)
+[28] Graph construction complete.
+[123] Edge loading time: 3.51692 seconds to read 7398696 bytes (2.10374 MBPS)
+[123] Graph construction complete.
+[108] Edge loading time: 2.8076 seconds to read 7002524 bytes (2.49413 MBPS)
+[108] Graph construction complete.
+[71] Edge loading time: 1.82814 seconds to read 4791892 bytes (2.62118 MBPS)
+[71] Graph construction complete.
+[125] Edge loading time: 3.50224 seconds to read 7453452 bytes (2.1282 MBPS)
+[125] Graph construction complete.
+[26] Edge loading time: 0.841818 seconds to read 2262364 bytes (2.68747 MBPS)
+[26] Graph construction complete.
+[53] Edge loading time: 1.64408 seconds to read 4086212 bytes (2.48541 MBPS)
+[53] Graph construction complete.
+[113] Graph construction complete.
+[27] Edge loading time: 1.26365 seconds to read 2095024 bytes (1.65792 MBPS)
+[27] Graph construction complete.
+[122] Edge loading time: 3.48745 seconds to read 7380660 bytes (2.11635 MBPS)
+[122] Graph construction complete.
+[42] Edge loading time: 1.10872 seconds to read 1607656 bytes (1.45001 MBPS)
+[42] Graph construction complete.
+[33] Edge loading time: 2.21709 seconds to read 2577416 bytes (1.16252 MBPS)
+[33] Graph construction complete.
+[111] Edge loading time: 2.75332 seconds to read 7083612 bytes (2.57275 MBPS)
+[111] Graph construction complete.
+[126] Graph construction complete.
+[106] Edge loading time: 2.70766 seconds to read 6956128 bytes (2.56905 MBPS)
+[106] Graph construction complete.
+[120] Edge loading time: 3.40761 seconds to read 7316840 bytes (2.14721 MBPS)
+[120] Graph construction complete.
+[117] Edge loading time: 3.3942 seconds to read 7240344 bytes (2.13315 MBPS)
+[117] Graph construction complete.
+[115] Edge loading time: 3.37575 seconds to read 7178916 bytes (2.12662 MBPS)
+[115] Graph construction complete.
+[101] Edge loading time: 3.39284 seconds to read 6829840 bytes (2.01301 MBPS)
+[101] Graph construction complete.
+[44] Edge loading time: 1.05349 seconds to read 2116664 bytes (2.00919 MBPS)
+[44] Graph construction complete.
+[99] Edge loading time: 3.39839 seconds to read 6792220 bytes (1.99866 MBPS)
+[99] Graph construction complete.
+[114] Edge loading time: 3.40367 seconds to read 7158972 bytes (2.10331 MBPS)
+[114] Graph construction complete.
+[116] Edge loading time: 3.39475 seconds to read 7211192 bytes (2.12422 MBPS)
+[40] Edge loading time: 1.02849 seconds to read 2233772 bytes (2.17189 MBPS)
+[40] Graph construction complete.
+[110] Edge loading time: 3.34182 seconds to read 7055500 bytes (2.11127 MBPS)
+[110] Graph construction complete.
+[109] Edge loading time: 3.31713 seconds to read 7030460 bytes (2.11944 MBPS)
+[109] Graph construction complete.
+[104] Edge loading time: 3.30062 seconds to read 6911320 bytes (2.09395 MBPS)
+[104] Graph construction complete.
+[105] Edge loading time: 3.99863 seconds to read 6927560 bytes (1.73248 MBPS)
+[105] Graph construction complete.
+[103] Edge loading time: 3.27164 seconds to read 6883956 bytes (2.10413 MBPS)
+[103] Graph construction complete.
+[107] Edge loading time: 3.91643 seconds to read 6977256 bytes (1.78153 MBPS)
+[107] Graph construction complete.
+[119] Edge loading time: 3.87075 seconds to read 7287888 bytes (1.88281 MBPS)
+[119] Graph construction complete.
+[24] Edge loading time: 0.79084 seconds to read 4213064 bytes (5.32733 MBPS)
+[24] Graph construction complete.
+[116] Graph construction complete.
+[102] Edge loading time: 3.87229 seconds to read 6860776 bytes (1.77176 MBPS)
+[102] Graph construction complete.
+[47] Edge loading time: 0.971847 seconds to read 2000436 bytes (2.05839 MBPS)
+[47] Graph construction complete.
+[46] Edge loading time: 0.982995 seconds to read 2015264 bytes (2.05013 MBPS)
+[46] Graph construction complete.
+[100] Edge loading time: 3.05713 seconds to read 6820664 bytes (2.23107 MBPS)
+[100] Graph construction complete.
+[112] Edge loading time: 3.73496 seconds to read 7100032 bytes (1.90097 MBPS)
+[112] Graph construction complete.
+[45] Edge loading time: 1.44383 seconds to read 2366064 bytes (1.63874 MBPS)
+[45] Graph construction complete.
+[50] Edge loading time: 1.9545 seconds to read 4513600 bytes (2.30934 MBPS)
+[50] Graph construction complete.
+[43] Edge loading time: 1.40965 seconds to read 2300188 bytes (1.63174 MBPS)
+[43] Graph construction complete.
+[74] Edge loading time: 2.47169 seconds to read 4936352 bytes (1.99715 MBPS)
+[74] Graph construction complete.
+[48] Edge loading time: 1.78568 seconds to read 2663452 bytes (1.49156 MBPS)
+[48] Graph construction complete.
+[34] Edge loading time: 1.75097 seconds to read 4815912 bytes (2.75043 MBPS)
+[34] Graph construction complete.
+[41] Edge loading time: 2.18709 seconds to read 3301960 bytes (1.50975 MBPS)
+[41] Graph construction complete.
+[98] Edge loading time: 2.1681 seconds to read 6472864 bytes (2.9855 MBPS)
+[98] Graph construction complete.
+[76] Edge loading time: 3.61286 seconds to read 4547140 bytes (1.2586 MBPS)
+[76] Graph construction complete.
+[80] Edge loading time: 3.59044 seconds to read 4676748 bytes (1.30256 MBPS)
+[80] Graph construction complete.
+[79] Edge loading time: 3.58722 seconds to read 4654640 bytes (1.29756 MBPS)
+[79] Graph construction complete.
+[84] Edge loading time: 3.6004 seconds to read 4744780 bytes (1.31785 MBPS)
+[84] Graph construction complete.
+[97] Edge loading time: 2.66903 seconds to read 5049644 bytes (1.89194 MBPS)
+[97] Graph construction complete.
+[75] Edge loading time: 3.58932 seconds to read 4539820 bytes (1.26481 MBPS)
+[75] Graph construction complete.
+[86] Edge loading time: 3.54682 seconds to read 4824224 bytes (1.36015 MBPS)
+[86] Graph construction complete.
+[85] Edge loading time: 3.54836 seconds to read 4789888 bytes (1.34989 MBPS)
+[85] Graph construction complete.
+[78] Edge loading time: 3.60718 seconds to read 4636812 bytes (1.28544 MBPS)
+[78] Graph construction complete.
+[82] Edge loading time: 3.54569 seconds to read 4655704 bytes (1.31306 MBPS)
+[82] Graph construction complete.
+[96] Edge loading time: 3.15015 seconds to read 5009568 bytes (1.59026 MBPS)
+[96] Graph construction complete.
+[81] Edge loading time: 3.54628 seconds to read 4703432 bytes (1.3263 MBPS)
+[81] Graph construction complete.
+[83] Edge loading time: 3.54345 seconds to read 4722000 bytes (1.3326 MBPS)
+[83] Graph construction complete.
+[87] Edge loading time: 4.00663 seconds to read 4836832 bytes (1.20721 MBPS)
+[87] Graph construction complete.
+[77] Edge loading time: 3.49882 seconds to read 4607952 bytes (1.317 MBPS)
+[77] Graph construction complete.
+[94] Edge loading time: 3.43521 seconds to read 4975928 bytes (1.44851 MBPS)
+[94] Graph construction complete.
+[95] Edge loading time: 4.00287 seconds to read 4980020 bytes (1.24411 MBPS)
+[95] Graph construction complete.
+[91] Edge loading time: 3.43794 seconds to read 4926156 bytes (1.43288 MBPS)
+[91] Graph construction complete.
+[29] Edge loading time: 0.851595 seconds to read 7445568 bytes (8.74309 MBPS)
+[29] Graph construction complete.
+[88] Edge loading time: 3.50775 seconds to read 4859532 bytes (1.38537 MBPS)
+[88] Graph construction complete.
+[92] Edge loading time: 3.46668 seconds to read 4894436 bytes (1.41185 MBPS)
+[92] Graph construction complete.
+[90] Edge loading time: 3.43987 seconds to read 4901024 bytes (1.42477 MBPS)
+[90] Graph construction complete.
+[89] Edge loading time: 3.52537 seconds to read 4870208 bytes (1.38147 MBPS)
+[89] Graph construction complete.
+[93] Edge loading time: 3.9008 seconds to read 4932596 bytes (1.26451 MBPS)
+[93] Graph construction complete.
+[37] Edge loading time: 1.27993 seconds to read 5410236 bytes (4.22698 MBPS)
+[37] Graph construction complete.
+[89] InitializeGraph::go called
+[84] InitializeGraph::go called
+[57] InitializeGraph::go called
+[24] InitializeGraph::go called
+[111] InitializeGraph::go called
+[121] InitializeGraph::go called
+[76] InitializeGraph::go called
+[116] InitializeGraph::go called
+[92] InitializeGraph::go called
+[101] InitializeGraph::go called
+[67] InitializeGraph::go called
+[30] InitializeGraph::go called
+[90] InitializeGraph::go called
+[56] InitializeGraph::go called
+[63] InitializeGraph::go called
+[12] InitializeGraph::go called
+[78] InitializeGraph::go called
+[66] InitializeGraph::go called
+[22] InitializeGraph::go called
+[119] InitializeGraph::go called
+[33] InitializeGraph::go called
+[87] InitializeGraph::go called
+[8] InitializeGraph::go called
+[27] InitializeGraph::go called
+[125] InitializeGraph::go called
+[29] InitializeGraph::go called
+[123] InitializeGraph::go called
+[73] InitializeGraph::go called
+[106] InitializeGraph::go called
+[59] InitializeGraph::go called
+[98] InitializeGraph::go called
+[61] InitializeGraph::go called
+[34] InitializeGraph::go called
+[118] InitializeGraph::go called
+[62] InitializeGraph::go called
+[117] InitializeGraph::go called
+[31] InitializeGraph::go called
+[4] InitializeGraph::go called
+[25] InitializeGraph::go called
+[40] InitializeGraph::go called
+[18] InitializeGraph::go called
+[96] InitializeGraph::go called
+[51] InitializeGraph::go called
+[3] InitializeGraph::go called
+[9] InitializeGraph::go called
+[102] InitializeGraph::go called
+[72] InitializeGraph::go called
+[115] InitializeGraph::go called
+[48] InitializeGraph::go called
+[91] InitializeGraph::go called
+[109] InitializeGraph::go called
+[85] InitializeGraph::go called
+[26] InitializeGraph::go called
+[28] InitializeGraph::go called
+[105] InitializeGraph::go called
+[55] InitializeGraph::go called
+[15] InitializeGraph::go called
+[79] InitializeGraph::go called
+[45] InitializeGraph::go called
+[88] InitializeGraph::go called
+[17] InitializeGraph::go called
+[113] InitializeGraph::go called
+[43] InitializeGraph::go called
+[23] InitializeGraph::go called
+[107] InitializeGraph::go called
+[83] InitializeGraph::go called
+[2] InitializeGraph::go called
+[58] InitializeGraph::go called
+[38] InitializeGraph::go called
+[70] InitializeGraph::go called
+[114] InitializeGraph::go called
+[47] InitializeGraph::go called
+[13] InitializeGraph::go called
+[120] InitializeGraph::go called
+[35] InitializeGraph::go called
+[93] InitializeGraph::go called
+[39] InitializeGraph::go called
+[112] InitializeGraph::go called
+[54] InitializeGraph::go called
+[42] InitializeGraph::go called
+[5] InitializeGraph::go called
+[82] InitializeGraph::go called
+[49] InitializeGraph::go called
+[108] InitializeGraph::go called
+[7] InitializeGraph::go called
+[74] InitializeGraph::go called
+[44] InitializeGraph::go called
+[77] InitializeGraph::go called
+[100] InitializeGraph::go called
+[10] InitializeGraph::go called
+[86] InitializeGraph::go called
+[20] InitializeGraph::go called
+[50] InitializeGraph::go called
+[14] InitializeGraph::go called
+[103] InitializeGraph::go called
+[71] InitializeGraph::go called
+[46] InitializeGraph::go called
+[1] InitializeGraph::go called
+[32] InitializeGraph::go called
+[124] InitializeGraph::go called
+[19] InitializeGraph::go called
+[127] InitializeGraph::go called
+[95] InitializeGraph::go called
+[11] InitializeGraph::go called
+[126] InitializeGraph::go called
+[21] InitializeGraph::go called
+[94] InitializeGraph::go called
+[53] InitializeGraph::go called
+[122] InitializeGraph::go called
+[36] InitializeGraph::go called
+[81] InitializeGraph::go called
+[104] InitializeGraph::go called
+[69] InitializeGraph::go called
+[60] InitializeGraph::go called
+[110] InitializeGraph::go called
+[64] InitializeGraph::go called
+[99] InitializeGraph::go called
+[0] InitializeGraph::go called
+[16] InitializeGraph::go called
+[6] InitializeGraph::go called
+[52] InitializeGraph::go called
+[65] InitializeGraph::go called
+[41] InitializeGraph::go called
+[75] InitializeGraph::go called
+[97] InitializeGraph::go called
+[37] InitializeGraph::go called
+[68] InitializeGraph::go called
+[80] InitializeGraph::go called
+[43] BFS::go run 0 called
+[107] BFS::go run 0 called
+[31] BFS::go run 0 called
+[95] BFS::go run 0 called
+[11] BFS::go run 0 called
+[83] BFS::go run 0 called
+[51] BFS::go run 0 called
+[21] BFS::go run 0 called
+[117] BFS::go run 0 called
+[19] BFS::go run 0 called
+[75] BFS::go run 0 called
+[67] BFS::go run 0 called
+[39] BFS::go run 0 called
+[115] BFS::go run 0 called
+[53] BFS::go run 0 called
+[99] BFS::go run 0 called
+[85] BFS::go run 0 called
+[63] BFS::go run 0 called
+[127] BFS::go run 0 called
+[35] BFS::go run 0 called
+[121] BFS::go run 0 called
+[25] BFS::go run 0 called
+[89] BFS::go run 0 called
+[9] BFS::go run 0 called
+[57] BFS::go run 0 called
+[3] BFS::go run 0 called
+[73] BFS::go run 0 called
+[123] BFS::go run 0 called
+[41] BFS::go run 0 called
+[27] BFS::go run 0 called
+[105] BFS::go run 0 called
+[103] BFS::go run 0 called
+[5] BFS::go run 0 called
+[69] BFS::go run 0 called
+[55] BFS::go run 0 called
+[37] BFS::go run 0 called
+[119] BFS::go run 0 called
+[71] BFS::go run 0 called
+[7] BFS::go run 0 called
+[101] BFS::go run 0 called
+[87] BFS::go run 0 called
+[23] BFS::go run 0 called
+[91] BFS::go run 0 called
+[59] BFS::go run 0 called
+[47] BFS::go run 0 called
+[111] BFS::go run 0 called
+[79] BFS::go run 0 called
+[17] BFS::go run 0 called
+[33] BFS::go run 0 called
+[81] BFS::go run 0 called
+[97] BFS::go run 0 called
+[65] BFS::go run 0 called
+[1] BFS::go run 0 called
+[113] BFS::go run 0 called
+[49] BFS::go run 0 called
+[15] BFS::go run 0 called
+[125] BFS::go run 0 called
+[13] BFS::go run 0 called
+[45] BFS::go run 0 called
+[29] BFS::go run 0 called
+[77] BFS::go run 0 called
+[93] BFS::go run 0 called
+[109] BFS::go run 0 called
+[61] BFS::go run 0 called
+[0] BFS::go run 0 called
+[32] BFS::go run 0 called
+[20] BFS::go run 0 called
+[64] BFS::go run 0 called
+[52] BFS::go run 0 called
+[84] BFS::go run 0 called
+[96] BFS::go run 0 called
+[116] BFS::go run 0 called
+[68] BFS::go run 0 called
+[100] BFS::go run 0 called
+[36] BFS::go run 0 called
+[16] BFS::go run 0 called
+[48] BFS::go run 0 called
+[112] BFS::go run 0 called
+[80] BFS::go run 0 called
+[12] BFS::go run 0 called
+[76] BFS::go run 0 called
+[44] BFS::go run 0 called
+[108] BFS::go run 0 called
+[2] BFS::go run 0 called
+[6] BFS::go run 0 called
+[10] BFS::go run 0 called
+[38] BFS::go run 0 called
+[14] BFS::go run 0 called
+[22] BFS::go run 0 called
+[66] BFS::go run 0 called
+[18] BFS::go run 0 called
+[102] BFS::go run 0 called
+[82] BFS::go run 0 called
+[74] BFS::go run 0 called
+[26] BFS::go run 0 called
+[50] BFS::go run 0 called
+[86] BFS::go run 0 called
+[114] BFS::go run 0 called
+[58] BFS::go run 0 called
+[90] BFS::go run 0 called
+[122] BFS::go run 0 called
+[78] BFS::go run 0 called
+[30] BFS::go run 0 called
+[62] BFS::go run 0 called
+[94] BFS::go run 0 called
+[28] BFS::go run 0 called
+[92] BFS::go run 0 called
+[46] BFS::go run 0 called
+[4] BFS::go run 0 called
+[60] BFS::go run 0 called
+[110] BFS::go run 0 called
+[124] BFS::go run 0 called
+[70] BFS::go run 0 called
+[54] BFS::go run 0 called
+[118] BFS::go run 0 called
+[34] BFS::go run 0 called
+[126] BFS::go run 0 called
+[8] BFS::go run 0 called
+[42] BFS::go run 0 called
+[72] BFS::go run 0 called
+[40] BFS::go run 0 called
+[104] BFS::go run 0 called
+[24] BFS::go run 0 called
+[56] BFS::go run 0 called
+[120] BFS::go run 0 called
+[88] BFS::go run 0 called
+[106] BFS::go run 0 called
+[98] BFS::go run 0 called
+#####   Round 0   #####
+round master accesses: 3
+round master writes: 1
+round mirror accesses: 3722698
+round mirror writes: 1861349
+round max master accesses: 3
+round max master writes: 1
+round max mirror accesses: 3722698
+round max mirror writes: 1861349
+#####   Round 1   #####
+round master accesses: 18679434
+round master writes: 924
+round mirror accesses: 4716828
+round mirror writes: 596133
+round max master accesses: 332833
+round max master writes: 924
+round max mirror accesses: 227967
+round max mirror writes: 15409
+#####   Round 2   #####
+round master accesses: 18677578
+round master writes: 0
+round mirror accesses: 0
+round mirror writes: 0
+round max master accesses: 332833
+round max master writes: 0
+round max mirror accesses: 0
+round max mirror writes: 0
+#####   Round 3   #####
+round master accesses: 18677578
+round master writes: 0
+round mirror accesses: 0
+round mirror writes: 0
+round max master accesses: 332833
+round max master writes: 0
+round max mirror accesses: 0
+round max mirror writes: 0
+#####   Summary   #####
+total master accesses: 56034593
+total master writes: 925
+total mirror accesses: 8439526
+total mirror writes: 2457482
+total max master accesses: 998499
+total max master writes: 924
+total max mirror accesses: 3722704
+total max mirror writes: 1861352
+Number of nodes visited from source 896003 is 1976756
+Max distance from source 896003 is 2

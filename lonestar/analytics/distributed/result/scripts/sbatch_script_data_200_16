@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#SBATCH -J galois                 # Job name
+#SBATCH -o galois.o%j             # Name of stdout output file
+#SBATCH -e galois.e%j             # Name of stderr error file
+#SBATCH -p normal                 # Queue (partition) name
+#SBATCH -N 1                      # Total number of nodes
+#SBATCH -n 128                    # Total number of mpi tasks
+#SBATCH -t 00:08:00               # Run time (hh:mm:ss)
+#SBATCH --mail-type=all           # Send email at begin and end of job
+#SBATCH -A CCR22006               # Project/Allocation name
+#SBATCH --mail-user=ywwu928@utexas.edu
+
+module list
+pwd
+date
+
+srun -N 1 -n 16 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-push-dist "/work/08474/ywwu/ls6/graphs/galois/data_200.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/data_200.tgr" -startNode=896003 -t=8 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_16procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_16procs"

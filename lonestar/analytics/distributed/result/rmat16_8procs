@@ -1,0 +1,786 @@
+D-Galois Benchmark Suite v6.0.0 (unknown)
+Copyright (C) 2018 The University of Texas at Austin
+http://iss.ices.utexas.edu/galois/
+
+application: BFS - Distributed Heterogeneous with worklist.
+BFS on Distributed Galois.
+
+[1] Master distribution time : 0.431722 seconds to read 272 bytes in 34 seeks (0.000630035 MBPS)
+[1] Starting graph reading.
+[1] Reading graph complete.
+[1] Edge inspection time: 0.001638 seconds to read 545928 bytes (333.289 MBPS)
+[1] Edge loading time: 0.001956 seconds to read 545928 bytes (279.104 MBPS)
+[1] Graph construction complete.
+[4] Master distribution time : 0.501961 seconds to read 272 bytes in 33 seeks (0.000541875 MBPS)
+[4] Starting graph reading.
+[4] Reading graph complete.
+[4] Edge inspection time: 0.001871 seconds to read 649668 bytes (347.23 MBPS)
+[4] Edge loading time: 0.001857 seconds to read 649668 bytes (349.848 MBPS)
+[4] Graph construction complete.
+[3] Master distribution time : 0.491312 seconds to read 272 bytes in 33 seeks (0.00055362 MBPS)
+[3] Starting graph reading.
+[3] Reading graph complete.
+[3] Edge inspection time: 0.001787 seconds to read 597352 bytes (334.276 MBPS)
+[3] Edge loading time: 0.00194 seconds to read 597352 bytes (307.913 MBPS)
+[3] Graph construction complete.
+[5] Master distribution time : 0.513244 seconds to read 272 bytes in 33 seeks (0.000529962 MBPS)
+[5] Starting graph reading.
+[5] Reading graph complete.
+[5] Edge inspection time: 0.001605 seconds to read 701596 bytes (437.131 MBPS)
+[5] Edge loading time: 0.002124 seconds to read 701596 bytes (330.318 MBPS)
+[5] Graph construction complete.
+[6] Master distribution time : 0.519404 seconds to read 264 bytes in 33 seeks (0.000508275 MBPS)
+[6] Starting graph reading.
+[6] Reading graph complete.
+[6] Edge inspection time: 0.0015 seconds to read 670584 bytes (447.056 MBPS)
+[6] Edge loading time: 0.001828 seconds to read 670584 bytes (366.84 MBPS)
+[6] Graph construction complete.
+[0] Master distribution time : 0.547045 seconds to read 136 bytes in 16 seeks (0.000248608 MBPS)
+[0] Starting graph reading.
+[0] Reading graph complete.
+[0] Edge inspection time: 0.001417 seconds to read 529620 bytes (373.761 MBPS)
+Loading edge-data while creating edges
+[0] Edge loading time: 0.001859 seconds to read 529620 bytes (284.895 MBPS)
+[0] Graph construction complete.
+[2] Master distribution time : 0.552366 seconds to read 272 bytes in 34 seeks (0.000492427 MBPS)
+[2] Starting graph reading.
+[2] Reading graph complete.
+[2] Edge inspection time: 0.001705 seconds to read 568020 bytes (333.15 MBPS)
+[2] Edge loading time: 0.001816 seconds to read 568020 bytes (312.786 MBPS)
+[2] Graph construction complete.
+[7] Master distribution time : 0.580142 seconds to read 256 bytes in 32 seeks (0.000441271 MBPS)
+[7] Starting graph reading.
+[7] Reading graph complete.
+[7] Edge inspection time: 0.001952 seconds to read 979856 bytes (501.975 MBPS)
+[7] Edge loading time: 0.001835 seconds to read 979856 bytes (533.981 MBPS)
+[7] Graph construction complete.
+[7] InitializeGraph::go called
+[0] InitializeGraph::go called
+[4] InitializeGraph::go called
+[3] InitializeGraph::go called
+[1] InitializeGraph::go called
+[5] InitializeGraph::go called
+[2] InitializeGraph::go called
+[6] InitializeGraph::go called
+[5] BFS::go run 0 called
+#####   Round 0   #####
+host 5 round master accesses: 0
+host 5 round master write: 0
+host 5 round mirror accesses: 0
+host 5 round mirror writes: 0
+host 5 number of mirrors sending updates: 0
+Host 5 sending updates to host 6: 0 mirror nodes
+Host 5 sending updates to host 7: 0 mirror nodes
+Host 5 sending updates to host 0: 0 mirror nodes
+Host 5 sending updates to host 1: 0 mirror nodes
+Host 5 sending updates to host 2: 0 mirror nodes
+Host 5 sending updates to host 3: 0 mirror nodes
+Host 5 sending updates to host 4: 0 mirror nodes
+[7] BFS::go run 0 called
+#####   Round 0   #####
+host 7 round master accesses: 0
+host 7 round master write: 0
+host 7 round mirror accesses: 0
+host 7 round mirror writes: 0
+host 7 number of mirrors sending updates: 0
+Host 7 sending updates to host 0: 0 mirror nodes
+Host 7 sending updates to host 1: 0 mirror nodes
+Host 7 sending updates to host 2: 0 mirror nodes
+Host 7 sending updates to host 3: 0 mirror nodes
+Host 7 sending updates to host 4: 0 mirror nodes
+Host 7 sending updates to host 5: 0 mirror nodes
+Host 7 sending updates to host 6: 0 mirror nodes
+[1] BFS::go run 0 called
+#####   Round 0   #####
+host 1 round master accesses: 0
+host 1 round master write: 0
+host 1 round mirror accesses: 0
+host 1 round mirror writes: 0
+host 1 number of mirrors sending updates: 0
+Host 1 sending updates to host 2: 0 mirror nodes
+Host 1 sending updates to host 3: 0 mirror nodes
+Host 1 sending updates to host 4: 0 mirror nodes
+Host 1 sending updates to host 5: 0 mirror nodes
+Host 1 sending updates to host 6: 0 mirror nodes
+Host 1 sending updates to host 7: 0 mirror nodes
+Host 1 sending updates to host 0: 0 mirror nodes
+[6] BFS::go run 0 called
+#####   Round 0   #####
+host 6 round master accesses: 0
+host 6 round master write: 0
+host 6 round mirror accesses: 0
+host 6 round mirror writes: 0
+host 6 number of mirrors sending updates: 0
+Host 6 sending updates to host 7: 0 mirror nodes
+Host 6 sending updates to host 0: 0 mirror nodes
+Host 6 sending updates to host 1: 0 mirror nodes
+Host 6 sending updates to host 2: 0 mirror nodes
+Host 6 sending updates to host 3: 0 mirror nodes
+Host 6 sending updates to host 4: 0 mirror nodes
+Host 6 sending updates to host 5: 0 mirror nodes
+[4] BFS::go run 0 called
+#####   Round 0   #####
+host 4 round master accesses: 0
+host 4 round master write: 0
+host 4 round mirror accesses: 0
+host 4 round mirror writes: 0
+host 4 number of mirrors sending updates: 0
+Host 4 sending updates to host 5: 0 mirror nodes
+Host 4 sending updates to host 6: 0 mirror nodes
+Host 4 sending updates to host 7: 0 mirror nodes
+Host 4 sending updates to host 0: 0 mirror nodes
+Host 4 sending updates to host 1: 0 mirror nodes
+Host 4 sending updates to host 2: 0 mirror nodes
+Host 4 sending updates to host 3: 0 mirror nodes
+[3] BFS::go run 0 called
+#####   Round 0   #####
+host 3 round master accesses: 0
+host 3 round master write: 0
+host 3 round mirror accesses: 0
+host 3 round mirror writes: 0
+host 3 number of mirrors sending updates: 0
+Host 3 sending updates to host 4: 0 mirror nodes
+Host 3 sending updates to host 5: 0 mirror nodes
+Host 3 sending updates to host 6: 0 mirror nodes
+Host 3 sending updates to host 7: 0 mirror nodes
+Host 3 sending updates to host 0: 0 mirror nodes
+Host 3 sending updates to host 1: 0 mirror nodes
+Host 3 sending updates to host 2: 0 mirror nodes
+[2] BFS::go run 0 called
+#####   Round 0   #####
+host 2 round master accesses: 0
+host 2 round master write: 0
+host 2 round mirror accesses: 0
+host 2 round mirror writes: 0
+host 2 number of mirrors sending updates: 0
+Host 2 sending updates to host 3: 0 mirror nodes
+Host 2 sending updates to host 4: 0 mirror nodes
+Host 2 sending updates to host 5: 0 mirror nodes
+Host 2 sending updates to host 6: 0 mirror nodes
+Host 2 sending updates to host 7: 0 mirror nodes
+Host 2 sending updates to host 0: 0 mirror nodes
+Host 2 sending updates to host 1: 0 mirror nodes
+[0] BFS::go run 0 called
+#####   Round 0   #####
+host 0 round master accesses: 1645
+host 0 round master write: 195
+host 0 round mirror accesses: 17844
+host 0 round mirror writes: 6200
+host 0 number of mirrors sending updates: 6200
+Host 0 sending updates to host 1: 562 mirror nodes
+Host 0 sending updates to host 2: 641 mirror nodes
+Host 0 sending updates to host 3: 822 mirror nodes
+Host 0 sending updates to host 4: 876 mirror nodes
+Host 0 sending updates to host 5: 1122 mirror nodes
+Host 0 sending updates to host 6: 868 mirror nodes
+Host 0 sending updates to host 7: 1309 mirror nodes
+Host 2 receiving updates: 641 master nodes
+Host 0 receiving updates: 0 master nodes
+Host 4 receiving updates: 876 master nodes
+Host 3 receiving updates: 822 master nodes
+Host 5 receiving updates: 1122 master nodes
+Host 1 receiving updates: 562 master nodes
+Host 7 receiving updates: 1309 master nodes
+Host 6 receiving updates: 868 master nodes
+#####   Round 1   #####
+host 5 round master accesses: 13303
+host 5 round master write: 2609
+host 5 round mirror accesses: 107335
+host 5 round mirror writes: 16691
+host 5 number of mirrors sending updates: 15541
+Host 5 sending updates to host 6: 2582 mirror nodes
+Host 5 sending updates to host 7: 5095 mirror nodes
+Host 5 sending updates to host 0: 258 mirror nodes
+Host 5 sending updates to host 1: 1088 mirror nodes
+Host 5 sending updates to host 2: 1539 mirror nodes
+Host 5 sending updates to host 3: 2230 mirror nodes
+Host 5 sending updates to host 4: 2749 mirror nodes
+#####   Round 1   #####
+host 7 round master accesses: 11476
+host 7 round master write: 3275
+host 7 round mirror accesses: 85338
+host 7 round mirror writes: 13666
+host 7 number of mirrors sending updates: 12675
+Host 7 sending updates to host 0: 256 mirror nodes
+Host 7 sending updates to host 1: 1018 mirror nodes
+Host 7 sending updates to host 2: 1452 mirror nodes
+Host 7 sending updates to host 3: 2112 mirror nodes
+Host 7 sending updates to host 4: 2456 mirror nodes
+Host 7 sending updates to host 5: 3234 mirror nodes
+Host 7 sending updates to host 6: 2147 mirror nodes
+#####   Round 1   #####
+host 1 round master accesses: 14691
+host 1 round master write: 630
+host 1 round mirror accesses: 131449
+host 1 round mirror writes: 21312
+host 1 number of mirrors sending updates: 20349
+Host 1 sending updates to host 2: 1627 mirror nodes
+Host 1 sending updates to host 3: 2385 mirror nodes
+Host 1 sending updates to host 4: 3023 mirror nodes
+Host 1 sending updates to host 5: 4039 mirror nodes
+Host 1 sending updates to host 6: 2932 mirror nodes
+Host 1 sending updates to host 7: 6080 mirror nodes
+Host 1 sending updates to host 0: 263 mirror nodes
+#####   Round 1   #####
+host 4 round master accesses: 15005
+host 4 round master write: 2146
+host 4 round mirror accesses: 111641
+host 4 round mirror writes: 18256
+host 4 number of mirrors sending updates: 16771
+Host 4 sending updates to host 5: 3677 mirror nodes
+Host 4 sending updates to host 6: 2612 mirror nodes
+Host 4 sending updates to host 7: 5329 mirror nodes
+Host 4 sending updates to host 0: 253 mirror nodes
+Host 4 sending updates to host 1: 1082 mirror nodes
+Host 4 sending updates to host 2: 1580 mirror nodes
+Host 4 sending updates to host 3: 2238 mirror nodes
+#####   Round 1   #####
+host 3 round master accesses: 14962
+host 3 round master write: 1631
+host 3 round mirror accesses: 118164
+host 3 round mirror writes: 19327
+host 3 number of mirrors sending updates: 17841
+Host 3 sending updates to host 4: 2725 mirror nodes
+Host 3 sending updates to host 5: 3930 mirror nodes
+Host 3 sending updates to host 6: 2656 mirror nodes
+Host 3 sending updates to host 7: 5530 mirror nodes
+Host 3 sending updates to host 0: 262 mirror nodes
+Host 3 sending updates to host 1: 1105 mirror nodes
+Host 3 sending updates to host 2: 1633 mirror nodes
+#####   Round 1   #####
+host 0 round master accesses: 13484
+host 0 round master write: 64
+host 0 round mirror accesses: 120172
+host 0 round mirror writes: 15631
+host 0 number of mirrors sending updates: 15584
+Host 0 sending updates to host 1: 576 mirror nodes
+Host 0 sending updates to host 2: 1020 mirror nodes
+Host 0 sending updates to host 3: 1594 mirror nodes
+Host 0 sending updates to host 4: 2228 mirror nodes
+Host 0 sending updates to host 5: 3082 mirror nodes
+Host 0 sending updates to host 6: 2150 mirror nodes
+Host 0 sending updates to host 7: 4934 mirror nodes
+#####   Round 1   #####
+host 6 round master accesses: 14037
+host 6 round master write: 1980
+host 6 round mirror accesses: 118768
+host 6 round mirror writes: 18173
+host 6 number of mirrors sending updates: 17537
+Host 6 sending updates to host 7: 5110 mirror nodes
+Host 6 sending updates to host 0: 254 mirror nodes
+Host 6 sending updates to host 1: 1117 mirror nodes
+Host 6 sending updates to host 2: 1604 mirror nodes
+Host 6 sending updates to host 3: 2334 mirror nodes
+Host 6 sending updates to host 4: 2986 mirror nodes
+Host 6 sending updates to host 5: 4132 mirror nodes
+#####   Round 1   #####
+host 2 round master accesses: 14992
+host 2 round master write: 1044
+host 2 round mirror accesses: 127855
+host 2 round mirror writes: 20203
+host 2 number of mirrors sending updates: 19178
+Host 2 sending updates to host 3: 2277 mirror nodes
+Host 2 sending updates to host 4: 2955 mirror nodes
+Host 2 sending updates to host 5: 3971 mirror nodes
+Host 2 sending updates to host 6: 2765 mirror nodes
+Host 2 sending updates to host 7: 5834 mirror nodes
+Host 2 sending updates to host 0: 259 mirror nodes
+Host 2 sending updates to host 1: 1117 mirror nodes
+Host 6 receiving updates: 3017 master nodes
+Host 3 receiving updates: 2491 master nodes
+Host 0 receiving updates: 263 master nodes
+Host 5 receiving updates: 4347 master nodes
+Host 7 receiving updates: 6265 master nodes
+Host 1 receiving updates: 1152 master nodes
+Host 4 receiving updates: 3136 master nodes
+Host 2 receiving updates: 1713 master nodes
+#####   Round 2   #####
+host 0 round master accesses: 28
+host 0 round master write: 0
+host 0 round mirror accesses: 253
+host 0 round mirror writes: 21
+host 0 number of mirrors sending updates: 21
+Host 0 sending updates to host 1: 0 mirror nodes
+Host 0 sending updates to host 2: 1 mirror nodes
+Host 0 sending updates to host 3: 2 mirror nodes
+Host 0 sending updates to host 4: 4 mirror nodes
+Host 0 sending updates to host 5: 5 mirror nodes
+Host 0 sending updates to host 6: 1 mirror nodes
+Host 0 sending updates to host 7: 8 mirror nodes
+#####   Round 2   #####
+host 2 round master accesses: 1154
+host 2 round master write: 2
+host 2 round mirror accesses: 9871
+host 2 round mirror writes: 757
+host 2 number of mirrors sending updates: 757
+Host 2 sending updates to host 3: 71 mirror nodes
+Host 2 sending updates to host 4: 88 mirror nodes
+Host 2 sending updates to host 5: 143 mirror nodes
+Host 2 sending updates to host 6: 134 mirror nodes
+Host 2 sending updates to host 7: 301 mirror nodes
+Host 2 sending updates to host 0: 2 mirror nodes
+Host 2 sending updates to host 1: 18 mirror nodes
+#####   Round 2   #####
+host 4 round master accesses: 2951
+host 4 round master write: 26
+host 4 round mirror accesses: 24264
+host 4 round mirror writes: 1678
+host 4 number of mirrors sending updates: 1676
+Host 4 sending updates to host 5: 403 mirror nodes
+Host 4 sending updates to host 6: 251 mirror nodes
+Host 4 sending updates to host 7: 694 mirror nodes
+Host 4 sending updates to host 0: 4 mirror nodes
+Host 4 sending updates to host 1: 37 mirror nodes
+Host 4 sending updates to host 2: 105 mirror nodes
+Host 4 sending updates to host 3: 182 mirror nodes
+#####   Round 2   #####
+host 6 round master accesses: 2310
+host 6 round master write: 25
+host 6 round mirror accesses: 17154
+host 6 round mirror writes: 1123
+host 6 number of mirrors sending updates: 1122
+Host 6 sending updates to host 7: 508 mirror nodes
+Host 6 sending updates to host 0: 4 mirror nodes
+Host 6 sending updates to host 1: 36 mirror nodes
+Host 6 sending updates to host 2: 82 mirror nodes
+Host 6 sending updates to host 3: 112 mirror nodes
+Host 6 sending updates to host 4: 150 mirror nodes
+Host 6 sending updates to host 5: 230 mirror nodes
+#####   Round 2   #####
+host 1 round master accesses: 706
+host 1 round master write: 0
+host 1 round mirror accesses: 6920
+host 1 round mirror writes: 544
+host 1 number of mirrors sending updates: 544
+Host 1 sending updates to host 2: 31 mirror nodes
+Host 1 sending updates to host 3: 47 mirror nodes
+Host 1 sending updates to host 4: 75 mirror nodes
+Host 1 sending updates to host 5: 111 mirror nodes
+Host 1 sending updates to host 6: 80 mirror nodes
+Host 1 sending updates to host 7: 200 mirror nodes
+Host 1 sending updates to host 0: 0 mirror nodes
+#####   Round 2   #####
+host 5 round master accesses: 3295
+host 5 round master write: 46
+host 5 round mirror accesses: 29352
+host 5 round mirror writes: 1926
+host 5 number of mirrors sending updates: 1925
+Host 5 sending updates to host 6: 282 mirror nodes
+Host 5 sending updates to host 7: 917 mirror nodes
+Host 5 sending updates to host 0: 5 mirror nodes
+Host 5 sending updates to host 1: 55 mirror nodes
+Host 5 sending updates to host 2: 130 mirror nodes
+Host 5 sending updates to host 3: 215 mirror nodes
+Host 5 sending updates to host 4: 321 mirror nodes
+#####   Round 2   #####
+host 3 round master accesses: 2299
+host 3 round master write: 10
+host 3 round mirror accesses: 18468
+host 3 round mirror writes: 1392
+host 3 number of mirrors sending updates: 1391
+Host 3 sending updates to host 4: 213 mirror nodes
+Host 3 sending updates to host 5: 296 mirror nodes
+Host 3 sending updates to host 6: 199 mirror nodes
+Host 3 sending updates to host 7: 571 mirror nodes
+Host 3 sending updates to host 0: 1 mirror nodes
+Host 3 sending updates to host 1: 31 mirror nodes
+Host 3 sending updates to host 2: 80 mirror nodes
+#####   Round 2   #####
+host 7 round master accesses: 5326
+host 7 round master write: 231
+host 7 round mirror accesses: 46819
+host 7 round mirror writes: 2802
+host 7 number of mirrors sending updates: 2799
+Host 7 sending updates to host 0: 7 mirror nodes
+Host 7 sending updates to host 1: 118 mirror nodes
+Host 7 sending updates to host 2: 259 mirror nodes
+Host 7 sending updates to host 3: 391 mirror nodes
+Host 7 sending updates to host 4: 568 mirror nodes
+Host 7 sending updates to host 5: 901 mirror nodes
+Host 7 sending updates to host 6: 555 mirror nodes
+Host 3 receiving updates: 847 master nodes
+Host 4 receiving updates: 1171 master nodes
+Host 1 receiving updates: 257 master nodes
+Host 5 receiving updates: 1698 master nodes
+Host 7 receiving updates: 2617 master nodes
+Host 6 receiving updates: 1185 master nodes
+Host 0 receiving updates: 19 master nodes
+Host 2 receiving updates: 571 master nodes
+#####   Round 3   #####
+host 3 round master accesses: 13
+host 3 round master write: 0
+host 3 round mirror accesses: 129
+host 3 round mirror writes: 9
+host 3 number of mirrors sending updates: 9
+Host 3 sending updates to host 4: 1 mirror nodes
+Host 3 sending updates to host 5: 3 mirror nodes
+Host 3 sending updates to host 6: 0 mirror nodes
+Host 3 sending updates to host 7: 3 mirror nodes
+Host 3 sending updates to host 0: 0 mirror nodes
+Host 3 sending updates to host 1: 1 mirror nodes
+Host 3 sending updates to host 2: 1 mirror nodes
+#####   Round 3   #####
+host 1 round master accesses: 0
+host 1 round master write: 0
+host 1 round mirror accesses: 4
+host 1 round mirror writes: 0
+host 1 number of mirrors sending updates: 0
+Host 1 sending updates to host 2: 0 mirror nodes
+Host 1 sending updates to host 3: 0 mirror nodes
+Host 1 sending updates to host 4: 0 mirror nodes
+Host 1 sending updates to host 5: 0 mirror nodes
+Host 1 sending updates to host 6: 0 mirror nodes
+Host 1 sending updates to host 7: 0 mirror nodes
+Host 1 sending updates to host 0: 0 mirror nodes
+#####   Round 3   #####
+host 2 round master accesses: 8
+host 2 round master write: 0
+host 2 round mirror accesses: 122
+host 2 round mirror writes: 10
+host 2 number of mirrors sending updates: 10
+Host 2 sending updates to host 3: 0 mirror nodes
+Host 2 sending updates to host 4: 2 mirror nodes
+Host 2 sending updates to host 5: 1 mirror nodes
+Host 2 sending updates to host 6: 2 mirror nodes
+Host 2 sending updates to host 7: 5 mirror nodes
+Host 2 sending updates to host 0: 0 mirror nodes
+Host 2 sending updates to host 1: 0 mirror nodes
+#####   Round 3   #####
+host 5 round master accesses: 39
+host 5 round master write: 0
+host 5 round mirror accesses: 285
+host 5 round mirror writes: 16
+host 5 number of mirrors sending updates: 16
+Host 5 sending updates to host 6: 5 mirror nodes
+Host 5 sending updates to host 7: 5 mirror nodes
+Host 5 sending updates to host 0: 0 mirror nodes
+Host 5 sending updates to host 1: 0 mirror nodes
+Host 5 sending updates to host 2: 2 mirror nodes
+Host 5 sending updates to host 3: 0 mirror nodes
+Host 5 sending updates to host 4: 4 mirror nodes
+#####   Round 3   #####
+host 6 round master accesses: 31
+host 6 round master write: 0
+host 6 round mirror accesses: 301
+host 6 round mirror writes: 19
+host 6 number of mirrors sending updates: 19
+Host 6 sending updates to host 7: 11 mirror nodes
+Host 6 sending updates to host 0: 0 mirror nodes
+Host 6 sending updates to host 1: 0 mirror nodes
+Host 6 sending updates to host 2: 1 mirror nodes
+Host 6 sending updates to host 3: 2 mirror nodes
+Host 6 sending updates to host 4: 3 mirror nodes
+Host 6 sending updates to host 5: 2 mirror nodes
+#####   Round 3   #####
+host 0 round master accesses: 0
+host 0 round master write: 0
+host 0 round mirror accesses: 0
+host 0 round mirror writes: 0
+host 0 number of mirrors sending updates: 0
+Host 0 sending updates to host 1: 0 mirror nodes
+Host 0 sending updates to host 2: 0 mirror nodes
+Host 0 sending updates to host 3: 0 mirror nodes
+Host 0 sending updates to host 4: 0 mirror nodes
+Host 0 sending updates to host 5: 0 mirror nodes
+Host 0 sending updates to host 6: 0 mirror nodes
+Host 0 sending updates to host 7: 0 mirror nodes
+#####   Round 3   #####
+host 4 round master accesses: 27
+host 4 round master write: 0
+host 4 round mirror accesses: 195
+host 4 round mirror writes: 10
+host 4 number of mirrors sending updates: 10
+Host 4 sending updates to host 5: 1 mirror nodes
+Host 4 sending updates to host 6: 2 mirror nodes
+Host 4 sending updates to host 7: 4 mirror nodes
+Host 4 sending updates to host 0: 0 mirror nodes
+Host 4 sending updates to host 1: 1 mirror nodes
+Host 4 sending updates to host 2: 2 mirror nodes
+Host 4 sending updates to host 3: 0 mirror nodes
+#####   Round 3   #####
+host 7 round master accesses: 76
+host 7 round master write: 3
+host 7 round mirror accesses: 630
+host 7 round mirror writes: 32
+host 7 number of mirrors sending updates: 32
+Host 7 sending updates to host 0: 0 mirror nodes
+Host 7 sending updates to host 1: 0 mirror nodes
+Host 7 sending updates to host 2: 0 mirror nodes
+Host 7 sending updates to host 3: 6 mirror nodes
+Host 7 sending updates to host 4: 6 mirror nodes
+Host 7 sending updates to host 5: 16 mirror nodes
+Host 7 sending updates to host 6: 4 mirror nodes
+Host 7 receiving updates: 28 master nodes
+Host 1 receiving updates: 2 master nodes
+Host 0 receiving updates: 0 master nodes
+Host 4 receiving updates: 16 master nodes
+Host 5 receiving updates: 23 master nodes
+Host 6 receiving updates: 13 master nodes
+Host 3 receiving updates: 8 master nodes
+Host 2 receiving updates: 6 master nodes
+#####   Round 4   #####
+host 3 round master accesses: 0
+host 3 round master write: 0
+host 3 round mirror accesses: 0
+host 3 round mirror writes: 0
+host 3 number of mirrors sending updates: 0
+Host 3 sending updates to host 4: 0 mirror nodes
+Host 3 sending updates to host 5: 0 mirror nodes
+Host 3 sending updates to host 6: 0 mirror nodes
+Host 3 sending updates to host 7: 0 mirror nodes
+Host 3 sending updates to host 0: 0 mirror nodes
+Host 3 sending updates to host 1: 0 mirror nodes
+Host 3 sending updates to host 2: 0 mirror nodes
+#####   Round 4   #####
+host 7 round master accesses: 1
+host 7 round master write: 0
+host 7 round mirror accesses: 3
+host 7 round mirror writes: 0
+host 7 number of mirrors sending updates: 0
+Host 7 sending updates to host 0: 0 mirror nodes
+Host 7 sending updates to host 1: 0 mirror nodes
+Host 7 sending updates to host 2: 0 mirror nodes
+Host 7 sending updates to host 3: 0 mirror nodes
+Host 7 sending updates to host 4: 0 mirror nodes
+Host 7 sending updates to host 5: 0 mirror nodes
+Host 7 sending updates to host 6: 0 mirror nodes
+#####   Round 4   #####
+host 2 round master accesses: 0
+host 2 round master write: 0
+host 2 round mirror accesses: 0
+host 2 round mirror writes: 0
+host 2 number of mirrors sending updates: 0
+Host 2 sending updates to host 3: 0 mirror nodes
+Host 2 sending updates to host 4: 0 mirror nodes
+Host 2 sending updates to host 5: 0 mirror nodes
+Host 2 sending updates to host 6: 0 mirror nodes
+Host 2 sending updates to host 7: 0 mirror nodes
+Host 2 sending updates to host 0: 0 mirror nodes
+Host 2 sending updates to host 1: 0 mirror nodes
+#####   Round 4   #####
+host 6 round master accesses: 0
+host 6 round master write: 0
+host 6 round mirror accesses: 1
+host 6 round mirror writes: 0
+host 6 number of mirrors sending updates: 0
+Host 6 sending updates to host 7: 0 mirror nodes
+Host 6 sending updates to host 0: 0 mirror nodes
+Host 6 sending updates to host 1: 0 mirror nodes
+Host 6 sending updates to host 2: 0 mirror nodes
+Host 6 sending updates to host 3: 0 mirror nodes
+Host 6 sending updates to host 4: 0 mirror nodes
+Host 6 sending updates to host 5: 0 mirror nodes
+#####   Round 4   #####
+host 0 round master accesses: 0
+host 0 round master write: 0
+host 0 round mirror accesses: 0
+host 0 round mirror writes: 0
+host 0 number of mirrors sending updates: 0
+Host 0 sending updates to host 1: 0 mirror nodes
+Host 0 sending updates to host 2: 0 mirror nodes
+Host 0 sending updates to host 3: 0 mirror nodes
+Host 0 sending updates to host 4: 0 mirror nodes
+Host 0 sending updates to host 5: 0 mirror nodes
+Host 0 sending updates to host 6: 0 mirror nodes
+Host 0 sending updates to host 7: 0 mirror nodes
+#####   Round 4   #####
+host 4 round master accesses: 0
+host 4 round master write: 0
+host 4 round mirror accesses: 2
+host 4 round mirror writes: 0
+host 4 number of mirrors sending updates: 0
+Host 4 sending updates to host 5: 0 mirror nodes
+Host 4 sending updates to host 6: 0 mirror nodes
+Host 4 sending updates to host 7: 0 mirror nodes
+Host 4 sending updates to host 0: 0 mirror nodes
+Host 4 sending updates to host 1: 0 mirror nodes
+Host 4 sending updates to host 2: 0 mirror nodes
+Host 4 sending updates to host 3: 0 mirror nodes
+#####   Round 4   #####
+host 1 round master accesses: 0
+host 1 round master write: 0
+host 1 round mirror accesses: 0
+host 1 round mirror writes: 0
+host 1 number of mirrors sending updates: 0
+Host 1 sending updates to host 2: 0 mirror nodes
+Host 1 sending updates to host 3: 0 mirror nodes
+Host 1 sending updates to host 4: 0 mirror nodes
+Host 1 sending updates to host 5: 0 mirror nodes
+Host 1 sending updates to host 6: 0 mirror nodes
+Host 1 sending updates to host 7: 0 mirror nodes
+Host 1 sending updates to host 0: 0 mirror nodes
+#####   Round 4   #####
+host 5 round master accesses: 1
+host 5 round master write: 0
+host 5 round mirror accesses: 3
+host 5 round mirror writes: 1
+host 5 number of mirrors sending updates: 1
+Host 5 sending updates to host 6: 0 mirror nodes
+Host 5 sending updates to host 7: 1 mirror nodes
+Host 5 sending updates to host 0: 0 mirror nodes
+Host 5 sending updates to host 1: 0 mirror nodes
+Host 5 sending updates to host 2: 0 mirror nodes
+Host 5 sending updates to host 3: 0 mirror nodes
+Host 5 sending updates to host 4: 0 mirror nodes
+Host 5 receiving updates: 0 master nodes
+Host 4 receiving updates: 0 master nodes
+Host 3 receiving updates: 0 master nodes
+Host 7 receiving updates: 1 master nodes
+Host 2 receiving updates: 0 master nodes
+Host 1 receiving updates: 0 master nodes
+Host 0 receiving updates: 0 master nodes
+Host 6 receiving updates: 0 master nodes
+#####   Round 5   #####
+host 4 round master accesses: 0
+host 4 round master write: 0
+host 4 round mirror accesses: 0
+host 4 round mirror writes: 0
+host 4 number of mirrors sending updates: 0
+Host 4 sending updates to host 5: 0 mirror nodes
+Host 4 sending updates to host 6: 0 mirror nodes
+Host 4 sending updates to host 7: 0 mirror nodes
+Host 4 sending updates to host 0: 0 mirror nodes
+Host 4 sending updates to host 1: 0 mirror nodes
+Host 4 sending updates to host 2: 0 mirror nodes
+Host 4 sending updates to host 3: 0 mirror nodes
+#####   Round 5   #####
+host 6 round master accesses: 0
+host 6 round master write: 0
+host 6 round mirror accesses: 0
+host 6 round mirror writes: 0
+host 6 number of mirrors sending updates: 0
+Host 6 sending updates to host 7: 0 mirror nodes
+Host 6 sending updates to host 0: 0 mirror nodes
+Host 6 sending updates to host 1: 0 mirror nodes
+Host 6 sending updates to host 2: 0 mirror nodes
+Host 6 sending updates to host 3: 0 mirror nodes
+Host 6 sending updates to host 4: 0 mirror nodes
+Host 6 sending updates to host 5: 0 mirror nodes
+#####   Round 5   #####
+host 2 round master accesses: 0
+host 2 round master write: 0
+host 2 round mirror accesses: 0
+host 2 round mirror writes: 0
+host 2 number of mirrors sending updates: 0
+Host 2 sending updates to host 3: 0 mirror nodes
+Host 2 sending updates to host 4: 0 mirror nodes
+Host 2 sending updates to host 5: 0 mirror nodes
+Host 2 sending updates to host 6: 0 mirror nodes
+Host 2 sending updates to host 7: 0 mirror nodes
+Host 2 sending updates to host 0: 0 mirror nodes
+Host 2 sending updates to host 1: 0 mirror nodes
+#####   Round 5   #####
+host 5 round master accesses: 0
+host 5 round master write: 0
+host 5 round mirror accesses: 0
+host 5 round mirror writes: 0
+host 5 number of mirrors sending updates: 0
+Host 5 sending updates to host 6: 0 mirror nodes
+Host 5 sending updates to host 7: 0 mirror nodes
+Host 5 sending updates to host 0: 0 mirror nodes
+Host 5 sending updates to host 1: 0 mirror nodes
+Host 5 sending updates to host 2: 0 mirror nodes
+Host 5 sending updates to host 3: 0 mirror nodes
+Host 5 sending updates to host 4: 0 mirror nodes
+#####   Round 5   #####
+host 1 round master accesses: 0
+host 1 round master write: 0
+host 1 round mirror accesses: 0
+host 1 round mirror writes: 0
+host 1 number of mirrors sending updates: 0
+Host 1 sending updates to host 2: 0 mirror nodes
+Host 1 sending updates to host 3: 0 mirror nodes
+Host 1 sending updates to host 4: 0 mirror nodes
+Host 1 sending updates to host 5: 0 mirror nodes
+Host 1 sending updates to host 6: 0 mirror nodes
+Host 1 sending updates to host 7: 0 mirror nodes
+Host 1 sending updates to host 0: 0 mirror nodes
+#####   Round 5   #####
+host 7 round master accesses: 0
+host 7 round master write: 0
+host 7 round mirror accesses: 0
+host 7 round mirror writes: 0
+host 7 number of mirrors sending updates: 0
+Host 7 sending updates to host 0: 0 mirror nodes
+Host 7 sending updates to host 1: 0 mirror nodes
+Host 7 sending updates to host 2: 0 mirror nodes
+Host 7 sending updates to host 3: 0 mirror nodes
+Host 7 sending updates to host 4: 0 mirror nodes
+Host 7 sending updates to host 5: 0 mirror nodes
+Host 7 sending updates to host 6: 0 mirror nodes
+#####   Round 5   #####
+host 3 round master accesses: 0
+host 3 round master write: 0
+host 3 round mirror accesses: 0
+host 3 round mirror writes: 0
+host 3 number of mirrors sending updates: 0
+Host 3 sending updates to host 4: 0 mirror nodes
+Host 3 sending updates to host 5: 0 mirror nodes
+Host 3 sending updates to host 6: 0 mirror nodes
+Host 3 sending updates to host 7: 0 mirror nodes
+Host 3 sending updates to host 0: 0 mirror nodes
+Host 3 sending updates to host 1: 0 mirror nodes
+Host 3 sending updates to host 2: 0 mirror nodes
+#####   Round 5   #####
+host 0 round master accesses: 0
+host 0 round master write: 0
+host 0 round mirror accesses: 0
+host 0 round mirror writes: 0
+host 0 number of mirrors sending updates: 0
+Host 0 sending updates to host 1: 0 mirror nodes
+Host 0 sending updates to host 2: 0 mirror nodes
+Host 0 sending updates to host 3: 0 mirror nodes
+Host 0 sending updates to host 4: 0 mirror nodes
+Host 0 sending updates to host 5: 0 mirror nodes
+Host 0 sending updates to host 6: 0 mirror nodes
+Host 0 sending updates to host 7: 0 mirror nodes
+Host 0 receiving updates: 0 master nodes
+Host 7 receiving updates: 0 master nodes
+Host 4 receiving updates: 0 master nodes
+Host 1 receiving updates: 0 master nodes
+Host 2 receiving updates: 0 master nodes
+Host 3 receiving updates: 0 master nodes
+Host 5 receiving updates: 0 master nodes
+Host 6 receiving updates: 0 master nodes
+#####   Summary   #####
+host 3 total master accesses: 17274
+host 3 total master write: 1641
+host 3 total mirror accesses: 136761
+host 3 total mirror writes: 20728
+#####   Summary   #####
+host 7 total master accesses: 16879
+host 7 total master write: 3509
+host 7 total mirror accesses: 132790
+host 7 total mirror writes: 16500
+#####   Summary   #####
+host 4 total master accesses: 17983
+host 4 total master write: 2172
+host 4 total mirror accesses: 136102
+host 4 total mirror writes: 19944
+#####   Summary   #####
+host 2 total master accesses: 16154
+host 2 total master write: 1046
+host 2 total mirror accesses: 137848
+host 2 total mirror writes: 20970
+#####   Summary   #####
+host 6 total master accesses: 16378
+host 6 total master write: 2005
+host 6 total mirror accesses: 136224
+host 6 total mirror writes: 19315
+#####   Summary   #####
+host 0 total master accesses: 15157
+host 0 total master write: 259
+host 0 total mirror accesses: 138269
+host 0 total mirror writes: 21852
+#####   Summary   #####
+host 1 total master accesses: 15397
+host 1 total master write: 630
+host 1 total mirror accesses: 138373
+host 1 total mirror writes: 21856
+#####   Summary   #####
+host 5 total master accesses: 16638
+host 5 total master write: 2655
+host 5 total mirror accesses: 136975
+host 5 total mirror writes: 18634
+Number of nodes visited from source 0 is 41943
+Max distance from source 0 is 5

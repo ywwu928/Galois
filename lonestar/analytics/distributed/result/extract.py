@@ -1,12 +1,13 @@
 import sys
 import os
 
-#i target directory
+# target directory
 directory = sys.argv[1]
 
 # result containers
-hosts = ["_8", "_16", "_32", "_64", "_128", "_256"]
-graphs = ["flickr", "yelp", "rmat15", "rmat26", "rmat28", "data_01", "data_10", "data_200"]
+hosts = ["_8", "_16", "_32", "_64", "_128"]
+graphs = ["flickr", "yelp", "rmat15", "data_200"]
+# graphs = ["flickr", "yelp", "rmat15", "rmat26", "rmat28", "data_01", "data_10", "data_200"]
 
 master_access=[]
 master_write=[]

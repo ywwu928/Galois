@@ -1,0 +1,17 @@
+#!/bin/bash
+
+echo "data_200 8 hosts start time:"
+date
+srun -N 1 -n 8 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-push-dist "/work/08474/ywwu/ls6/graphs/galois/data_200.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/data_200.tgr" -startNode=896003 -t=16 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_8procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_8procs"
+echo "data_200 8 hosts end time:"
+date
+echo "data_200 16 hosts start time:"
+date
+srun -N 1 -n 16 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-push-dist "/work/08474/ywwu/ls6/graphs/galois/data_200.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/data_200.tgr" -startNode=896003 -t=8 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_16procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_16procs"
+echo "data_200 16 hosts end time:"
+date
+echo "data_200 32 hosts start time:"
+date
+srun -N 1 -n 32 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/bfs/bfs-push-dist "/work/08474/ywwu/ls6/graphs/galois/data_200.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/data_200.tgr" -startNode=896003 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_32procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/bfs/push/data_200_32procs"
+echo "data_200 32 hosts end time:"
+date

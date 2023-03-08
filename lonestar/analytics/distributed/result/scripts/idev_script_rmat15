@@ -1,0 +1,22 @@
+#!/bin/bash
+
+echo "rmat15 8 hosts start time:"
+date
+srun -N 1 -n 8 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/rmat15.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/rmat15.tgr" --maxIterations=40 -t=16 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_8procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_8procs"
+echo "rmat15 8 hosts end time:"
+date
+echo "rmat15 16 hosts start time:"
+date
+srun -N 1 -n 16 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/rmat15.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/rmat15.tgr" --maxIterations=40 -t=8 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_16procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_16procs"
+echo "rmat15 16 hosts end time:"
+date
+echo "rmat15 32 hosts start time:"
+date
+srun -N 1 -n 32 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/rmat15.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/rmat15.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_32procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_32procs"
+echo "rmat15 32 hosts end time:"
+date
+echo "rmat15 64 hosts start time:"
+date
+srun -N 2 -n 64 /work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/pagerank/pagerank-push-dist "/work/08474/ywwu/ls6/graphs/galois/rmat15.gr" -graphTranspose="/work/08474/ywwu/ls6/graphs/galois/rmat15.tgr" --maxIterations=40 -t=4 --runs=1 -partition=oec --exec=Sync -statFile="/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_64procs_stat" > "/work/08474/ywwu/ls6/Galois/lonestar/analytics/distributed/result/pagerank/push/rmat15_64procs"
+echo "rmat15 64 hosts end time:"
+date
