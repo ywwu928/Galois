@@ -417,7 +417,6 @@ struct PageRank {
     
     uint32_t num_hosts = _graph.getNumHosts();
     uint64_t host_id = galois::runtime::getSystemNetworkInterface().ID;
-    uint64_t total_nodes = _graph.globalSize();
     
     do {
       syncSubstrate->set_num_round(_num_iterations);
@@ -595,7 +594,6 @@ struct PageRank {
         NodeData& ddata = graph->getData(dst);
           
         uint64_t dst_GID = graph->getGID(dst);
-        uint64_t total_nodes = graph->globalSize();
 
         bool owned = graph->isOwned(dst_GID);
         unsigned host_id = graph->getHostID(dst_GID);
