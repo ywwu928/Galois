@@ -158,7 +158,8 @@ public:
   NewDistGraphGeneric(
       const std::string& filename, unsigned host, unsigned _numHosts,
       bool cuspAsync = true, uint32_t stateRounds = 100, bool transpose = false,
-      galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
+      // galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
+      galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
       uint32_t nodeWeight = 0, uint32_t edgeWeight = 0,
       std::string masterBlockFile = "", bool readFromFile = false,
       std::string localGraphFileName = "local_graph",
