@@ -218,7 +218,7 @@ protected:
     edgeData.set(*nn, {});
   }
 
-  size_t getId(GraphNode N) { return N; }
+  // size_t getId(GraphNode N) { return N; }
 
   GraphNode getNode(size_t n) { return n; }
 
@@ -440,6 +440,8 @@ public:
   }
 
   uint64_t getDegree(GraphNode N) const { return (raw_end(N) - raw_begin(N)); }
+  
+  size_t getId(GraphNode N) { return N; }
 
   edge_iterator findEdge(GraphNode N1, GraphNode N2) {
     return std::find_if(edge_begin(N1), edge_end(N1),
