@@ -649,6 +649,8 @@ public:
                                                          edge_end(N));
   }
 
+  uint64_t getDegree(GraphNode N) const { return graph.getDegree(N); }
+
   /**
    * Gets number of nodes on this (local) graph.
    *
