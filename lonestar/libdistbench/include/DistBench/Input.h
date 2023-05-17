@@ -35,6 +35,7 @@
 
 //! enums of partitioning schemes supported
 enum PARTITIONING_SCHEME {
+  HASH,          //!< hashing
   OEC,           //!< outgoing edge cut
   IEC,           //!< incoming edge cut
   HOVC,          //!< outgoing hybrid vertex cut
@@ -57,6 +58,8 @@ enum PARTITIONING_SCHEME {
  */
 inline const char* EnumToString(PARTITIONING_SCHEME e) {
   switch (e) {
+  case HASH:
+    return "hash";
   case OEC:
     return "oec";
   case IEC:
@@ -140,6 +143,10 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   }
 
   switch (partitionScheme) {
+  case HASH:
+    return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
+        inputFileTranspose);
   case OEC:
   case IEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
@@ -209,6 +216,11 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   }
 
   switch (partitionScheme) {
+  case HASH:
+    return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFileTranspose);
+  
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
         inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
@@ -332,6 +344,11 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   }
 
   switch (partitionScheme) {
+  case HASH:
+    return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFileTranspose);
+  
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
         inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,

@@ -242,7 +242,50 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class Hash : public galois::graphs::CustomMasterAssignment {
 
+public:
+  Hash(uint32_t hostID, uint32_t numHosts, uint64_t numNodes,
+             uint64_t numEdges)
+      : galois::graphs::CustomMasterAssignment(hostID, numHosts, numNodes,
+                                             numEdges) {
+  //Read from file
+  }
+
+  uint32_t getEdgeOwner(uint32_t src, uint32_t, uint64_t) const {
+      return retrieveMaster(src);
+  }
+
+  template <typename EdgeTy>
+  uint32_t getMaster(uint32_t src,
+                     galois::graphs::BufferedGraph<EdgeTy>& bufGraph,
+                     const std::vector<uint32_t>& localNodeToMaster,
+                     std::unordered_map<uint64_t, uint32_t>& gid2offsets,
+                     const std::vector<uint64_t>& nodeLoads,
+                     std::vector<galois::CopyableAtomic<uint64_t>>& nodeAccum,
+                     const std::vector<uint64_t>& edgeLoads,
+                     std::vector<galois::CopyableAtomic<uint64_t>>& edgeAccum) {
+    auto ii = bufGraph.edgeBegin(src);
+    auto ee = bufGraph.edgeEnd(src);
+    // number of edges
+    uint64_t ne = std::distance(ii, ee);
+    galois::gDebug("[", ne, "] ", nodeLoads.size(), " unassigned", nodeAccum.size(), edgeAccum.size(), edgeLoads.size(), gid2offsets.size(), localNodeToMaster.size(), bufGraph.edgeBegin(src));
+
+        return src % _numHosts;
+  }
+
+  bool noCommunication() { return false; }
+  int scale_factor = 1;
+  // TODO I should be able to make this runtime detectable
+  bool isVertexCut() const { return false; }
+  void serializePartition(boost::archive::binary_oarchive&) {}
+  void deserializePartition(boost::archive::binary_iarchive&) {}
+  std::pair<unsigned, unsigned> cartesianGrid() {
+    return std::make_pair(0u, 0u);
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class GingerP : public galois::graphs::CustomMasterAssignment {
   // used in hybrid cut
   uint32_t _vCutThreshold;

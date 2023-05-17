@@ -43,6 +43,7 @@ cll::opt<bool>
 cll::opt<PARTITIONING_SCHEME> partitionScheme(
     "partition", cll::desc("Type of partitioning."),
     cll::values(
+        clEnumValN(HASH, "hash", "Hashing"),
         clEnumValN(OEC, "oec", "Outgoing Edge-Cut (default)"),
         clEnumValN(IEC, "iec", "Incoming Edge-Cut"),
         clEnumValN(HOVC, "hovc", "Outgoing Hybrid Vertex-Cut"),
