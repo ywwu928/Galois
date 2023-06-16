@@ -29,6 +29,8 @@
 #include <sstream>
 #include <limits>
 
+#include "instrument_static.h"
+
 #ifdef GALOIS_ENABLE_GPU
 #include "bfs_push_cuda.h"
 struct CUDA_Context* cuda_ctx;
@@ -83,6 +85,8 @@ typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
+
+std::unique_ptr<Instrument<Graph>> stat;
 
 #include "bfs_push_sync.hh"
 
@@ -158,6 +162,8 @@ struct FirstItr_BFS {
       abort();
 #endif
     } else if (personality == CPU) {
+      stat->clear();
+
       // one node
       galois::do_all(
           galois::iterate(__begin, __end), 
@@ -165,6 +171,8 @@ struct FirstItr_BFS {
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
     }
+
+    stat->log_round(0);
 
 	syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
       
@@ -180,13 +188,21 @@ struct FirstItr_BFS {
     NodeData& snode = graph->getData(src);
     snode.dist_old  = snode.dist_current;
 
+	stat->record_local_read_stream();
+    
     for (auto jj : graph->edges(src)) {
+      stat->record_local_read_stream();
+
       GNode dst         = graph->getEdgeDst(jj);
       auto& dnode       = graph->getData(dst);
+
+      stat->record_read_random(dst);
 
       uint32_t new_dist = 1 + snode.dist_current;
       uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
       if (old_dist > new_dist) {
+        stat->record_write_random(dst, !bitset_dist_current.test(dst));
+        
         bitset_dist_current.set(dst);
       }
     }
@@ -266,6 +282,8 @@ struct BFS {
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
 
+	  stat->log_round(_num_iterations);
+
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
       
       galois::runtime::reportStat_Tsum(
@@ -285,6 +303,8 @@ struct BFS {
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
 
+	stat->record_local_read_stream();
+    
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
 
@@ -292,15 +312,21 @@ struct BFS {
         snode.dist_old = snode.dist_current;
 
         for (auto jj : graph->edges(src)) {
+          stat->record_local_read_stream();
+	      
 		  work_edges += 1;
 
           GNode dst         = graph->getEdgeDst(jj);
           auto& dnode       = graph->getData(dst);
           
+          stat->record_read_random(dst);
+
           uint32_t new_dist = 1 + snode.dist_current;
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
           
           if (old_dist > new_dist) {
+			stat->record_write_random(dst, !bitset_dist_current.test(dst));
+
             bitset_dist_current.set(dst);
           }
         }
@@ -449,6 +475,9 @@ int main(int argc, char** argv) {
   // bitset comm setup
   bitset_dist_current.resize(hg->size());
 
+  stat = std::make_unique<Instrument<Graph>>();
+  stat->init(net.ID, net.Num, hg);
+
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
   // InitializeGraph::go((*hg));
@@ -461,6 +490,7 @@ int main(int argc, char** argv) {
     
   for (auto run = 0; run < numRuns; ++run) {
     galois::gPrint("[", net.ID, "] BFS::go run ", run, " called\n");
+    stat->log_run(run);
     
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
