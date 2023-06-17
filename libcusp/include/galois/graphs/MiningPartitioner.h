@@ -356,6 +356,7 @@ public:
     Tthread_ranges.start();
     base_DistGraph::determineThreadRanges();
     base_DistGraph::determineThreadRangesMaster();
+    base_DistGraph::determineThreadRangesMirror();
     base_DistGraph::determineThreadRangesWithEdges();
     base_DistGraph::initializeSpecificRanges();
     Tthread_ranges.stop();

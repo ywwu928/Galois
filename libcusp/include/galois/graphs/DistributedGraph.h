@@ -74,6 +74,8 @@ private:
   std::vector<uint32_t> allNodesRanges;
   //! represents split of master nodes among threads to balance edges
   std::vector<uint32_t> masterRanges;
+  //! represents split of mirror nodes among threads
+  std::vector<uint32_t> mirrorRanges;
   //! represents split of nodes with edges (includes masters) among threads to
   //! balance edges
   std::vector<uint32_t> withEdgeRanges;
@@ -671,6 +673,8 @@ public:
    * @returns number of nodes present in this (local) graph
    */
   inline size_t numMasters() const { return numOwned; }
+  
+  inline size_t numMirrors() const { return numNodes - numOwned; }
 
   /**
    * Gets number of nodes with edges (may include nodes without edges)
@@ -701,7 +705,7 @@ public:
    * @returns A range object that contains all the nodes in this graph
    */
   inline const NodeRangeType& allNodesRange() const {
-    assert(specificRanges.size() == 3);
+    assert(specificRanges.size() == 4);
     return specificRanges[0];
   }
 
@@ -712,8 +716,19 @@ public:
    * @returns A range object that contains the master nodes in this graph
    */
   inline const NodeRangeType& masterNodesRange() const {
-    assert(specificRanges.size() == 3);
+    assert(specificRanges.size() == 4);
     return specificRanges[1];
+  }
+  
+  /**
+   * Returns a range object that encapsulates only mirror nodes in this
+   * graph.
+   *
+   * @returns A range object that contains the master nodes in this graph
+   */
+  inline const NodeRangeType& mirrorNodesRange() const {
+    assert(specificRanges.size() == 4);
+    return specificRanges[3];
   }
 
   /**
@@ -724,7 +739,7 @@ public:
    * with outgoing edges in this graph
    */
   inline const NodeRangeType& allNodesWithEdgesRange() const {
-    assert(specificRanges.size() == 3);
+    assert(specificRanges.size() == 4);
     return specificRanges[2];
   }
 
@@ -783,6 +798,22 @@ protected:
           beginMaster + numOwned, 0);
     }
   }
+  
+  /**
+   * Determines the thread ranges for mirror nodes only and saves them to
+   * the object.
+   *
+   * Only call after graph is constructed + only call once
+   */
+  inline void determineThreadRangesMirror() {
+    // make sure this hasn't been called before
+    assert(mirrorRanges.size() == 0);
+
+    // first check if we even need to do any work; if already calculated,
+    // use already calculated vector
+    galois::gDebug("Manually det. mirror thread ranges");
+    mirrorRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::runtime::activeThreads, numOwned, numNodes, 0);
+  }
 
   /**
    * Determines the thread ranges for nodes with edges only and saves them to
@@ -821,6 +852,7 @@ protected:
     // for the 3 ranges
     assert(allNodesRanges.size() != 0);
     assert(masterRanges.size() != 0);
+    assert(mirrorRanges.size() != 0);
     assert(withEdgeRanges.size() != 0);
 
     // 0 is all nodes
@@ -839,8 +871,14 @@ protected:
         boost::counting_iterator<size_t>(0),
         boost::counting_iterator<size_t>(numNodesWithEdges),
         withEdgeRanges.data()));
+    
+	// 3 is master nodes
+    specificRanges.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numOwned),
+        boost::counting_iterator<size_t>(numNodes),
+        mirrorRanges.data()));
 
-    assert(specificRanges.size() == 3);
+    assert(specificRanges.size() == 4);
   }
 
   /**
