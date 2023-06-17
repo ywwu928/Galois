@@ -526,6 +526,8 @@ int main(int argc, char** argv) {
     }
   }
 
+  stat.reset();
+
   StatTimer_total.stop();
 
   if (output) {
