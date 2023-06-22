@@ -255,6 +255,8 @@ struct BFS {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();
+
+      stat->clear();
     
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU

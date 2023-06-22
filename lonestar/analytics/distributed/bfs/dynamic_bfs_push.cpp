@@ -77,9 +77,8 @@ const uint32_t infinity = std::numeric_limits<uint32_t>::max() / 4;
 struct NodeData {
   std::atomic<uint32_t> dist_current;
   uint32_t dist_old;
-  uint64_t read;
-  uint64_t write;
-  std::shared_ptr<galois::substrate::SimpleLock> node_lock = std::make_shared<galois::substrate::SimpleLock>();
+  std::atomic<uint64_t> read;
+  std::atomic<uint64_t> write;
 };
 
 galois::DynamicBitSet bitset_dist_current;
@@ -138,6 +137,34 @@ struct InitializeGraph {
   }
 };
 
+struct ResetAccess {
+    Graph* graph;
+
+    ResetAccess(Graph* _graph) : graph(_graph) {}
+
+    void static go(Graph& _graph) {
+        const auto& allNodes = _graph.allNodesRange();
+
+        if (personality ==GPU_CUDA) {
+            abort();
+        }
+        else if (personality == CPU) {
+            galois::do_all(
+                galois::iterate(allNodes),
+                ResetAccess{&_graph},
+                galois::no_stats(),
+                galois::loopname(syncSubstrate->get_run_identifier("ResetAccess").c_str()));
+        }
+    }
+
+    void operator() (GNode src) const {
+        NodeData& sdata = graph->getData(src);
+
+        sdata.read = 0;
+        sdata.write = 0;
+    }
+};
+
 template <bool async>
 struct FirstItr_BFS {
   Graph* graph;
@@ -175,6 +202,8 @@ struct FirstItr_BFS {
           FirstItr_BFS{&_graph},
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
+
+      stat->update();
     }
 
     stat->log_round(0);
@@ -206,7 +235,7 @@ struct FirstItr_BFS {
       uint32_t new_dist = 1 + snode.dist_current;
       uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
       if (old_dist > new_dist) {
-        stat->record_write_random(dst, !bitset_dist_current.test(dst));
+        stat->record_write_random(dst);
         
         bitset_dist_current.set(dst);
       }
@@ -260,6 +289,10 @@ struct BFS {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();
+
+      stat->clear();
+
+      ResetAccess::go(_graph);
     
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
@@ -287,7 +320,8 @@ struct BFS {
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
 
-	  stat->log_round(_num_iterations);
+	  stat->update();
+      stat->log_round(_num_iterations);
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
       
@@ -330,7 +364,7 @@ struct BFS {
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
           
           if (old_dist > new_dist) {
-			stat->record_write_random(dst, !bitset_dist_current.test(dst));
+			stat->record_write_random(dst);
 
             bitset_dist_current.set(dst);
           }

@@ -4,15 +4,19 @@ static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input
 
 constexpr unsigned CACHE_LEVELS = 10;
 
+bool sortAccess (const std::vector<uint64_t>& v1, const std::vector<uint64_t>& v2) { // descending order
+    return v1[3] > v2[3]; // index 3 is # of accesses
+}
+
 template <typename Graph>
 struct Instrument {
   Graph* graph;
   uint64_t hostID;
   uint64_t numHosts;
 
-  // size of total nodes; cache level for each mirror (lower level higher
-  // in-degree)
-  std::vector<unsigned> node_cache_level;
+  // size of total mirror nodes; read / write accesses for each mirror
+  std::vector<std::vector<uint64_t>> node_access;
+  std::shared_ptr<galois::substrate::SimpleLock> vector_lock;
 
   std::unique_ptr<galois::DGAccumulator<uint64_t>> local_read_stream;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_read;
@@ -36,9 +40,8 @@ struct Instrument {
     graph    = g.get();
     hostID   = hid;
     numHosts = numH;
-
-    // set up final result container
-    node_cache_level.resize(graph->size());
+  
+    vector_lock = std::make_shared<galois::substrate::SimpleLock>();
 
     local_read_stream = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
@@ -69,76 +72,7 @@ struct Instrument {
           std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
     }
     clear();
-
-    // load transposed graph (to count incoming degrees)
-    std::vector<unsigned> _;
-    auto tgr =
-        loadDistGraph<typename Graph::GraphNode, typename Graph::EdgeType,
-                      /*iterateOutEdges*/ false>(_);
-
-    // in-degree counting (using transposed graph)
-    galois::InsertBag<std::pair<uint64_t, typename Graph::GraphNode>>
-        indeg_nodes;
-    const auto& allNodes = tgr->allNodesRange();
-    galois::do_all(
-        galois::iterate(allNodes),
-        [&](auto node) {
-          // ignore master nodes
-          if (tgr->isOwned(tgr->getGID(node))) {
-            return;
-          }
-          indeg_nodes.emplace(std::make_pair(
-              std::distance(tgr->edge_begin(node), tgr->edge_end(node)), node));
-        },
-        galois::steal(), galois::no_stats());
-
-    /**
-     * NOTE: alternative way to count incoming degree in original graph
-     *
-    constexpr uint64_t TEST_NODE = 45355;
-    std::atomic<uint64_t> indeg{0};
-    const auto& allNodes = graph->allNodesRange();
-    galois::do_all(
-        galois::iterate(allNodes),
-        [&](auto src) {
-          for (auto e : graph->edges(src)) {
-            auto node = graph->getEdgeDst(e);
-            if (graph->isOwned(graph->getGID(node))) {
-              continue;
-            }
-            if (node == TEST_NODE) {
-              galois::atomicAdd(indeg, 1ul);
-            }
-          }
-        },
-        galois::steal(), galois::no_stats());
-    assert(indeg.load(std::memory_order_relaxed) == 27);
-     */
-
-    // descending sort
-    std::multimap<uint64_t, typename Graph::GraphNode, std::greater<int>>
-        sorted_indeg_nodes(indeg_nodes.begin(), indeg_nodes.end());
-    // cut into levels
-    auto [level_size, surplus] =
-        std::div((int64_t)sorted_indeg_nodes.size(), (int64_t)CACHE_LEVELS);
-    auto it = sorted_indeg_nodes.begin(), end = sorted_indeg_nodes.end();
-    for (unsigned cache_level = 1; cache_level <= CACHE_LEVELS; cache_level++) {
-      if (surplus) {
-        end = std::next(it, level_size + 1);
-        surplus--;
-      } else {
-        end = std::next(it, level_size);
-      }
-      galois::do_all(
-          galois::iterate(it, end),
-          [&](auto& deg_node) {
-            auto& [deg, node]      = deg_node;
-            node_cache_level[node] = cache_level;
-          },
-          galois::no_stats());
-      it = end;
-    }
-
+    
     // start instrumentation
     file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
     file << "#####   Stat   #####" << std::endl;
@@ -173,41 +107,106 @@ struct Instrument {
       *master_read += 1;
       return;
     }
-    // mirror
-    int cache_level = node_cache_level[node];
-
-    for (int i = 0; i < cache_level; i++) { // different configs
-      remote_read[i] += 1;
-      remote_read_to_host[graph->getHostID(gid)][i] += 1;
-    }
-
-    for (int i = cache_level; i < 11; i++) {
-      mirror_read[i] += 1;
-    }
+    
+    auto& nodeData = graph->getData(node);
+    nodeData.read.fetch_add(1, std::memory_order_relaxed);
   }
 
-  void record_write_random(typename Graph::GraphNode node, bool comm) {
+  void record_write_random(typename Graph::GraphNode node) {
     auto gid = graph->getGID(node);
     if (graph->isOwned(gid)) { // master
       *master_write += 1;
       return;
     }
-    // mirror
-    int cache_level = node_cache_level[node];
+    
+    auto& nodeData = graph->getData(node);
+    nodeData.write.fetch_add(1, std::memory_order_relaxed);
+  }
 
-    for (int i = 0; i < cache_level; i++) {
-      remote_write[i] += 1;
+  void update() {
+      form_vector();
+      count_access();
+  }
 
-      remote_write_to_host[graph->getHostID(gid)][i] += 1;
-    }
+  void form_vector () {
+      auto mirrorSize = graph->numMirrors();
+      node_access.reserve(mirrorSize);
 
-    for (int i = cache_level; i < 11; i++) {
-      mirror_write[i] += 1;
+      const auto& allMirrorNodes = graph->mirrorNodesRange();
+      galois::do_all(
+          galois::iterate(allMirrorNodes),
+          [&](auto node) {
+              auto node_GID = graph->getGID(node);
+              auto& nodeData = graph->getData(node);
+              std::vector<uint64_t> temp {graph->getHostID(node_GID), nodeData.read, nodeData.write, nodeData.read+nodeData.write};
 
-      if (comm) {
-        remote_comm_to_host[graph->getHostID(gid)][i] += 1;
+              vector_lock->lock();
+              node_access.push_back(temp);
+              vector_lock->unlock();
+          },
+          galois::steal(), galois::no_stats());
+  }
+
+  void count_access() {
+      // sort the access vector first
+      std::sort(node_access.begin(), node_access.end(), sortAccess);
+
+      // count # of reads and writes
+      int vector_size = node_access.size();
+      unsigned chunk_size = vector_size / CACHE_LEVELS;
+      unsigned remainder = vector_size % CACHE_LEVELS;
+	
+      for (unsigned i=0; i<CACHE_LEVELS; i++) {
+		  for (unsigned j=0; j<chunk_size; j++) {
+			  int index = i * chunk_size + j;
+			  uint64_t owner_host = node_access[index][0];
+			  uint64_t read = node_access[index][1];
+			  uint64_t write = node_access[index][2];
+
+              for (unsigned k=0; k<i+1; k++) {
+                  remote_read[k] += read;
+                  remote_read_to_host[owner_host][k] += read;
+
+                  remote_write[k] += write;
+                  remote_write_to_host[owner_host][k] += write;
+              }
+
+              for (unsigned k=i+1; k<CACHE_LEVELS+1; k++) {
+                  mirror_read[k] += read;
+
+                  mirror_write[k] += write;
+                
+                  if (write > 0) {
+                      remote_comm_to_host[owner_host][k] += 1;
+                  }
+              }
+		  }
+	  }
+
+      for (unsigned i=0; i<remainder; i++) {
+          int index = CACHE_LEVELS * chunk_size + i;
+          uint64_t owner_host = node_access[index][0];
+          uint64_t read = node_access[index][1];
+          uint64_t write = node_access[index][2];
+            
+          for (unsigned k=0; k<CACHE_LEVELS; k++) {
+              remote_read[k] += read;
+              remote_read_to_host[owner_host][k] += read;
+
+              remote_write[k] += write;
+              remote_write_to_host[owner_host][k] += write;
+          }
+
+          mirror_read[CACHE_LEVELS] += read;
+
+          mirror_write[CACHE_LEVELS] += write;
+        
+          if (write > 0) {
+              remote_comm_to_host[owner_host][10] += 1;
+          }
       }
-    }
+
+      node_access.clear();
   }
 
   void log_run(uint64_t run) {
