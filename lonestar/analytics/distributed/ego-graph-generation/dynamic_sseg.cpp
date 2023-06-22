@@ -40,6 +40,8 @@ constexpr uint64_t NaN = std::numeric_limits<uint64_t>::max();
 struct NodeData {
   std::atomic<uint64_t> level_id{NaN};
   uint64_t lid{NaN};
+  std::atomic<uint64_t> read;
+  std::atomic<uint64_t> write;
 };
 using EdgeData  = void;
 using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
@@ -52,7 +54,7 @@ galois::DynamicBitSet bitset_level_id;
 GALOIS_SYNC_STRUCTURE_REDUCE_MIN(level_id, uint64_t);
 GALOIS_SYNC_STRUCTURE_BITSET(level_id);
 
-#include "instrument.h"
+#include "instrument_dynamic.h"
 std::unique_ptr<Instrument<Graph>> inst;
 
 void initializeGraph(Graph& graph) {
@@ -64,6 +66,8 @@ void initializeGraph(Graph& graph) {
         NodeData& data = graph.getData(node);
         data.level_id.store(NaN, std::memory_order_relaxed);
         data.lid = NaN;
+        data.read = 0;
+        data.write = 0;
       },
       galois::loopname(
           syncSubstrate->get_run_identifier("Initalization").c_str()),
@@ -87,6 +91,22 @@ void initializeWorkList(Graph& graph, galois::InsertBag<Graph::GraphNode>& wl,
       },
       galois::loopname(syncSubstrate->get_run_identifier("InitWL").c_str()),
       galois::steal(), galois::no_stats());
+}
+
+void resetAccess(Graph& graph) {
+  galois::StatTimer resetTimer("TimerReset");
+  resetTimer.start();
+  galois::do_all(
+      galois::iterate(graph.allNodesRange()),
+      [&](Graph::GraphNode node) {
+        NodeData& data = graph.getData(node);
+        data.read = 0;
+        data.write = 0;
+      },
+      galois::loopname(
+          syncSubstrate->get_run_identifier("Reset").c_str()),
+      galois::no_stats());
+  resetTimer.stop();
 }
 
 int main(int argc, char* argv[]) {
@@ -266,7 +286,7 @@ int main(int argc, char* argv[]) {
             inst->record_local_read_stream();
             auto old_level = galois::atomicMin(data.level_id, level);
             if (old_level > level) {
-              inst->record_write_random(node, !bitset_level_id.test(node));
+              inst->record_write_random(node);
               bitset_level_id.set(node);
               n += totalNumThreads;
               ego_nodes->emplace(node);
@@ -299,8 +319,10 @@ int main(int argc, char* argv[]) {
             }
           },
           galois::loopname("NextWL"));
+      inst-> update();
       inst->log_round(level);
       inst->clear();
+      resetAccess(*graph);
     }
 
     // assign ego graph id
@@ -345,8 +367,10 @@ int main(int argc, char* argv[]) {
         }
       }
     });
+    inst->update();
     inst->log_round(levels.size());
     inst->clear();
+    resetAccess(*graph);
 
     mainTimer.stop();
 
