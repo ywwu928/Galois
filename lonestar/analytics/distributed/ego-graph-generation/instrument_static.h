@@ -1,7 +1,6 @@
 #include <map>
 
-static cll::opt<std::string>
-    logID("logid", cll::desc("Name of the input graph"), cll::init("ego"));
+static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
 constexpr unsigned CACHE_LEVELS = 10;
 
@@ -141,8 +140,7 @@ struct Instrument {
     }
 
     // start instrumentation
-    file.open(logID + "_" + std::to_string(numH) + "procs_id" +
-              std::to_string(hid));
+    file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
     file << "#####   Stat   #####" << std::endl;
     file << "host " << hid << " total edges: " << graph->sizeEdges()
          << std::endl;
