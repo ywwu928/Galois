@@ -76,7 +76,8 @@ void initializeWorkList(Graph& graph, galois::InsertBag<Graph::GraphNode>& wl,
   if (!graph.isLocal(start_node))
     return;
   Graph::GraphNode start_lid = graph.getLID(start_node);
-  galois::do_all(
+  
+    galois::do_all(
       galois::iterate(graph.edge_begin(start_lid), graph.edge_end(start_lid)),
       [&](auto& edge) {
         auto dst = graph.getEdgeDst(edge);
@@ -183,17 +184,40 @@ int main(int argc, char* argv[]) {
   std::vector<Graph::GraphNode> sample_sources;
   std::sample(source_set.begin(), source_set.end(),
               std::back_inserter(sample_sources), (int)numRuns, gen);
-  for (auto run = 0; run < numRuns; ++run) {
-    // start_node = distrib(gen);
-    galois::gPrint("[", net.ID, "] Run ", run, " started\n");
-    inst->log_run(run);
 
+  // galois::DGAccumulator<int> skippedRuns;
+  // skippedRuns.reset();
+  
+  galois::DGAccumulator<int> skipped;
+  int totalRuns = numRuns;
+  int actual_run = 0;
+
+  for (auto run = 0; run < totalRuns; ++run) {
+    skipped.reset();
+
+    // start_node = distrib(gen);
+    
     // if (graph->isLocal(start_node)) {
     //   ego_nodes->emplace(graph->getLID(start_node));
     // }
     if (run % net.Num == net.ID) {
-      ego_nodes->emplace(sample_sources[run / net.Num]);
+      if (sample_sources.size() < ((run / net.Num) + 1)) {
+          // skippedRuns += 1;
+          skipped += 1;
+      }
+      else {
+          ego_nodes->emplace(sample_sources[run / net.Num]);
+      }
     }
+
+    auto valid_run = skipped.reduce();
+    if (valid_run != 0) {
+        totalRuns++;
+        continue;
+    }
+    
+    galois::gPrint("[", net.ID, "] Run ", actual_run, " started\n");
+    inst->log_run(actual_run);
 
     curr->clear();
     next->clear();
@@ -205,7 +229,7 @@ int main(int argc, char* argv[]) {
     initializeGraph(*graph);
     galois::runtime::getHostBarrier().wait();
 
-    std::string timer_str("Timer_" + std::to_string(run));
+    std::string timer_str("Timer_" + std::to_string(actual_run));
     galois::StatTimer mainTimer(timer_str.c_str());
     mainTimer.start();
     if (run % net.Num == net.ID) {
@@ -276,7 +300,7 @@ int main(int argc, char* argv[]) {
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_level_id,
                           Bitset_level_id, /*async*/ false>("LevelAssignment");
-
+    
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
           [&](auto& node) {
@@ -307,6 +331,7 @@ int main(int argc, char* argv[]) {
     for (uint64_t i = 0; i < net.Num; i++) {
       perHostNodeCounter[i].reset();
     }
+      
     galois::do_all(galois::iterate(*ego_nodes),
                    [&](Graph::GraphNode) { perHostNodeCounter[net.ID] += 1; });
     std::vector<uint64_t> numNodesPrefix(1 + net.Num, 0);
@@ -331,7 +356,7 @@ int main(int argc, char* argv[]) {
         nodeData.lid = numNodesPrefix[net.ID] + id;
       }
     });
-
+    
     galois::do_all(galois::iterate(*ego_nodes), [&](auto src) {
       auto& sdata = graph->getData(src);
       inst->record_local_read_stream();
@@ -351,15 +376,22 @@ int main(int argc, char* argv[]) {
     mainTimer.stop();
 
     // if ((run + 1) != numRuns) {
-    syncSubstrate->set_num_run(run + 1);
+    syncSubstrate->set_num_run(actual_run + 1);
     bitset_level_id.reset();
     initializeGraph(*graph);
     ego_nodes->clear();
     ego_edges->clear();
     // }
+    
+    actual_run++;
   }
 
   totalTimer.stop();
+
+  // auto totalSkippedRuns = skippedRuns.reduce();
+  // if (net.ID == 0) {
+    // galois::gPrint("Actual number of runs : ", numRuns - totalSkippedRuns, "\n");
+  // }
 
   // uint64_t numNodes = 0, numEdges = 0;
   // for (auto i = ego_nodes->begin(); i != ego_nodes->end(); i++) {

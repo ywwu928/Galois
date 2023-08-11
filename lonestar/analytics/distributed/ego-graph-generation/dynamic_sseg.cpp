@@ -203,17 +203,40 @@ int main(int argc, char* argv[]) {
   std::vector<Graph::GraphNode> sample_sources;
   std::sample(source_set.begin(), source_set.end(),
               std::back_inserter(sample_sources), (int)numRuns, gen);
-  for (auto run = 0; run < numRuns; ++run) {
+  
+  // galois::DGAccumulator<int> skippedRuns;
+  // skippedRuns.reset();
+  
+  galois::DGAccumulator<int> skipped;
+  int totalRuns = numRuns;
+  int actual_run = 0;
+
+  for (auto run = 0; run < totalRuns; ++run) {
+    skipped.reset();
+
     // start_node = distrib(gen);
-    galois::gPrint("[", net.ID, "] Run ", run, " started\n");
-    inst->log_run(run);
 
     // if (graph->isLocal(start_node)) {
     //   ego_nodes->emplace(graph->getLID(start_node));
     // }
     if (run % net.Num == net.ID) {
-      ego_nodes->emplace(sample_sources[run / net.Num]);
+      if (sample_sources.size() < ((run / net.Num) + 1)) {
+          // skippedRuns += 1;
+          skipped += 1;
+      }
+      else {
+          ego_nodes->emplace(sample_sources[run / net.Num]);
+      }
     }
+
+    auto valid_run = skipped.reduce();
+    if (valid_run != 0) {
+        totalRuns++;
+        continue;
+    }
+    
+    galois::gPrint("[", net.ID, "] Run ", actual_run, " started\n");
+    inst->log_run(actual_run);
 
     curr->clear();
     next->clear();
@@ -225,7 +248,7 @@ int main(int argc, char* argv[]) {
     initializeGraph(*graph);
     galois::runtime::getHostBarrier().wait();
 
-    std::string timer_str("Timer_" + std::to_string(run));
+    std::string timer_str("Timer_" + std::to_string(actual_run));
     galois::StatTimer mainTimer(timer_str.c_str());
     mainTimer.start();
     if (run % net.Num == net.ID) {
@@ -375,15 +398,22 @@ int main(int argc, char* argv[]) {
     mainTimer.stop();
 
     // if ((run + 1) != numRuns) {
-    syncSubstrate->set_num_run(run + 1);
+    syncSubstrate->set_num_run(actual_run + 1);
     bitset_level_id.reset();
     initializeGraph(*graph);
     ego_nodes->clear();
     ego_edges->clear();
     // }
+    
+    actual_run++;
   }
 
   totalTimer.stop();
+  
+  // auto totalSkippedRuns = skippedRuns.reduce();
+  // if (net.ID == 0) {
+    // galois::gPrint("Actual number of runs : ", numRuns - totalSkippedRuns, "\n");
+  // }
 
   // uint64_t numNodes = 0, numEdges = 0;
   // for (auto i = ego_nodes->begin(); i != ego_nodes->end(); i++) {
