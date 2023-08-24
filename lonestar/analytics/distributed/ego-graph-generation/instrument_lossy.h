@@ -1,8 +1,9 @@
 #include <map>
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
-
-constexpr unsigned CACHE_LEVELS = 10;
+static cll::opt<int> cacheSize("cacheSize", cll::desc("Size of the cache (in percentage of mirrors)"), cll::init(50));
+static cll::opt<int> windowSize("windowSize", cll::desc("Size of the sliding window (in multiples of cache size)"), cll::init(10));
+static cll::opt<int> decrementSize("decrementSize", cll::desc("Number of bits to truncate after each window"), cll::init(2));
 
 bool sortAccess (const std::vector<uint64_t>& v1, const std::vector<uint64_t>& v2) { // descending order
     return v1[3] > v2[3]; // index 3 is # of accesses
@@ -15,21 +16,21 @@ struct Instrument {
   uint64_t numHosts;
 
   // size of total mirror nodes; read / write accesses for each mirror
-  std::vector<std::vector<uint64_t>> node_access;
+  std::vector<std::vector<uint64_t>> cache;
   std::shared_ptr<galois::substrate::SimpleLock> vector_lock;
 
   std::unique_ptr<galois::DGAccumulator<uint64_t>> local_read_stream;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_read;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_write;
-  std::unique_ptr<galois::DGAccumulator<uint64_t>[]> mirror_read;
-  std::unique_ptr<galois::DGAccumulator<uint64_t>[]> mirror_write;
-  std::unique_ptr<galois::DGAccumulator<uint64_t>[]> remote_read;
-  std::unique_ptr<galois::DGAccumulator<uint64_t>[]> remote_write;
-  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>
+  std::unique_ptr<galois::DGAccumulator<uint64_t>> mirror_read;
+  std::unique_ptr<galois::DGAccumulator<uint64_t>> mirror_write;
+  std::unique_ptr<galois::DGAccumulator<uint64_t>> remote_read;
+  std::unique_ptr<galois::DGAccumulator<uint64_t>> remote_write;
+  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>>
       remote_read_to_host;
-  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>
+  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>>
       remote_write_to_host;
-  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>
+  std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>>
       remote_comm_to_host;
   std::ofstream file;
 
@@ -46,56 +47,39 @@ struct Instrument {
     local_read_stream = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
-    mirror_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-    mirror_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-    remote_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-    remote_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+    mirror_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
+    mirror_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
+    remote_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
+    remote_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
     remote_read_to_host =
-        std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
-            numH);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numH);
     remote_write_to_host =
-        std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
-            numH);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numH);
     remote_comm_to_host =
-        std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
-            numH);
-    for (uint32_t i = 0; i < numH; i++) {
-      remote_read_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-      remote_write_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-      remote_comm_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
-    }
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numH);
     clear();
+      
+    auto mirrorSize = graph->numMirrors();
+    cache.reserve(mirrorSize * cacheSize / 100);
     
     // start instrumentation
-    file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
+    file.open(graphName + "_" + std::to_string(numH) + "procs_cache" + std::to_string(cacheSize) + "_id" + std::to_string(hid));
     file << "#####   Stat   #####" << std::endl;
-    file << "host " << hid << " total edges: " << graph->sizeEdges()
-         << std::endl;
+    file << "host " << hid << " total number of mirrors: " << graph->numMirrors() << std::endl;
   }
 
   void clear() {
     local_read_stream->reset();
     master_read->reset();
     master_write->reset();
-    for (auto i = 0ul; i < CACHE_LEVELS + 1; i++) {
-      mirror_read[i].reset();
-      mirror_write[i].reset();
-      remote_read[i].reset();
-      remote_write[i].reset();
-    }
+    mirror_read->reset();
+    mirror_write->reset();
+    remote_read->reset();
+    remote_write->reset();
     for (auto i = 0ul; i < numHosts; i++) {
-      for (auto j = 0ul; j < CACHE_LEVELS + 1; j++) {
-        remote_read_to_host[i][j].reset();
-        remote_write_to_host[i][j].reset();
-        remote_comm_to_host[i][j].reset();
-      }
+        remote_read_to_host[i].reset();
+        remote_write_to_host[i].reset();
+        remote_comm_to_host[i].reset();
     }
   }
 
