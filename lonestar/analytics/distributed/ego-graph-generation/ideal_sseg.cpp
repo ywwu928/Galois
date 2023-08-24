@@ -197,8 +197,9 @@ int main(int argc, char* argv[]) {
   auto totalNumThreads = galois::runtime::activeThreads;
   galois::substrate::PerThreadStorage<uint64_t> perThreadNum;
 
-  std::random_device rd;  // a seed source for the random number engine
-  std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+  // std::random_device rd;  // a seed source for the random number engine
+  // std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+  std::mt19937 gen(2); // mersenne_twister_engine seeded with rd()
   // std::uniform_int_distribution<> distrib(0, numRuns);
   std::vector<Graph::GraphNode> sample_sources;
   std::sample(source_set.begin(), source_set.end(),
