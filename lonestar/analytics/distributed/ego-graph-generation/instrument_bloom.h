@@ -1,4 +1,5 @@
-#include <map>
+#include <unordered_map>
+#include <vector>
 
 #include "bloom_filter.hpp"
 #include "linked_list.hpp"
@@ -16,10 +17,14 @@ struct Instrument {
 
   int numSize;
   uint64_t mirrorSize;
-  std::vector<uint64_t> entrySize;
 
+  std::vector<uint64_t> entrySize;
   std::vector<std::unordered_map<uint64_t, bool>> map_vector;
   std::vector<LinkedList> linked_list_vector;
+  
+  // std::unique_ptr<uint64_t[]> entrySize;
+  // std::unique_ptr<std::unordered_map<uint64_t, bool>[]> map_vector;
+  // std::unique_ptr<LinkedList[]> linked_list_vector;
   
   std::unique_ptr<bloom_filter[]> bloom_counter;
   
@@ -48,12 +53,15 @@ struct Instrument {
     hostID   = hid;
     numHosts = numH;
 
-    numSize = cacheSize.size();
+    numSize = cacheSize.size() + 1;
 
     entrySize.resize(numSize);
-
     map_vector.resize(numSize);
     linked_list_vector.resize(numSize);
+    
+    // entrySize = std::make_unique<uint64_t[]>(numSize);
+    // map_vector = std::make_unique<std::unordered_map<uint64_t, bool>[]>(numSize);
+    // linked_list_vector = std::make_unique<LinkedList[]>(numSize);
     
     bloom_counter =
         std::make_unique<bloom_filter[]>(numSize);
@@ -65,13 +73,13 @@ struct Instrument {
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
     mirror_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     mirror_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     remote_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     remote_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     remote_read_to_host =
         std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
             numH);
@@ -83,22 +91,31 @@ struct Instrument {
             numH);
     for (uint32_t i = 0; i < numH; i++) {
       remote_read_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
       remote_write_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
       remote_comm_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     }
 
     mirrorSize = graph->numMirrors();
     for (auto i = 0; i < numSize; i++) {
         entrySize[i] = mirrorSize * cacheSize[i] / 100;
+
         map_vector[i].reserve(entrySize[i]);
         linked_list_vector[i].setMax(entrySize[i]);
 
+        // std::unordered_map<uint64_t, bool> map_temp;
+        // map_temp.reserve(entrySize[i]);
+        // map_vector.push_back(map_temp);
+
+        // LinkedList linked_list_temp;
+        // linked_list_temp.setMax(entrySize[i]);
+        // linked_list_vector.push_back(linked_list_temp);
+
         bloom_parameters parameters;
         parameters.projected_element_count = mirrorSize;
-        parameters.false_positive_probability = 0.0001;
+        parameters.false_positive_probability = 0.01;
         parameters.threshold = threshold;
         if (!parameters) {
             std::cout << "Error: invalid set of bloom filter parameters!" << std::endl;
@@ -135,16 +152,44 @@ struct Instrument {
     }
   }
   
-  void bloom_clear_all() {
+  void bloom_clear() {
       for (auto i = 0; i < numSize; i++) {
         bloom_counter[i].clear();
       }
   }
+  
+  void cache_clear() {
+      std::cout << "Host " << hostID << " Cache Clear Breakpoint 0!" << std::endl;
+      for (auto i = 0; i < numSize; i++) {
+        linked_list_vector[i].clear();
+      }
+      std::cout << "Host " << hostID << " Cache Clear Breakpoint 1!" << std::endl;
+      // map_vector[0].clear();
+      for (auto i = 0; i < numSize; i++) {
+        map_vector[i].clear();
+      }
+      std::cout << "Host " << hostID << " Cache Clear Breakpoint 2!" << std::endl;
+  }
 
+  void clear() {
+      std::cout << "Host " << hostID << " Clear Start!" << std::endl;
+      counter_clear();
+      std::cout << "Host " << hostID << " Counter Cleared!" << std::endl;
+      bloom_clear();
+      std::cout << "Host " << hostID << " Bloom Cleared!" << std::endl;
+      cache_clear();
+      std::cout << "Host " << hostID << " Cache Cleared!" << std::endl;
+      
+      for (auto i = 0; i < numSize; i++) {
+        map_vector[i].reserve(entrySize[i]);
+      }
+  }
+
+/*
   void bloom_clear(int index) {
       bloom_counter[index].clear();
   }
-/*
+
   void increment_access() {
       for (auto i = 0; i < numSize; i++) {
           access_count[i] += 1;
@@ -181,6 +226,7 @@ struct Instrument {
                 
                 if (map_vector[i].size() < entrySize[i]) { // there is empty entry in cache
                     map_vector[i].insert({gid, true});
+                    linked_list_vector[i].insertNode(gid);
                 }
                 else {
                     if (exceed) { // cache replacement according to linked list
@@ -216,6 +262,7 @@ struct Instrument {
                 
                 if (map_vector[i].size() < entrySize[i]) { // there is empty entry in cache
                     map_vector[i].insert({gid, true});
+                    linked_list_vector[i].insertNode(gid);
                 }
                 else {
                     bool exceed = bloom_counter[i].insert(gid);
@@ -246,35 +293,33 @@ struct Instrument {
   }
 
   void log_round(uint64_t num_iterations) {
-    auto host_id   = hostID;
-    auto num_hosts = numHosts;
     file << "#####   Round " << num_iterations << "   #####" << std::endl;
-    file << "host " << host_id
+    file << "host " << hostID
          << " local read (stream): " << local_read_stream->read_local()
          << std::endl;
-    file << "host " << host_id << " master reads: " << master_read->read_local()
+    file << "host " << hostID << " master reads: " << master_read->read_local()
          << std::endl;
-    file << "host " << host_id
+    file << "host " << hostID
          << " master writes: " << master_write->read_local() << std::endl;
 
     for (int i = 0; i < numSize; i++) {
-      file << "host " << host_id << " cache " << cacheSize[i]
+      file << "host " << hostID << " cache " << cacheSize[i]
            << " mirror reads: " << mirror_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << cacheSize[i]
+      file << "host " << hostID << " cache " << cacheSize[i]
            << " mirror writes: " << mirror_write[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << cacheSize[i]
+      file << "host " << hostID << " cache " << cacheSize[i]
            << " remote reads: " << remote_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << cacheSize[i]
+      file << "host " << hostID << " cache " << cacheSize[i]
            << " remote writes: " << remote_write[i].read_local() << std::endl;
 
-      for (uint32_t j = 0; j < num_hosts; j++) {
-        file << "host " << host_id << " cache " << cacheSize[i] << " remote read to host "
+      for (uint32_t j = 0; j < numHosts; j++) {
+        file << "host " << hostID << " cache " << cacheSize[i] << " remote read to host "
              << j << ": " << remote_read_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << cacheSize[i] << " remote write to host "
+        file << "host " << hostID << " cache " << cacheSize[i] << " remote write to host "
              << j << ": " << remote_write_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << cacheSize[i]
+        file << "host " << hostID << " cache " << cacheSize[i]
              << " dirty mirrors for host " << j << ": "
              << remote_comm_to_host[j][i].read_local() << std::endl;
       }

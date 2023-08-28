@@ -54,6 +54,7 @@ class LinkedList {
 void LinkedList::setMax(unsigned int size) {
     head = NULL;
     tail = NULL;
+    victim = NULL;
     max_size = size;
     curr_size = 0;
     return;
@@ -128,7 +129,17 @@ void LinkedList::printList() {
 }
 
 void LinkedList::clear() {
+    Node* current = head;
+    Node* next = NULL;
+
     head = NULL;
     tail = NULL;
+    victim = NULL;
     curr_size = 0;
+
+    while(current != NULL) {
+        next = current->next;
+        delete current;
+        current = next;
+    }
 }

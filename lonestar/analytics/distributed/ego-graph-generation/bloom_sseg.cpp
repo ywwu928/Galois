@@ -184,17 +184,41 @@ int main(int argc, char* argv[]) {
   std::vector<Graph::GraphNode> sample_sources;
   std::sample(source_set.begin(), source_set.end(),
               std::back_inserter(sample_sources), (int)numRuns, gen);
-  for (auto run = 0; run < numRuns; ++run) {
+  
+  // galois::DGAccumulator<int> skippedRuns;
+  // skippedRuns.reset();
+  
+  galois::DGAccumulator<int> skipped;
+  int totalRuns = numRuns;
+  int actual_run = 0;
+  
+  for (auto run = 0; run < totalRuns; ++run) {
+    galois::gPrint("Host ", net.ID, " Breakpoint 0!\n");
+    skipped.reset();
+    
     // start_node = distrib(gen);
-    galois::gPrint("[", net.ID, "] Run ", run, " started\n");
-    inst->log_run(run);
 
     // if (graph->isLocal(start_node)) {
     //   ego_nodes->emplace(graph->getLID(start_node));
     // }
     if (run % net.Num == net.ID) {
-      ego_nodes->emplace(sample_sources[run / net.Num]);
+      if (sample_sources.size() < ((run / net.Num) + 1)) {
+          // skippedRuns += 1;
+          skipped += 1;
+      }
+      else {
+          ego_nodes->emplace(sample_sources[run / net.Num]);
+      }
     }
+
+    auto valid_run = skipped.reduce();
+    if (valid_run != 0) {
+        totalRuns++;
+        continue;
+    }
+    
+    galois::gPrint("[", net.ID, "] Run ", actual_run, " started\n");
+    inst->log_run(actual_run);
 
     curr->clear();
     next->clear();
@@ -205,15 +229,19 @@ int main(int argc, char* argv[]) {
 
     initializeGraph(*graph);
     galois::runtime::getHostBarrier().wait();
-
-    std::string timer_str("Timer_" + std::to_string(run));
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 1!\n");
+    
+    std::string timer_str("Timer_" + std::to_string(actual_run));
     galois::StatTimer mainTimer(timer_str.c_str());
     mainTimer.start();
     if (run % net.Num == net.ID) {
       start_node = graph->getGID(sample_sources[run / net.Num]);
       initializeWorkList(*graph, *next, perHostNodeCounter[net.ID]);
     }
-
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 2!\n");
+    
     for (uint64_t level = 0; level < levels.size(); level++) {
       // compute how many work items on this host
       uint64_t totalNumCandidates  = 0;
@@ -241,7 +269,7 @@ int main(int argc, char* argv[]) {
                                 (prefixNumCandidates + myNumCandidates) /
                                 totalNumCandidates;
       const uint64_t hostNumWorkItems = hostStop - hostStart;
-
+      
       galois::on_each([&](const unsigned tid, const unsigned) {
         *perThreadNum.getLocal() = tid;
       });
@@ -255,7 +283,9 @@ int main(int argc, char* argv[]) {
           break;
         }
       }
-
+      
+      galois::gPrint("Host ", net.ID, " Breakpoint 3!\n");
+      
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
           [&](auto& node) {
@@ -274,10 +304,14 @@ int main(int argc, char* argv[]) {
             }
           },
           galois::loopname("LevelAssignment"));
-
+      
+      galois::gPrint("Host ", net.ID, " Breakpoint 4!\n");
+      
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_level_id,
                           Bitset_level_id, /*async*/ false>("LevelAssignment");
-
+      
+      galois::gPrint("Host ", net.ID, " Breakpoint 5!\n");
+      
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
           [&](auto& node) {
@@ -302,22 +336,30 @@ int main(int argc, char* argv[]) {
           galois::loopname("NextWL"));
       inst->log_round(level);
       inst->counter_clear();
-      inst->bloom_clear_all();
+      inst->bloom_clear();
+      
+      galois::gPrint("Host ", net.ID, " Breakpoint 6!\n");
     }
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 7!\n");
 
     // assign ego graph id
     for (uint64_t i = 0; i < net.Num; i++) {
       perHostNodeCounter[i].reset();
     }
+    
     galois::do_all(galois::iterate(*ego_nodes),
                    [&](Graph::GraphNode) { perHostNodeCounter[net.ID] += 1; });
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 8!\n");
+    
     std::vector<uint64_t> numNodesPrefix(1 + net.Num, 0);
     for (uint64_t i = 1; i <= net.Num; i++) {
       numNodesPrefix[i] =
           numNodesPrefix[i - 1] + perHostNodeCounter[i - 1].reduce();
     }
     uint64_t numLocalNodes = perHostNodeCounter[net.ID].read_local();
-
+    
     galois::on_each([&](const unsigned tid, const unsigned numT) {
       auto start = numLocalNodes < numT ? tid : tid * numLocalNodes / numT,
            stop  = numLocalNodes < numT ? tid + 1
@@ -333,7 +375,9 @@ int main(int argc, char* argv[]) {
         nodeData.lid = numNodesPrefix[net.ID] + id;
       }
     });
-
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 9!\n");
+    
     galois::do_all(galois::iterate(*ego_nodes), [&](auto src) {
       auto& sdata = graph->getData(src);
       inst->record_local_read_stream();
@@ -347,19 +391,29 @@ int main(int argc, char* argv[]) {
         }
       }
     });
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 11!\n");
+    
     inst->log_round(levels.size());
-    inst->counter_clear();
-    inst->bloom_clear_all();
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 12!\n");
+    
+    inst->clear();
+    
+    galois::gPrint("Host ", net.ID, " Breakpoint 13!\n");
 
     mainTimer.stop();
 
     // if ((run + 1) != numRuns) {
-    syncSubstrate->set_num_run(run + 1);
+    syncSubstrate->set_num_run(actual_run + 1);
     bitset_level_id.reset();
     initializeGraph(*graph);
     ego_nodes->clear();
     ego_edges->clear();
     // }
+    
+    actual_run++;
+    galois::gPrint("Host ", net.ID, " Breakpoint 14!\n");
   }
 
   totalTimer.stop();
