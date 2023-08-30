@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
   int actual_run = 0;
   
   for (auto run = 0; run < totalRuns; ++run) {
-    galois::gPrint("Host ", net.ID, " Breakpoint 0!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 0!\n");
     skipped.reset();
     
     // start_node = distrib(gen);
@@ -230,7 +230,7 @@ int main(int argc, char* argv[]) {
     initializeGraph(*graph);
     galois::runtime::getHostBarrier().wait();
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 1!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 1!\n");
     
     std::string timer_str("Timer_" + std::to_string(actual_run));
     galois::StatTimer mainTimer(timer_str.c_str());
@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
       initializeWorkList(*graph, *next, perHostNodeCounter[net.ID]);
     }
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 2!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 2!\n");
     
     for (uint64_t level = 0; level < levels.size(); level++) {
       // compute how many work items on this host
@@ -284,7 +284,7 @@ int main(int argc, char* argv[]) {
         }
       }
       
-      galois::gPrint("Host ", net.ID, " Breakpoint 3!\n");
+      // galois::gPrint("Host ", net.ID, " Breakpoint 3!\n");
       
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
@@ -305,12 +305,12 @@ int main(int argc, char* argv[]) {
           },
           galois::loopname("LevelAssignment"));
       
-      galois::gPrint("Host ", net.ID, " Breakpoint 4!\n");
+      // galois::gPrint("Host ", net.ID, " Breakpoint 4!\n");
       
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_level_id,
                           Bitset_level_id, /*async*/ false>("LevelAssignment");
       
-      galois::gPrint("Host ", net.ID, " Breakpoint 5!\n");
+      // galois::gPrint("Host ", net.ID, " Breakpoint 5!\n");
       
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
@@ -336,12 +336,12 @@ int main(int argc, char* argv[]) {
           galois::loopname("NextWL"));
       inst->log_round(level);
       inst->counter_clear();
-      inst->bloom_clear();
+      // inst->bloom_clear();
       
-      galois::gPrint("Host ", net.ID, " Breakpoint 6!\n");
+      // galois::gPrint("Host ", net.ID, " Breakpoint 6!\n");
     }
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 7!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 7!\n");
 
     // assign ego graph id
     for (uint64_t i = 0; i < net.Num; i++) {
@@ -351,7 +351,7 @@ int main(int argc, char* argv[]) {
     galois::do_all(galois::iterate(*ego_nodes),
                    [&](Graph::GraphNode) { perHostNodeCounter[net.ID] += 1; });
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 8!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 8!\n");
     
     std::vector<uint64_t> numNodesPrefix(1 + net.Num, 0);
     for (uint64_t i = 1; i <= net.Num; i++) {
@@ -376,7 +376,7 @@ int main(int argc, char* argv[]) {
       }
     });
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 9!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 9!\n");
     
     galois::do_all(galois::iterate(*ego_nodes), [&](auto src) {
       auto& sdata = graph->getData(src);
@@ -392,15 +392,17 @@ int main(int argc, char* argv[]) {
       }
     });
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 11!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 11!\n");
     
     inst->log_round(levels.size());
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 12!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 12!\n");
     
     inst->clear();
+    // inst->counter_clear();
+    // inst->bloom_clear();
     
-    galois::gPrint("Host ", net.ID, " Breakpoint 13!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 13!\n");
 
     mainTimer.stop();
 
@@ -413,7 +415,7 @@ int main(int argc, char* argv[]) {
     // }
     
     actual_run++;
-    galois::gPrint("Host ", net.ID, " Breakpoint 14!\n");
+    // galois::gPrint("Host ", net.ID, " Breakpoint 14!\n");
   }
 
   totalTimer.stop();

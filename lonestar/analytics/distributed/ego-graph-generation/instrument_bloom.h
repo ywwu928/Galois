@@ -1,34 +1,39 @@
 #include <unordered_map>
 #include <vector>
+#include <random>
 
 #include "bloom_filter.hpp"
-#include "linked_list.hpp"
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 static cll::list<int> cacheSize("cacheSize", cll::desc("Size of the cache (in percentage of mirrors)"), cll::OneOrMore);
 // static cll::opt<int> windowSize("windowSize", cll::desc("Size of the sliding window (in multiples of cache size)"), cll::init(20));
 static cll::opt<int> threshold("threshold", cll::desc("Threshold to get an entry in the cache"), cll::init(10));
+  
+// std::random_device rd;  // a seed source for the random number engine
+// std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+std::mt19937 gen(0); // mersenne_twister_engine seeded with rd()
 
 template <typename Graph>
 struct Instrument {
   Graph* graph;
   uint64_t hostID;
   uint64_t numHosts;
-
+  
   int numSize;
   uint64_t mirrorSize;
+  
+  std::shared_ptr<galois::substrate::SimpleLock> map_lock;
+  std::shared_ptr<galois::substrate::SimpleLock> bloom_lock;
 
   std::vector<uint64_t> entrySize;
   std::vector<std::unordered_map<uint64_t, bool>> map_vector;
-  std::vector<LinkedList> linked_list_vector;
   
   // std::unique_ptr<uint64_t[]> entrySize;
   // std::unique_ptr<std::unordered_map<uint64_t, bool>[]> map_vector;
-  // std::unique_ptr<LinkedList[]> linked_list_vector;
   
   std::unique_ptr<bloom_filter[]> bloom_counter;
   
-  std::unique_ptr<uint64_t[]> access_count;
+  std::vector<std::pair<uint64_t, bool>> victim_sample;
 
   std::unique_ptr<galois::DGAccumulator<uint64_t>> local_read_stream;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_read;
@@ -53,21 +58,22 @@ struct Instrument {
     hostID   = hid;
     numHosts = numH;
 
-    numSize = cacheSize.size() + 1;
+    numSize = cacheSize.size();
+    mirrorSize = graph->numMirrors();
+    
+    map_lock = std::make_shared<galois::substrate::SimpleLock>();
+    bloom_lock = std::make_shared<galois::substrate::SimpleLock>();
 
     entrySize.resize(numSize);
     map_vector.resize(numSize);
-    linked_list_vector.resize(numSize);
+    // linked_list_vector.resize(numSize);
     
     // entrySize = std::make_unique<uint64_t[]>(numSize);
     // map_vector = std::make_unique<std::unordered_map<uint64_t, bool>[]>(numSize);
-    // linked_list_vector = std::make_unique<LinkedList[]>(numSize);
     
-    bloom_counter =
-        std::make_unique<bloom_filter[]>(numSize);
+    bloom_counter = std::make_unique<bloom_filter[]>(numSize);
     
-    // access_count =
-    //     std::make_unique<uint64_t[]>(numSize);
+    victim_sample.reserve(10);
 
     local_read_stream = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
@@ -98,20 +104,15 @@ struct Instrument {
           std::make_unique<galois::DGAccumulator<uint64_t>[]>(numSize);
     }
 
-    mirrorSize = graph->numMirrors();
     for (auto i = 0; i < numSize; i++) {
         entrySize[i] = mirrorSize * cacheSize[i] / 100;
 
         map_vector[i].reserve(entrySize[i]);
-        linked_list_vector[i].setMax(entrySize[i]);
+        // linked_list_vector[i].setMax(entrySize[i]);
 
         // std::unordered_map<uint64_t, bool> map_temp;
         // map_temp.reserve(entrySize[i]);
         // map_vector.push_back(map_temp);
-
-        // LinkedList linked_list_temp;
-        // linked_list_temp.setMax(entrySize[i]);
-        // linked_list_vector.push_back(linked_list_temp);
 
         bloom_parameters parameters;
         parameters.projected_element_count = mirrorSize;
@@ -137,14 +138,14 @@ struct Instrument {
     local_read_stream->reset();
     master_read->reset();
     master_write->reset();
-    for (auto i = 0; i < numSize + 1; i++) {
+    for (auto i = 0; i < numSize; i++) {
       mirror_read[i].reset();
       mirror_write[i].reset();
       remote_read[i].reset();
       remote_write[i].reset();
     }
-    for (auto i = 0; i < numHosts; i++) {
-      for (auto j = 0; j < numSize + 1; j++) {
+    for (auto i = 0ul; i < numHosts; i++) {
+      for (auto j = 0; j < numSize; j++) {
         remote_read_to_host[i][j].reset();
         remote_write_to_host[i][j].reset();
         remote_comm_to_host[i][j].reset();
@@ -159,30 +160,28 @@ struct Instrument {
   }
   
   void cache_clear() {
-      std::cout << "Host " << hostID << " Cache Clear Breakpoint 0!" << std::endl;
-      for (auto i = 0; i < numSize; i++) {
-        linked_list_vector[i].clear();
-      }
-      std::cout << "Host " << hostID << " Cache Clear Breakpoint 1!" << std::endl;
+      // std::cout << "Host " << hostID << " Cache Clear Breakpoint 1!" << std::endl;
       // map_vector[0].clear();
       for (auto i = 0; i < numSize; i++) {
+        map_lock->lock();
         map_vector[i].clear();
+        map_lock->unlock();
       }
-      std::cout << "Host " << hostID << " Cache Clear Breakpoint 2!" << std::endl;
+      // std::cout << "Host " << hostID << " Cache Clear Breakpoint 2!" << std::endl;
   }
 
   void clear() {
-      std::cout << "Host " << hostID << " Clear Start!" << std::endl;
+      // std::cout << "Host " << hostID << " Clear Start!" << std::endl;
       counter_clear();
-      std::cout << "Host " << hostID << " Counter Cleared!" << std::endl;
+      // std::cout << "Host " << hostID << " Counter Cleared!" << std::endl;
       bloom_clear();
-      std::cout << "Host " << hostID << " Bloom Cleared!" << std::endl;
+      // std::cout << "Host " << hostID << " Bloom Cleared!" << std::endl;
       cache_clear();
-      std::cout << "Host " << hostID << " Cache Cleared!" << std::endl;
+      // std::cout << "Host " << hostID << " Cache Cleared!" << std::endl;
       
-      for (auto i = 0; i < numSize; i++) {
-        map_vector[i].reserve(entrySize[i]);
-      }
+      // for (auto i = 0; i < numSize; i++) {
+      //   map_vector[i].reserve(entrySize[i]);
+      // }
   }
 
 /*
@@ -222,24 +221,35 @@ struct Instrument {
                 remote_read[i] += 1;
                 remote_read_to_host[graph->getHostID(gid)][i] += 1;
                 
+                bloom_lock->lock();
                 bool exceed = bloom_counter[i].insert(gid);
+                bloom_lock->unlock();
                 
                 if (map_vector[i].size() < entrySize[i]) { // there is empty entry in cache
+                    map_lock->lock();
                     map_vector[i].insert({gid, true});
-                    linked_list_vector[i].insertNode(gid);
+                    map_lock->unlock();
                 }
                 else {
-                    if (exceed) { // cache replacement according to linked list
-                        linked_list_vector[i].insertNode(gid);
-                        auto victim = linked_list_vector[i].getVictim();
-                        map_vector[i].erase(victim);
+                    if (exceed) { // cache replacement
+                        map_lock->lock();
+                        std::sample(map_vector[i].begin(), map_vector[i].end(), std::back_inserter(victim_sample), 10, gen);
+                        auto victim_pair = std::min_element(victim_sample.begin(), victim_sample.end());
+                        auto victim_gid = victim_pair->first;
+                        // std::cout << "Victim global id is " << victim_gid << std::endl;
+                        map_vector[i].erase(victim_gid);
                         map_vector[i].insert({gid, true});
+                        victim_sample.clear();
+                        map_lock->unlock();
                     }
                 }
             }
             else { // found in cache
+                // std::cout << "Cache Hit!" << std::endl;
                 mirror_read[i] += 1;
             }
+            // bloom_counter[i].insert(gid);
+            // mirror_read[i] += 1;
         }
     }
 
@@ -260,22 +270,31 @@ struct Instrument {
                 remote_write[i] += 1;
                 remote_write_to_host[graph->getHostID(gid)][i] += 1;
                 
+                bloom_lock->lock();
+                bool exceed = bloom_counter[i].insert(gid);
+                bloom_lock->unlock();
+                
                 if (map_vector[i].size() < entrySize[i]) { // there is empty entry in cache
+                    map_lock->lock();
                     map_vector[i].insert({gid, true});
-                    linked_list_vector[i].insertNode(gid);
+                    map_lock->unlock();
                 }
                 else {
-                    bool exceed = bloom_counter[i].insert(gid);
-
-                    if (exceed) { // cache replacement according to linked list
-                        linked_list_vector[i].insertNode(gid);
-                        auto victim = linked_list_vector[i].getVictim();
-                        map_vector[i].erase(victim);
+                    if (exceed) { // cache replacement
+                        map_lock->lock();
+                        std::sample(map_vector[i].begin(), map_vector[i].end(), std::back_inserter(victim_sample), 10, gen);
+                        auto victim_pair = std::min_element(victim_sample.begin(), victim_sample.end());
+                        auto victim_gid = victim_pair->first;
+                        // std::cout << "Victim global id is " << victim_gid << std::endl;
+                        map_vector[i].erase(victim_gid);
                         map_vector[i].insert({gid, true});
+                        victim_sample.clear();
+                        map_lock->unlock();
                     }
                 }
             }
             else { // found in cache
+                // std::cout << "Cache Hit!" << std::endl;
                 mirror_write[i] += 1;
                 
                 if (comm) {
