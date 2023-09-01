@@ -159,6 +159,12 @@ struct Instrument {
       }
   }
   
+  void bloom_decrement() {
+      for (auto i = 0; i < numSize; i++) {
+        bloom_counter[i].decrement();
+      }
+  }
+  
   void cache_clear() {
       // std::cout << "Host " << hostID << " Cache Clear Breakpoint 1!" << std::endl;
       // map_vector[0].clear();

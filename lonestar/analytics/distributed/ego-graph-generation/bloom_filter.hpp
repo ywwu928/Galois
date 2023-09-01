@@ -265,6 +265,15 @@ public:
       std::fill(counter_table_.begin(), counter_table_.end(), 0);
       inserted_element_count_ = 0;
    }
+   
+   inline void decrement()
+   {
+      for (auto& element: counter_table_) {
+          if (element > 0) {
+              element--;
+          }
+      }
+   }
 
    inline bool insert(const unsigned char* key_begin, const std::size_t& length)
    {

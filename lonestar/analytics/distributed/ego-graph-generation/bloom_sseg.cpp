@@ -398,9 +398,12 @@ int main(int argc, char* argv[]) {
     
     // galois::gPrint("Host ", net.ID, " Breakpoint 12!\n");
     
-    inst->clear();
-    // inst->counter_clear();
-    // inst->bloom_clear();
+    // inst->clear();
+    inst->counter_clear();
+    
+    if (run % net.Num == net.ID) {
+        inst->bloom_decrement();
+    }
     
     // galois::gPrint("Host ", net.ID, " Breakpoint 13!\n");
 
