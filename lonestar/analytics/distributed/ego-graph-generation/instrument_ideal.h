@@ -2,7 +2,8 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
-constexpr unsigned CACHE_LEVELS = 10;
+constexpr int CACHE_BOUND = 10;
+constexpr int CACHE_SAMPLES = 5;
 
 bool sortAccess (const std::vector<uint64_t>& v1, const std::vector<uint64_t>& v2) { // descending order
     return v1[3] > v2[3]; // index 3 is # of accesses
@@ -47,13 +48,13 @@ struct Instrument {
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
     mirror_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     mirror_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_read_to_host =
         std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
             numH);
@@ -65,11 +66,11 @@ struct Instrument {
             numH);
     for (uint32_t i = 0; i < numH; i++) {
       remote_read_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
       remote_write_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
       remote_comm_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     }
     clear();
     
@@ -84,14 +85,14 @@ struct Instrument {
     local_read_stream->reset();
     master_read->reset();
     master_write->reset();
-    for (auto i = 0ul; i < CACHE_LEVELS + 1; i++) {
+    for (auto i = 0ul; i < CACHE_SAMPLES + 1; i++) {
       mirror_read[i].reset();
       mirror_write[i].reset();
       remote_read[i].reset();
       remote_write[i].reset();
     }
     for (auto i = 0ul; i < numHosts; i++) {
-      for (auto j = 0ul; j < CACHE_LEVELS + 1; j++) {
+      for (auto j = 0ul; j < CACHE_SAMPLES + 1; j++) {
         remote_read_to_host[i][j].reset();
         remote_write_to_host[i][j].reset();
         remote_comm_to_host[i][j].reset();
@@ -153,10 +154,11 @@ struct Instrument {
 
       // count # of reads and writes
       int vector_size = node_access.size();
-      unsigned chunk_size = vector_size / CACHE_LEVELS;
-      unsigned remainder = vector_size % CACHE_LEVELS;
+      int vector_bound = vector_size * CACHE_BOUND / 100;
+      unsigned chunk_size = vector_bound / CACHE_SAMPLES;
+      unsigned remainder = vector_bound % CACHE_SAMPLES;
 	
-      for (unsigned i=0; i<CACHE_LEVELS; i++) {
+      for (unsigned i=0; i<CACHE_SAMPLES; i++) {
 		  for (unsigned j=0; j<chunk_size; j++) {
 			  int index = i * chunk_size + j;
 			  uint64_t owner_host = node_access[index][0];
@@ -171,10 +173,22 @@ struct Instrument {
                   remote_write_to_host[owner_host][k] += write;
               }
 
-              for (unsigned k=i+1; k<CACHE_LEVELS+1; k++) {
+              for (unsigned k=i+1; k<CACHE_SAMPLES+1; k++) {
+/*
                   mirror_read[k] += read;
-
                   mirror_write[k] += write;
+*/                  
+                  if (read > 0) {
+                      mirror_read[k] += (read-1);
+                      remote_read[k] += 1;
+
+                      mirror_write[k] += write;
+                  } else {
+                      if (write > 0) {
+                          mirror_write[k] += (write-1);
+                          remote_write[k] += 1;
+                      }
+                  }
                 
                   if (write > 0) {
                       remote_comm_to_host[owner_host][k] += 1;
@@ -184,25 +198,50 @@ struct Instrument {
 	  }
 
       for (unsigned i=0; i<remainder; i++) {
-          int index = CACHE_LEVELS * chunk_size + i;
+          int index = CACHE_SAMPLES * chunk_size + i;
           uint64_t owner_host = node_access[index][0];
           uint64_t read = node_access[index][1];
           uint64_t write = node_access[index][2];
             
-          for (unsigned k=0; k<CACHE_LEVELS; k++) {
+          for (unsigned k=0; k<CACHE_SAMPLES; k++) {
               remote_read[k] += read;
               remote_read_to_host[owner_host][k] += read;
 
               remote_write[k] += write;
               remote_write_to_host[owner_host][k] += write;
           }
+/*
+          mirror_read[CACHE_SAMPLES] += read;
+          mirror_write[CACHE_SAMPLES] += write;
+*/
+          if (read > 0) {
+              mirror_read[CACHE_SAMPLES] += (read-1);
+              remote_read[CACHE_SAMPLES] += 1;
 
-          mirror_read[CACHE_LEVELS] += read;
-
-          mirror_write[CACHE_LEVELS] += write;
+              mirror_write[CACHE_SAMPLES] += write;
+          } else {
+              if (write > 0) {
+                  mirror_write[CACHE_SAMPLES] += (write-1);
+                  remote_write[CACHE_SAMPLES] += 1;
+              }
+          }
         
           if (write > 0) {
               remote_comm_to_host[owner_host][10] += 1;
+          }
+      }
+      
+      for (auto index=vector_bound; index<vector_size; index++) {
+          uint64_t owner_host = node_access[index][0];
+          uint64_t read = node_access[index][1];
+          uint64_t write = node_access[index][2];
+          
+          for (unsigned k=0; k<CACHE_SAMPLES+1; k++) {
+              remote_read[k] += read;
+              remote_read_to_host[owner_host][k] += read;
+
+              remote_write[k] += write;
+              remote_write_to_host[owner_host][k] += write;
           }
       }
 
@@ -225,24 +264,24 @@ struct Instrument {
     file << "host " << host_id
          << " master writes: " << master_write->read_local() << std::endl;
 
-    for (int i = 0; i < 11; i++) {
-      file << "host " << host_id << " cache " << i
+    for (int i = 0; i < CACHE_SAMPLES+1; i++) {
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " mirror reads: " << mirror_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " mirror writes: " << mirror_write[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " remote reads: " << remote_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " remote writes: " << remote_write[i].read_local() << std::endl;
 
       for (uint32_t j = 0; j < num_hosts; j++) {
-        file << "host " << host_id << " cache " << i << " remote read to host "
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote read to host "
              << j << ": " << remote_read_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << i << " remote write to host "
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote write to host "
              << j << ": " << remote_write_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << i
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
              << " remote communication for host " << j << ": "
              << remote_comm_to_host[j][i].read_local() << std::endl;
       }
