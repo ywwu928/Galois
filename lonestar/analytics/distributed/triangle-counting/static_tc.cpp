@@ -49,6 +49,18 @@ galois::DynamicBitSet bitset_queries;
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
 
 // ##################################################################
+//                BITSETs [also from SyncStructures.h]
+// * tell which nodes to communicate
+// ##################################################################
+GALOIS_SYNC_STRUCTURE_BITSET(queries);
+
+// ##################################################################
+//                      Instrumentation
+// ##################################################################
+#include "instrument_static.h"
+std::unique_ptr<Instrument<Graph>> inst;
+
+// ##################################################################
 //             SYNCHRONIZATION [from SyncStructures.h]
 // * tell HOW to communicate ... what node data
 // ##################################################################
@@ -90,12 +102,6 @@ struct SyncQueries {
     static bool reduce_mirror_batch(unsigned, uint8_t*, DataCommMode) { return false; }
     static bool setVal_batch(unsigned, uint8_t*, DataCommMode) { return false; }
 };
-
-// ##################################################################
-//                BITSETs [also from SyncStructures.h]
-// * tell which nodes to communicate
-// ##################################################################
-GALOIS_SYNC_STRUCTURE_BITSET(queries);
 
 // ##################################################################
 //                          main()
@@ -172,6 +178,11 @@ int main(int argc, char** argv) {
     // typename std::conditional<async, galois::DGTerminator<unsigned int>,
     //                         galois::DGAccumulator<unsigned int>>::type;
     galois::DGAccumulator<uint64_t> dga;
+  
+    inst = std::make_unique<Instrument<Graph>>();
+    inst->init(net.ID, net.Num, hg);
+    
+    inst->log_run(0);
 
     do {
       syncSubstrate->set_num_round(_num_iterations);
@@ -183,11 +194,15 @@ int main(int argc, char** argv) {
                 auto& data = hg_ref.getData(A);
                 data.queries.clear();
                 auto A_gid = hg_ref.getGID(A);
+                inst->record_local_read_stream();
                 for (;data.queries.size() < query_size && data.edge_iterator != hg_ref.edge_end(A); data.edge_iterator++) {
+                    inst->record_local_read_stream();
                     auto C = hg_ref.getEdgeDst(data.edge_iterator);
                     auto C_gid = hg_ref.getGID(C);
+                    inst->record_read_random(C);
                     if (A_gid > C_gid) {  // A > C; only query lower neighbors
                         data.queries.insert(C_gid);
+                        inst->record_write_random(A, !bitset_queries.test(A));
                         bitset_queries.set(A);
                         dga += 1;
                     }
@@ -215,9 +230,12 @@ int main(int argc, char** argv) {
                 auto e = hg_ref.edge_begin(B);
 #endif
                 auto B_gid = hg_ref.getGID(B);
+                inst->record_local_read_stream();
                 for (; e != hg_ref.edge_end(B); e++) {
+                    inst->record_local_read_stream();
                     auto A = hg_ref.getEdgeDst(e);
                     auto A_gid = hg_ref.getGID(A);
+                    inst->record_read_random(A);
                     // A > B; only pull queries from upper neghbors
                     if (B_gid >= A_gid) {
                         continue;
@@ -232,8 +250,10 @@ int main(int argc, char** argv) {
 #endif
                         }
                         for (auto&& e_: hg_ref.edges(B)) {
+                            inst->record_local_read_stream();
                             auto C_ = hg_ref.getEdgeDst(e_);
                             auto C_gid_ = hg_ref.getGID(C_);
+                            inst->record_read_random(C_);
                             if (C_gid == C_gid_) {
                                 num_triangles += 1;
                                 continue;
@@ -252,7 +272,10 @@ int main(int argc, char** argv) {
 
     auto num_works = dga.reduce(syncSubstrate->get_run_identifier());
     if (num_works < hg_ref.size()) query_size = (uint64_t)query_size << 1;
-    // galois::gPrint(_num_iterations, " ", num_works, "\n");
+    galois::gPrint(_num_iterations, " ", num_works, "\n");
+
+    inst->log_round(_num_iterations);
+    inst->clear();
 
     //   galois::runtime::reportStat_Tsum(
     //       REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
@@ -270,6 +293,8 @@ int main(int argc, char** argv) {
         std::cout << "Time_TC_Algo, " << algo_end - algo_start << "\n";
         std::cout << "Time_E2E, " << e2e_end - e2e_start << "\n";
     }
+  
+    inst.reset();
 
     return 0;
 }

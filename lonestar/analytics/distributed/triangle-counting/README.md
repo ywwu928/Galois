@@ -28,21 +28,8 @@ BUILD
 RUN
 --------------------------------------------------------------------------------
 
-To run on 1 with a single GPU, use the following:
-`./triangle-counting-dist <symmetric-input-graph> -symmetricGraph -pset=g -num_nodes=1`
-
-To run on a single machine with 56 CPU threads, use the following:
-`./triangle-counting-dist <symmetric-input-graph> -symmetricGraph -t=56`
-
-To run on 3 GPUs on a machine, use the following:
-`mpirun -n=3 ./triangle-counting-dist <symmetric-input-graph> -symmetricGraph -pset=ggg -num_nodes=1`
-
-To run on 6 GPUs on 2 machines h1 and h2 with 3 GPUs each, use the following:
-`mpirun -n=6 -hosts=h1,h2 ./triangle-counting-dist <symmetric-input-graph> -symmetricGraph -pset=ggg -num_nodes=2`
-
-To run on 4 GPUs and 2 CPUs on 2 machines h1 and h2 with 2 GPUs and 1 CPU each, use the following:
-`mpirun -n=6 -hosts=h1,h2 ./triangle-counting-dist <symmetric-input-graph> -symmetricGraph -pset=ggc -num_nodes=2`
-
+To run on a single machine with multiple CPU threads, use the following:
+`./triangle-counting-dist <symmetric-input-graph> --symmetricGraph -t=<number of threads> -q=<query size per round>
 
 PERFORMANCE
 --------------------------------------------------------------------------------

@@ -1,2 +1,5 @@
 app_dist(tc triangle-counting)
-add_test_dist(triangle-counting-dist rmat15 NO_ASYNC ${BASEINPUT}/scalefree/symmetric/rmat15.csgr -symmetricGraph)
+target_link_libraries(triangle-counting-dist Galois::pangolin)
+
+app_dist(static_tc static-triangle-counting)
+target_link_libraries(static-triangle-counting-dist Galois::pangolin)
