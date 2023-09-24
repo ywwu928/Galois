@@ -58,7 +58,7 @@ galois::DynamicBitSet bitset_level_id;
 GALOIS_SYNC_STRUCTURE_REDUCE_MIN(level_id, uint64_t);
 GALOIS_SYNC_STRUCTURE_BITSET(level_id);
 
-#include "instrument_access.h"
+#include "instrument_workset.h"
 std::unique_ptr<Instrument<Graph>> inst;
 
 void initializeWorkset(Graph& graph) {
@@ -91,8 +91,7 @@ void initializeGraph(Graph& graph) {
   initTimer.stop();
 }
 
-void initializeWorkList(Graph& graph, galois::InsertBag<Graph::GraphNode>& wl,
-                        galois::DGAccumulator<uint64_t>& counter) {
+void initializeWorkList(Graph& graph, galois::InsertBag<Graph::GraphNode>& wl, galois::DGAccumulator<uint64_t>& counter) {
   if (!graph.isLocal(start_node))
     return;
   Graph::GraphNode start_lid = graph.getLID(start_node);
@@ -135,8 +134,7 @@ int main(int argc, char* argv[]) {
   inst->init(net.ID, net.Num, graph);
 
   using NodeBag = galois::InsertBag<Graph::GraphNode>;
-  using EdgeBag =
-      galois::InsertBag<std::pair<Graph::GraphNode, Graph::GraphNode>>;
+  using EdgeBag = galois::InsertBag<std::pair<Graph::GraphNode, Graph::GraphNode>>;
   std::unique_ptr<NodeBag> ego_nodes = std::make_unique<NodeBag>();
   std::unique_ptr<EdgeBag> ego_edges = std::make_unique<EdgeBag>();
   std::vector<uint32_t> ego_nodes_vec;
@@ -153,10 +151,8 @@ int main(int argc, char* argv[]) {
           return;
         }
         // bfs to detect mirror accessibility
-        std::unique_ptr<std::set<uint64_t>> next =
-            std::make_unique<std::set<uint64_t>>();
-        std::unique_ptr<std::set<uint64_t>> curr =
-            std::make_unique<std::set<uint64_t>>();
+        std::unique_ptr<std::set<uint64_t>> next = std::make_unique<std::set<uint64_t>>();
+        std::unique_ptr<std::set<uint64_t>> curr = std::make_unique<std::set<uint64_t>>();
         curr->insert(node);
         for (auto i = 0ul; i < levels.size(); i++) {
           for (auto&& src : *curr) {
@@ -182,8 +178,7 @@ int main(int argc, char* argv[]) {
         }
       },
       galois::loopname("sources"));
-  std::unordered_set<Graph::GraphNode> source_set(sources->begin(),
-                                                  sources->end());
+  std::unordered_set<Graph::GraphNode> source_set(sources->begin(), sources->end());
   perHostSourceCounter += source_set.size();
   galois::gPrint(net.ID, " ", perHostSourceCounter.read_local(), "\n");
   auto totalNumSources = perHostSourceCounter.reduce();
@@ -204,47 +199,32 @@ int main(int argc, char* argv[]) {
   std::mt19937 gen(2); // mersenne_twister_engine seeded with rd()
   // std::uniform_int_distribution<> distrib(0, numRuns);
   std::vector<Graph::GraphNode> sample_sources;
-  std::sample(source_set.begin(), source_set.end(),
-              std::back_inserter(sample_sources), (int)numRuns, gen);
+  std::sample(source_set.begin(), source_set.end(), std::back_inserter(sample_sources), (int)numRuns, gen);
   
   initializeWorkset(*graph);
   
   // galois::DGAccumulator<int> skippedRuns;
   // skippedRuns.reset();
-  
-  galois::DGAccumulator<int> skipped;
-  int totalRuns = numRuns;
-  int actual_run = 0;
+  if (net.ID == 0 && sample_sources.size() < (unsigned long int)numRuns) {
+      galois::gPrint("Host 0 does not have enough source candidates!\n");
+      return 1;
+  }
 
-  for (auto run = 0; run < totalRuns; ++run) {
-    skipped.reset();
-    
+  for (auto run = 0; run < numRuns; ++run) {
     // start_node = distrib(gen);
 
     // if (graph->isLocal(start_node)) {
     //   ego_nodes->emplace(graph->getLID(start_node));
     // }
-    if (run % net.Num == net.ID) {
-      if (sample_sources.size() < ((run / net.Num) + 1)) {
-          // skippedRuns += 1;
-          skipped += 1;
-      }
-      else {
-          ego_nodes->emplace(sample_sources[run / net.Num]);
-          vector_lock->lock();
-          ego_nodes_vec.push_back(sample_sources[run / net.Num]);
-          vector_lock->unlock();
-      }
-    }
-
-    auto valid_run = skipped.reduce();
-    if (valid_run != 0) {
-        totalRuns++;
-        continue;
+    if (net.ID == 0) {
+        ego_nodes->emplace(sample_sources[run]);
+        vector_lock->lock();
+        ego_nodes_vec.push_back(sample_sources[run]);
+        vector_lock->unlock();
     }
     
-    galois::gPrint("[", net.ID, "] Run ", actual_run, " started\n");
-    inst->log_run(actual_run);
+    galois::gPrint("[", net.ID, "] Run ", run, " started\n");
+    inst->log_run(run);
 
     curr->clear();
     next->clear();
@@ -256,11 +236,11 @@ int main(int argc, char* argv[]) {
     initializeGraph(*graph);
     galois::runtime::getHostBarrier().wait();
 
-    std::string timer_str("Timer_" + std::to_string(actual_run));
+    std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer mainTimer(timer_str.c_str());
     mainTimer.start();
-    if (run % net.Num == net.ID) {
-      start_node = graph->getGID(sample_sources[run / net.Num]);
+    if (net.ID == 0) {
+      start_node = graph->getGID(sample_sources[run]);
       initializeWorkList(*graph, *next, perHostNodeCounter[net.ID]);
     }
 
@@ -287,11 +267,8 @@ int main(int argc, char* argv[]) {
       }
 
       // balance workload
-      const uint64_t hostStart = levels[level] * prefixNumCandidates /
-                                 totalNumCandidates,
-                     hostStop = levels[level] *
-                                (prefixNumCandidates + myNumCandidates) /
-                                totalNumCandidates;
+      const uint64_t hostStart = levels[level] * prefixNumCandidates / totalNumCandidates,
+                     hostStop = levels[level] * (prefixNumCandidates + myNumCandidates) / totalNumCandidates;
       const uint64_t hostNumWorkItems = hostStop - hostStart;
 
       galois::on_each([&](const unsigned tid, const unsigned) {
@@ -329,16 +306,14 @@ int main(int argc, char* argv[]) {
           },
           galois::loopname("LevelAssignment"));
 
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_level_id,
-                          Bitset_level_id, /*async*/ false>("LevelAssignment");
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_level_id, Bitset_level_id, /*async*/ false>("LevelAssignment");
 
       galois::do_all(
           galois::iterate(curr->begin(), curr_end),
           [&](auto& node) {
             auto& data = graph->getData(node);
             if (data.level_id.load(std::memory_order_relaxed) == level) {
-              for (auto it = graph->edge_begin(node);
-                   it != graph->edge_end(node); it++) {
+              for (auto it = graph->edge_begin(node); it != graph->edge_end(node); it++) {
                 Graph::GraphNode dst = graph->getEdgeDst(it);
                 if (node == dst)
                   continue; // ignore self loops
@@ -358,19 +333,16 @@ int main(int argc, char* argv[]) {
     for (uint64_t i = 0; i < net.Num; i++) {
       perHostNodeCounter[i].reset();
     }
-    galois::do_all(galois::iterate(*ego_nodes),
-                   [&](Graph::GraphNode) { perHostNodeCounter[net.ID] += 1; });
+    galois::do_all(galois::iterate(*ego_nodes), [&](Graph::GraphNode) { perHostNodeCounter[net.ID] += 1; });
     std::vector<uint64_t> numNodesPrefix(1 + net.Num, 0);
     for (uint64_t i = 1; i <= net.Num; i++) {
-      numNodesPrefix[i] =
-          numNodesPrefix[i - 1] + perHostNodeCounter[i - 1].reduce();
+      numNodesPrefix[i] = numNodesPrefix[i - 1] + perHostNodeCounter[i - 1].reduce();
     }
     uint64_t numLocalNodes = perHostNodeCounter[net.ID].read_local();
 
     galois::on_each([&](const unsigned tid, const unsigned numT) {
       auto start = numLocalNodes < numT ? tid : tid * numLocalNodes / numT,
-           stop  = numLocalNodes < numT ? tid + 1
-                                        : (tid + 1) * numLocalNodes / numT;
+           stop  = numLocalNodes < numT ? tid + 1 : (tid + 1) * numLocalNodes / numT;
       if (start >= numLocalNodes) {
         return;
       }
@@ -418,14 +390,12 @@ int main(int argc, char* argv[]) {
     mainTimer.stop();
 
     // if ((run + 1) != numRuns) {
-    syncSubstrate->set_num_run(actual_run + 1);
+    syncSubstrate->set_num_run(run + 1);
     bitset_level_id.reset();
     initializeGraph(*graph);
     ego_nodes->clear();
     ego_edges->clear();
     // }
-    
-    actual_run++;
   }
 
   inst->log_workset();
