@@ -638,6 +638,13 @@ public:
   inline edge_iterator edge_end(GraphNode N) {
     return graph.edge_end(N, galois::MethodFlag::UNPROTECTED);
   }
+  
+  /**
+   * Return the degree of the edge in the local graph
+   */
+  inline uint64_t localDegree(GraphNode N) {
+    return graph.getDegree(N);
+  }
 
   /**
    * Returns an iterable object over the edges of a particular node in the

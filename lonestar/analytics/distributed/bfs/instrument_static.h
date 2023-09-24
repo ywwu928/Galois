@@ -2,7 +2,8 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
-constexpr unsigned CACHE_LEVELS = 10;
+constexpr int CACHE_BOUND = 20;
+constexpr int CACHE_SAMPLES = 10;
 
 template <typename Graph>
 struct Instrument {
@@ -12,7 +13,7 @@ struct Instrument {
 
   // size of total nodes; cache level for each mirror (lower level higher
   // in-degree)
-  std::vector<unsigned> node_cache_level;
+  std::vector<int> node_cache_level;
 
   std::unique_ptr<galois::DGAccumulator<uint64_t>> local_read_stream;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_read;
@@ -44,13 +45,13 @@ struct Instrument {
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
     mirror_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     mirror_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_read =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_write =
-        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+        std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     remote_read_to_host =
         std::make_unique<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>(
             numH);
@@ -62,11 +63,11 @@ struct Instrument {
             numH);
     for (uint32_t i = 0; i < numH; i++) {
       remote_read_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
       remote_write_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
       remote_comm_to_host[i] =
-          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_LEVELS + 1);
+          std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES + 1);
     }
     clear();
 
@@ -119,10 +120,12 @@ struct Instrument {
     std::multimap<uint64_t, typename Graph::GraphNode, std::greater<int>>
         sorted_indeg_nodes(indeg_nodes.begin(), indeg_nodes.end());
     // cut into levels
+    int64_t sorted_indeg_nodes_bound = sorted_indeg_nodes.size() * CACHE_BOUND / 100;
     auto [level_size, surplus] =
-        std::div((int64_t)sorted_indeg_nodes.size(), (int64_t)CACHE_LEVELS);
-    auto it = sorted_indeg_nodes.begin(), end = sorted_indeg_nodes.end();
-    for (unsigned cache_level = 1; cache_level <= CACHE_LEVELS; cache_level++) {
+        std::div(sorted_indeg_nodes_bound, (int64_t)CACHE_SAMPLES);
+    auto it = sorted_indeg_nodes.begin();
+    auto end = std::next(it, sorted_indeg_nodes_bound);
+    for (int cache_level = 1; cache_level <= CACHE_SAMPLES; cache_level++) {
       if (surplus) {
         end = std::next(it, level_size + 1);
         surplus--;
@@ -138,6 +141,16 @@ struct Instrument {
           galois::no_stats());
       it = end;
     }
+    
+    it = std::next(sorted_indeg_nodes.begin(), sorted_indeg_nodes_bound);
+    end = sorted_indeg_nodes.end();
+    galois::do_all(
+        galois::iterate(it, end),
+        [&](auto& deg_node) {
+            auto& [deg, node]      = deg_node;
+            node_cache_level[node] = -1;
+        },
+        galois::no_stats());
 
     // start instrumentation
     file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
@@ -150,14 +163,14 @@ struct Instrument {
     local_read_stream->reset();
     master_read->reset();
     master_write->reset();
-    for (auto i = 0ul; i < CACHE_LEVELS + 1; i++) {
+    for (auto i = 0ul; i < CACHE_SAMPLES + 1; i++) {
       mirror_read[i].reset();
       mirror_write[i].reset();
       remote_read[i].reset();
       remote_write[i].reset();
     }
     for (auto i = 0ul; i < numHosts; i++) {
-      for (auto j = 0ul; j < CACHE_LEVELS + 1; j++) {
+      for (auto j = 0ul; j < CACHE_SAMPLES + 1; j++) {
         remote_read_to_host[i][j].reset();
         remote_write_to_host[i][j].reset();
         remote_comm_to_host[i][j].reset();
@@ -176,13 +189,20 @@ struct Instrument {
     // mirror
     int cache_level = node_cache_level[node];
 
-    for (int i = 0; i < cache_level; i++) { // different configs
-      remote_read[i] += 1;
-      remote_read_to_host[graph->getHostID(gid)][i] += 1;
-    }
+    if (cache_level == -1) {
+        for (int i = 0; i < CACHE_SAMPLES+1; i++) {
+          remote_read[i] += 1;
+          remote_read_to_host[graph->getHostID(gid)][i] += 1;
+        }
+    } else {
+        for (int i = 0; i < cache_level; i++) { // different configs
+          remote_read[i] += 1;
+          remote_read_to_host[graph->getHostID(gid)][i] += 1;
+        }
 
-    for (int i = cache_level; i < 11; i++) {
-      mirror_read[i] += 1;
+        for (auto i = cache_level; i < CACHE_SAMPLES+1; i++) {
+          mirror_read[i] += 1;
+        }
     }
   }
 
@@ -195,18 +215,24 @@ struct Instrument {
     // mirror
     int cache_level = node_cache_level[node];
 
-    for (int i = 0; i < cache_level; i++) {
-      remote_write[i] += 1;
+    if (cache_level == -1) {
+        for (int i = 0; i < CACHE_SAMPLES+1; i++) {
+          remote_write[i] += 1;
+          remote_write_to_host[graph->getHostID(gid)][i] += 1;
+        }
+    } else {
+        for (int i = 0; i < cache_level; i++) {
+          remote_write[i] += 1;
+          remote_write_to_host[graph->getHostID(gid)][i] += 1;
+        }
 
-      remote_write_to_host[graph->getHostID(gid)][i] += 1;
-    }
+        for (auto i = cache_level; i < CACHE_SAMPLES+1; i++) {
+          mirror_write[i] += 1;
 
-    for (int i = cache_level; i < 11; i++) {
-      mirror_write[i] += 1;
-
-      if (comm) {
-        remote_comm_to_host[graph->getHostID(gid)][i] += 1;
-      }
+          if (comm) {
+            remote_comm_to_host[graph->getHostID(gid)][i] += 1;
+          }
+        }
     }
   }
 
@@ -226,25 +252,25 @@ struct Instrument {
     file << "host " << host_id
          << " master writes: " << master_write->read_local() << std::endl;
 
-    for (int i = 0; i < 11; i++) {
-      file << "host " << host_id << " cache " << i
+    for (int i = 0; i < CACHE_SAMPLES+1; i++) {
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " mirror reads: " << mirror_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " mirror writes: " << mirror_write[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " remote reads: " << remote_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << i
+      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
            << " remote writes: " << remote_write[i].read_local() << std::endl;
 
       for (uint32_t j = 0; j < num_hosts; j++) {
-        file << "host " << host_id << " cache " << i << " remote read to host "
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote read to host "
              << j << ": " << remote_read_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << i << " remote write to host "
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote write to host "
              << j << ": " << remote_write_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << i
-             << " remote communication for host " << j << ": "
+        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+             << " dirty mirrors for host " << j << ": "
              << remote_comm_to_host[j][i].read_local() << std::endl;
       }
     }
