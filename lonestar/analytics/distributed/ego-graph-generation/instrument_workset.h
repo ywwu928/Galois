@@ -2,6 +2,9 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
+constexpr int CACHE_BOUND = 25;
+constexpr int CACHE_SAMPLES = 5;
+
 template <typename Graph>
 struct Instrument {
     Graph* graph;
@@ -21,9 +24,13 @@ struct Instrument {
     std::vector<uint64_t> distance_vector;
     std::map<int, uint64_t> hist_map_distance;
 
-    std::vector<uint64_t> node_workset;
-    std::map<int, uint64_t> hist_map_workset;
+    // size of total nodes; cache level for each mirror (lower level higher in-degree)
+    std::vector<int> node_cache_level;
 
+    std::vector<uint64_t> node_workset;
+    std::vector<int> node_workset_level;
+    std::map<int, std::vector<uint64_t>> hist_map_workset;
+  
     std::shared_ptr<galois::substrate::SimpleLock> vector_lock;
     std::shared_ptr<galois::substrate::SimpleLock> map_lock;
   
@@ -36,6 +43,59 @@ struct Instrument {
   
         vector_lock = std::make_shared<galois::substrate::SimpleLock>();
         map_lock = std::make_shared<galois::substrate::SimpleLock>();
+        
+        node_cache_level.resize(graph->size());
+        // load transposed graph (to count incoming degrees)
+        std::vector<unsigned> _;
+        auto tgr = loadDistGraph<typename Graph::GraphNode, typename Graph::EdgeType, /*iterateOutEdges*/ false>(_);
+
+        // in-degree counting (using transposed graph)
+        galois::InsertBag<std::pair<uint64_t, typename Graph::GraphNode>> indeg_nodes;
+        const auto& allNodes = tgr->allNodesRange();
+        galois::do_all(
+            galois::iterate(allNodes),
+            [&](auto node) {
+            // ignore master nodes
+            if (tgr->isOwned(tgr->getGID(node))) {
+                return;
+            }
+            indeg_nodes.emplace(std::make_pair(std::distance(tgr->edge_begin(node), tgr->edge_end(node)), node));
+            },
+            galois::steal(), galois::no_stats());
+
+        // descending sort
+        std::multimap<uint64_t, typename Graph::GraphNode, std::greater<int>> sorted_indeg_nodes(indeg_nodes.begin(), indeg_nodes.end());
+        // cut into levels
+        int64_t sorted_indeg_nodes_bound = sorted_indeg_nodes.size() * CACHE_BOUND / 100;
+        auto [level_size, surplus] = std::div(sorted_indeg_nodes_bound, (int64_t)CACHE_SAMPLES);
+        auto it = sorted_indeg_nodes.begin();
+        auto end = std::next(it, sorted_indeg_nodes_bound);
+        for (int cache_level = 1; cache_level <= CACHE_SAMPLES; cache_level++) {
+          if (surplus) {
+            end = std::next(it, level_size + 1);
+            surplus--;
+          } else {
+            end = std::next(it, level_size);
+          }
+          galois::do_all(
+              galois::iterate(it, end),
+              [&](auto& deg_node) {
+                auto& [deg, node]      = deg_node;
+                node_cache_level[node] = cache_level;
+              },
+              galois::no_stats());
+          it = end;
+        }
+        
+        it = std::next(sorted_indeg_nodes.begin(), sorted_indeg_nodes_bound);
+        end = sorted_indeg_nodes.end();
+        galois::do_all(
+            galois::iterate(it, end),
+            [&](auto& deg_node) {
+                auto& [deg, node]      = deg_node;
+                node_cache_level[node] = -1;
+            },
+            galois::no_stats());
     
         // start instrumentation
         file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
@@ -234,6 +294,7 @@ struct Instrument {
     void load_workset () {
         auto mirrorSize = graph->numMirrors();
         node_workset.reserve(mirrorSize);
+        node_workset_level.reserve(mirrorSize);
 
         const auto& allMirrorNodes = graph->mirrorNodesRange();
         galois::do_all(
@@ -243,6 +304,7 @@ struct Instrument {
 
                 vector_lock->lock();
                 node_workset.push_back(nodeData.workset_touched);
+                node_workset_level.push_back(node_cache_level[node]);
                 vector_lock->unlock();
             },
             galois::steal(), galois::no_stats());
@@ -250,13 +312,22 @@ struct Instrument {
 
     void bin_workset () {
         for (int i=0; i<22; i++) {
-            hist_map_workset.insert({i, 0});
+            std::vector<uint64_t> empty_vector (CACHE_SAMPLES+1, 0);
+            hist_map_workset.insert({i, empty_vector});
         }
 
-        for (auto workset: node_workset) {
+        for (auto i=0ul; i<node_workset.size(); i++) {
+            uint64_t workset = node_workset[i];
+            int workset_level = node_workset_level[i];
+
             if (workset <= 15) {
                 map_lock->lock();
-                hist_map_workset[workset]++;
+                hist_map_workset[workset].at(0)++;
+                if (workset_level > 0) {
+                    for (int j=workset_level; j<=CACHE_SAMPLES; j++) {
+                        hist_map_workset[workset].at(j)++;
+                    }
+                }
                 map_lock->unlock();
             }
             else {
@@ -264,12 +335,22 @@ struct Instrument {
                 int key = (int)exp;
                 if (exp > 10) {
                     map_lock->lock();
-                    hist_map_workset[21]++;
+                    hist_map_workset[21].at(0)++;
+                    if (workset_level > 0) {
+                        for (int j=workset_level; j<=CACHE_SAMPLES; j++) {
+                            hist_map_workset[21].at(j)++;
+                        }
+                    }
                     map_lock->unlock();
                 }
                 else{
                     map_lock->lock();
-                    hist_map_workset[key+12]++;
+                    hist_map_workset[key+12].at(0)++;
+                    if (workset_level > 0) {
+                        for (int j=workset_level; j<=CACHE_SAMPLES; j++) {
+                            hist_map_workset[key+12].at(j)++;
+                        }
+                    }
                     map_lock->unlock();
                 }
             }
@@ -288,11 +369,14 @@ struct Instrument {
         bin_workset();
 
         for (int i=0; i<16; i++) {
-            file << "host " << hostID << " number of mirrors touched by " << i << " worksets: " << hist_map_workset[i] << std::endl;
+            file << "host " << hostID << " number of mirrors touched by " << i << " worksets: " << hist_map_workset[i].at(0) << std::endl;
         }
         
         for (int i=16; i<22; i++) {
-            file << "host " << hostID << " number of mirrors touched within bin " << i << " worksets: " << hist_map_workset[i] << std::endl;
+            file << "host " << hostID << " number of mirrors touched within bin " << i << " worksets: " << hist_map_workset[i].at(0) << std::endl;
+            for (int j=1; j<=CACHE_SAMPLES; j++) {
+                file << "host " << hostID << " bin " << i << " worksets within top " << (CACHE_BOUND/CACHE_SAMPLES)*j << " percent: " << hist_map_workset[i].at(j) << std::endl;
+            }
         }
 
         workset_clear();
