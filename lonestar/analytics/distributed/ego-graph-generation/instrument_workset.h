@@ -370,6 +370,9 @@ struct Instrument {
 
         for (int i=0; i<16; i++) {
             file << "host " << hostID << " number of mirrors touched by " << i << " worksets: " << hist_map_workset[i].at(0) << std::endl;
+            for (int j=1; j<=CACHE_SAMPLES; j++) {
+                file << "host " << hostID << " bin " << i << " worksets within top " << (CACHE_BOUND/CACHE_SAMPLES)*j << " percent: " << hist_map_workset[i].at(j) << std::endl;
+            }
         }
         
         for (int i=16; i<22; i++) {
