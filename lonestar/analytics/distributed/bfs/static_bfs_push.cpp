@@ -30,9 +30,7 @@
 #include <limits>
 #include <random>
 
-#if GALOIS_INSTRUMENT
 #include "../instrumentation/instrument_static.h"
-#endif
 
 #ifdef GALOIS_ENABLE_GPU
 #include "bfs_push_cuda.h"
@@ -90,9 +88,7 @@ typedef typename Graph::GraphNode GNode;
 
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
 
-#if GALOIS_INSTRUMENT
 std::unique_ptr<Instrument<Graph>> inst;
-#endif
 
 #include "bfs_push_sync.hh"
 
@@ -167,9 +163,9 @@ struct FirstItr_BFS {
       abort();
 #endif
     } else if (personality == CPU) {
-#if GALOIS_INSTRUMENT
+
       inst->clear();
-#endif
+      
       // one node
       galois::do_all(
           galois::iterate(__begin, __end), 
@@ -177,10 +173,10 @@ struct FirstItr_BFS {
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
     }
-#if GALOIS_INSTRUMENT
+
     inst->log_round(0);
-#endif
-	syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+	
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
       
     // just a barrier to synchronize output
     // master_round.reduce();
@@ -193,24 +189,16 @@ struct FirstItr_BFS {
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
     snode.dist_old  = snode.dist_current;
-#if GALOIS_INSTRUMENT
 	inst->record_local_read_stream();
-#endif
     for (auto jj : graph->edges(src)) {
-#if GALOIS_INSTRUMENT
       inst->record_local_read_stream();
-#endif
       GNode dst         = graph->getEdgeDst(jj);
       auto& dnode       = graph->getData(dst);
-#if GALOIS_INSTRUMENT
       inst->record_read_random(dst);
-#endif
       uint32_t new_dist = 1 + snode.dist_current;
       uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
       if (old_dist > new_dist) {
-#if GALOIS_INSTRUMENT
         inst->record_write_random(dst, !bitset_dist_current.test(dst));
-#endif        
         bitset_dist_current.set(dst);
       }
     }
@@ -261,9 +249,9 @@ struct BFS {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();
-#if GALOIS_INSTRUMENT
+      
       inst->clear();
-#endif
+      
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
         std::string impl_str(syncSubstrate->get_run_identifier("BFS"));
@@ -289,9 +277,9 @@ struct BFS {
             galois::no_stats(),
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
-#if GALOIS_INSTRUMENT
+
 	  inst->log_round(_num_iterations);
-#endif
+      
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
       
       galois::runtime::reportStat_Tsum(
@@ -310,9 +298,9 @@ struct BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-#if GALOIS_INSTRUMENT
-	inst->record_local_read_stream();
-#endif
+	
+    inst->record_local_read_stream();
+    
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
 
@@ -320,23 +308,18 @@ struct BFS {
         snode.dist_old = snode.dist_current;
 
         for (auto jj : graph->edges(src)) {
-#if GALOIS_INSTRUMENT
           inst->record_local_read_stream();
-#endif	      
+
 		  work_edges += 1;
 
           GNode dst         = graph->getEdgeDst(jj);
           auto& dnode       = graph->getData(dst);     
-#if GALOIS_INSTRUMENT
           inst->record_read_random(dst);
-#endif
           uint32_t new_dist = 1 + snode.dist_current;
           uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
           
           if (old_dist > new_dist) {
-#if GALOIS_INSTRUMENT
 			inst->record_write_random(dst, !bitset_dist_current.test(dst));
-#endif
             bitset_dist_current.set(dst);
           }
         }
@@ -489,10 +472,8 @@ int main(int argc, char** argv) {
   // bitset comm setup
   bitset_dist_current.resize(hg->size());
 
-#if GALOIS_INSTRUMENT
   inst = std::make_unique<Instrument<Graph>>();
   inst->init(net.ID, net.Num, hg);
-#endif
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
@@ -542,9 +523,9 @@ int main(int argc, char** argv) {
     galois::runtime::getHostBarrier().wait();
 
     galois::gPrint("[", net.ID, "] BFS::go run ", run, " called\n");
-#if GALOIS_INSTRUMENT
+    
     inst->log_run(run);
-#endif    
+    
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
@@ -568,9 +549,9 @@ int main(int argc, char** argv) {
     }
 
   }
-#if GALOIS_INSTRUMENT
+  
   inst.reset();
-#endif
+  
   StatTimer_total.stop();
 
 

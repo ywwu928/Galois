@@ -7,6 +7,7 @@ constexpr int CACHE_SAMPLES = 10;
 
 template <typename Graph>
 struct Instrument {
+#if GALOIS_INSTRUMENT
   Graph* graph;
   uint64_t hostID;
   uint64_t numHosts;
@@ -29,8 +30,10 @@ struct Instrument {
   std::unique_ptr<std::unique_ptr<galois::DGAccumulator<uint64_t>[]>[]>
       remote_comm_to_host;
   std::ofstream file;
+#endif
 
   void init(uint64_t hid, uint64_t numH, std::unique_ptr<Graph>& g) {
+#if GALOIS_INSTRUMENT
     /**
      * Counts cache level for each mirror node.
      */
@@ -157,9 +160,15 @@ struct Instrument {
     file << "#####   Stat   #####" << std::endl;
     file << "host " << hid << " total mirrors: " << graph->numMirrors() << std::endl;
     file << "host " << hid << " total edges: " << graph->sizeEdges() << std::endl;
+#else
+    (void) hid;
+    (void) numH;
+    (void) g;
+#endif
   }
 
   void clear() {
+#if GALOIS_INSTRUMENT
     local_read_stream->reset();
     master_read->reset();
     master_write->reset();
@@ -176,11 +185,17 @@ struct Instrument {
         remote_comm_to_host[i][j].reset();
       }
     }
+#endif
   }
 
-  void record_local_read_stream() { *local_read_stream += 1; }
+  void record_local_read_stream() {
+#if GALOIS_INSTRUMENT
+      *local_read_stream += 1;
+#endif
+  }
 
   void record_read_random(typename Graph::GraphNode node) {
+#if GALOIS_INSTRUMENT
     auto gid = graph->getGID(node);
     if (graph->isOwned(gid)) { // master
       *master_read += 1;
@@ -204,9 +219,13 @@ struct Instrument {
           mirror_read[i] += 1;
         }
     }
+#else
+    (void) node;
+#endif
   }
 
   void record_write_random(typename Graph::GraphNode node, bool comm) {
+#if GALOIS_INSTRUMENT
     auto gid = graph->getGID(node);
     if (graph->isOwned(gid)) { // master
       *master_write += 1;
@@ -234,13 +253,22 @@ struct Instrument {
           }
         }
     }
+#else
+    (void) node;
+    (void) comm;
+#endif
   }
 
   void log_run(uint64_t run) {
+#if GALOIS_INSTRUMENT
     file << "#####   Run " << run << "   #####" << std::endl;
+#else
+    (void) run;
+#endif
   }
 
   void log_round(uint64_t num_iterations) {
+#if GALOIS_INSTRUMENT
     auto host_id   = hostID;
     auto num_hosts = numHosts;
     file << "#####   Round " << num_iterations << "   #####" << std::endl;
@@ -276,5 +304,8 @@ struct Instrument {
     }
 
     file.flush();
+#else
+    (void) num_iterations;
+#endif
   }
 };

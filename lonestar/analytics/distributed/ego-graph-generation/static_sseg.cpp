@@ -52,7 +52,7 @@ galois::DynamicBitSet bitset_level_id;
 GALOIS_SYNC_STRUCTURE_REDUCE_MIN(level_id, uint64_t);
 GALOIS_SYNC_STRUCTURE_BITSET(level_id);
 
-#include "instrument_static.h"
+#include "../instrumentation/instrument_static.h"
 std::unique_ptr<Instrument<Graph>> inst;
 
 void initializeGraph(Graph& graph) {
@@ -111,10 +111,10 @@ int main(int argc, char* argv[]) {
   galois::gPrint(net.ID, "#Edges = ", graph->sizeEdges(), "\n");
 
   bitset_level_id.resize(graph->size());
-
+  
   inst = std::make_unique<Instrument<Graph>>();
   inst->init(net.ID, net.Num, graph);
-
+  
   using NodeBag = galois::InsertBag<Graph::GraphNode>;
   using EdgeBag =
       galois::InsertBag<std::pair<Graph::GraphNode, Graph::GraphNode>>;
@@ -218,8 +218,9 @@ int main(int argc, char* argv[]) {
     }
     
     galois::gPrint("[", net.ID, "] Run ", actual_run, " started\n");
+    
     inst->log_run(actual_run);
-
+    
     curr->clear();
     next->clear();
 
