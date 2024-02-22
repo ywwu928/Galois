@@ -2,8 +2,8 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
-constexpr int CACHE_BOUND = 10;
-constexpr int CACHE_SAMPLES = 5;
+constexpr int CACHE_BOUND = 100;
+constexpr int CACHE_SAMPLES = 20;
 
 template <typename Graph>
 struct Instrument {
