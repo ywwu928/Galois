@@ -153,7 +153,7 @@ struct Instrument {
         galois::no_stats());
 
     // start instrumentation
-    file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid));
+    file.open(graphName + "_" + std::to_string(numH) + "procs_id" + std::to_string(hid), std::ios::out | std::ios::trunc);
     file << "#####   Stat   #####" << std::endl;
     file << "host " << hid << " total mirrors: " << graph->numMirrors() << std::endl;
     file << "host " << hid << " total edges: " << graph->sizeEdges() << std::endl;
@@ -274,5 +274,7 @@ struct Instrument {
              << remote_comm_to_host[j][i].read_local() << std::endl;
       }
     }
+
+    file.flush();
   }
 };
