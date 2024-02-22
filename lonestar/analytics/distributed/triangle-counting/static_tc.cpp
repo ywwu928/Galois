@@ -57,8 +57,10 @@ GALOIS_SYNC_STRUCTURE_BITSET(queries);
 // ##################################################################
 //                      Instrumentation
 // ##################################################################
-#include "instrument_static.h"
+#if GALOIS_INSTRUMENT
+#include "../instrumentation/instrument_static.h"
 std::unique_ptr<Instrument<Graph>> inst;
+#endif
 
 // ##################################################################
 //             SYNCHRONIZATION [from SyncStructures.h]
@@ -177,13 +179,13 @@ int main(int argc, char** argv) {
     // using DGTerminatorDetector =
     // typename std::conditional<async, galois::DGTerminator<unsigned int>,
     //                         galois::DGAccumulator<unsigned int>>::type;
-    galois::DGAccumulator<uint64_t> dga;
-  
+    galois::DGAccumulator<uint64_t> dga;  
+#if GALOIS_INSTRUMENT
     inst = std::make_unique<Instrument<Graph>>();
     inst->init(net.ID, net.Num, hg);
     
     inst->log_run(0);
-
+#endif
     do {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
@@ -194,15 +196,23 @@ int main(int argc, char** argv) {
                 auto& data = hg_ref.getData(A);
                 data.queries.clear();
                 auto A_gid = hg_ref.getGID(A);
+#if GALOIS_INSTRUMENT
                 inst->record_local_read_stream();
+#endif
                 for (;data.queries.size() < query_size && data.edge_iterator != hg_ref.edge_end(A); data.edge_iterator++) {
+#if GALOIS_INSTRUMENT
                     inst->record_local_read_stream();
+#endif
                     auto C = hg_ref.getEdgeDst(data.edge_iterator);
                     auto C_gid = hg_ref.getGID(C);
+#if GALOIS_INSTRUMENT
                     inst->record_read_random(C);
+#endif
                     if (A_gid > C_gid) {  // A > C; only query lower neighbors
                         data.queries.insert(C_gid);
+#if GALOIS_INSTRUMENT
                         inst->record_write_random(A, !bitset_queries.test(A));
+#endif
                         bitset_queries.set(A);
                         dga += 1;
                     }
@@ -230,12 +240,18 @@ int main(int argc, char** argv) {
                 auto e = hg_ref.edge_begin(B);
 #endif
                 auto B_gid = hg_ref.getGID(B);
+#if GALOIS_INSTRUMENT
                 inst->record_local_read_stream();
+#endif
                 for (; e != hg_ref.edge_end(B); e++) {
+#if GALOIS_INSTRUMENT
                     inst->record_local_read_stream();
+#endif
                     auto A = hg_ref.getEdgeDst(e);
                     auto A_gid = hg_ref.getGID(A);
+#if GALOIS_INSTRUMENT
                     inst->record_read_random(A);
+#endif
                     // A > B; only pull queries from upper neghbors
                     if (B_gid >= A_gid) {
                         continue;
@@ -250,10 +266,14 @@ int main(int argc, char** argv) {
 #endif
                         }
                         for (auto&& e_: hg_ref.edges(B)) {
+#if GALOIS_INSTRUMENT
                             inst->record_local_read_stream();
+#endif
                             auto C_ = hg_ref.getEdgeDst(e_);
                             auto C_gid_ = hg_ref.getGID(C_);
+#if GALOIS_INSTRUMENT
                             inst->record_read_random(C_);
+#endif
                             if (C_gid == C_gid_) {
                                 num_triangles += 1;
                                 continue;
@@ -273,10 +293,10 @@ int main(int argc, char** argv) {
     auto num_works = dga.reduce(syncSubstrate->get_run_identifier());
     if (num_works < hg_ref.size()) query_size = (uint64_t)query_size << 1;
     galois::gPrint(_num_iterations, " ", num_works, "\n");
-
+#if GALOIS_INSTRUMENT
     inst->log_round(_num_iterations);
     inst->clear();
-
+#endif
     //   galois::runtime::reportStat_Tsum(
     //       REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
     //       (unsigned long)dga.read_local());
@@ -292,9 +312,9 @@ int main(int argc, char** argv) {
         e2e_end = MPI_Wtime();
         std::cout << "Time_TC_Algo, " << algo_end - algo_start << "\n";
         std::cout << "Time_E2E, " << e2e_end - e2e_start << "\n";
-    }
-  
+    }  
+#if GALOIS_INSTRUMENT
     inst.reset();
-
+#endif
     return 0;
 }

@@ -62,7 +62,7 @@ endfunction(add_test_gpu)
 
 if(GALOIS_ENABLE_DIST)
   add_subdirectory(libdistbench)
-
+    
   if(GALOIS_ENABLE_GPU)
     # turn on cuda for distbench as well
     target_compile_definitions(distbench PRIVATE GALOIS_ENABLE_GPU=1)
@@ -96,6 +96,9 @@ if(GALOIS_ENABLE_DIST)
     endif()
     if(GALOIS_USE_BARE_MPI)
       target_compile_definitions(${target_name} PRIVATE GALOIS_USE_BARE_MPI=1)
+    endif()
+    if(GALOIS_INSTRUMENT)
+        target_compile_definitions(${target_name} PRIVATE GALOIS_INSTRUMENT=1)
     endif()
 
     if(GALOIS_ENABLE_GPU AND NOT ${X_NO_GPU})
