@@ -17,6 +17,7 @@ struct Instrument {
   std::vector<int> node_cache_level;
 
   std::unique_ptr<galois::DGAccumulator<uint64_t>> local_read_stream;
+  std::unique_ptr<galois::DGAccumulator<uint64_t>> local_write_stream;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_read;
   std::unique_ptr<galois::DGAccumulator<uint64_t>> master_write;
   std::unique_ptr<galois::DGAccumulator<uint64_t>[]> mirror_read;
@@ -45,6 +46,7 @@ struct Instrument {
     node_cache_level.resize(graph->size());
 
     local_read_stream = std::make_unique<galois::DGAccumulator<uint64_t>>();
+    local_write_stream = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_read       = std::make_unique<galois::DGAccumulator<uint64_t>>();
     master_write      = std::make_unique<galois::DGAccumulator<uint64_t>>();
     mirror_read =
@@ -170,6 +172,7 @@ struct Instrument {
   void clear() {
 #if GALOIS_INSTRUMENT
     local_read_stream->reset();
+    local_write_stream->reset();
     master_read->reset();
     master_write->reset();
     for (auto i=0ul; i<CACHE_SAMPLES+1; i++) {
@@ -191,6 +194,12 @@ struct Instrument {
   void record_local_read_stream() {
 #if GALOIS_INSTRUMENT
       *local_read_stream += 1;
+#endif
+  }
+  
+  void record_local_write_stream() {
+#if GALOIS_INSTRUMENT
+      *local_write_stream += 1;
 #endif
   }
 
@@ -274,6 +283,9 @@ struct Instrument {
     file << "#####   Round " << num_iterations << "   #####" << std::endl;
     file << "host " << host_id
          << " local read (stream): " << local_read_stream->read_local()
+         << std::endl;
+    file << "host " << host_id
+         << " local write (stream): " << local_write_stream->read_local()
          << std::endl;
     file << "host " << host_id << " master reads: " << master_read->read_local()
          << std::endl;
