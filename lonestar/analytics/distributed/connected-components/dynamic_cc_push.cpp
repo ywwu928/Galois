@@ -170,9 +170,10 @@ struct FirstItr_ConnectedComp {
       inst->record_read_random(dst);
       uint32_t new_dist = snode.comp_current;
       uint32_t old_dist = galois::atomicMin(dnode.comp_current, new_dist);
-      if (old_dist > new_dist)
+      if (old_dist > new_dist) {
         inst->record_write_random(dst);
         bitset_comp_current.set(dst);
+      }
     }
   }
 };
@@ -262,9 +263,10 @@ struct ConnectedComp {
         inst->record_read_random(dst);
         uint32_t new_dist = snode.comp_current;
         uint32_t old_dist = galois::atomicMin(dnode.comp_current, new_dist);
-        if (old_dist > new_dist)
+        if (old_dist > new_dist) {
 	      inst->record_write_random(dst);
           bitset_comp_current.set(dst);
+        }
       }
     }
   }
