@@ -547,7 +547,6 @@ int main(int argc, char** argv) {
 
   for (auto run = 0; run < numRuns; ++run) {
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
-    
     inst->log_run(run);
     
     std::string timer_str("Timer_" + std::to_string(run));

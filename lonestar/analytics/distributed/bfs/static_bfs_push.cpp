@@ -188,8 +188,9 @@ struct FirstItr_BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-    snode.dist_old  = snode.dist_current;
 	inst->record_local_read_stream();
+    snode.dist_old  = snode.dist_current;
+	inst->record_local_write_stream();
     for (auto jj : graph->edges(src)) {
       inst->record_local_read_stream();
       GNode dst         = graph->getEdgeDst(jj);
@@ -298,7 +299,6 @@ struct BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-	
     inst->record_local_read_stream();
     
     if (snode.dist_old > snode.dist_current) {
@@ -523,7 +523,6 @@ int main(int argc, char** argv) {
     galois::runtime::getHostBarrier().wait();
 
     galois::gPrint("[", net.ID, "] BFS::go run ", run, " called\n");
-    
     inst->log_run(run);
     
     std::string timer_str("Timer_" + std::to_string(run));
