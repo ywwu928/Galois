@@ -82,12 +82,29 @@ struct Instrument {
       remote_comm_to_host[i] =
           std::make_unique<galois::DGAccumulator<uint64_t>[]>(CACHE_SAMPLES);
     }
-    clear();
-
+    
     auto mirror_num = graph->numMirrors();
     for (auto i=0; i<CACHE_SAMPLES; i++) {
         int cache_size = mirror_num * CACHE_STEP * (i+1) / 100;
         lru_cache[i] = LRUCache<uint64_t>(cache_size);
+    }
+
+    local_read_stream->reset();
+    local_write_stream->reset();
+    master_read->reset();
+    master_write->reset();
+    for (auto i=0ul; i<CACHE_SAMPLES; i++) {
+        mirror_read[i].reset();
+        mirror_write[i].reset();
+        remote_read[i].reset();
+        remote_write[i].reset();
+    }
+    for (auto i=0ul; i<numHosts; i++) {
+        for (auto j=0ul; j<CACHE_SAMPLES; j++) {
+            remote_read_to_host[i][j].reset();
+            remote_write_to_host[i][j].reset();
+            remote_comm_to_host[i][j].reset();
+        }
     }
 
     // start instrumentation
@@ -206,6 +223,20 @@ struct Instrument {
 #else
     (void) node;
     (void) comm;
+#endif
+  }
+
+  void scan_cache() {
+#if GALOIS_INSTRUMENT
+    for (auto i=0; i<CACHE_SAMPLES; i++) {
+        cache_lock[i]->lock();
+        for (auto it=lru_cache[i].get_lru_begin(); it!=lru_cache[i].get_lru_end(); it++) {
+            if (it->dirty) {
+                remote_comm_to_host[graph->getHostID(it->tag)][i] += 1;
+            }
+        }
+        cache_lock[i]->unlock();
+    }
 #endif
   }
 

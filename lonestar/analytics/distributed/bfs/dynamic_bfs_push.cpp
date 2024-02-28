@@ -174,6 +174,7 @@ struct FirstItr_BFS {
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
     }
 
+	inst->scan_cache();
     inst->log_round(0);
 	
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
@@ -279,6 +280,7 @@ struct BFS {
             galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
       }
 
+	  inst->scan_cache();
 	  inst->log_round(_num_iterations);
       
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");

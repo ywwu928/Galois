@@ -147,6 +147,7 @@ struct FirstItr_ConnectedComp {
               syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
     }
     
+	inst->scan_cache();
     inst->log_round(0);
 
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current,
@@ -227,6 +228,7 @@ struct ConnectedComp {
                 syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
       }
 	  
+	  inst->scan_cache();
       inst->log_round(_num_iterations);
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current,

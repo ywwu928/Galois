@@ -95,6 +95,14 @@ public:
         return info;
     }
 
+    auto get_lru_begin() const {
+        return lru.begin();
+    }
+    
+    auto get_lru_end() const {
+        return lru.end();
+    }
+
     void display() {
         for (auto it=lru.begin(); it!=lru.end(); it++) {
             std::cout << "tag = " << it->tag << " dirty = " << it->dirty << std::endl;

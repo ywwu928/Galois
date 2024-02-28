@@ -279,7 +279,8 @@ struct PageRank {
                 syncSubstrate->get_run_identifier("PageRank").c_str()));
       }
 
-	  inst->log_round(_num_iterations);
+	  inst->scan_cache();
+      inst->log_round(_num_iterations);
       
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
