@@ -4,6 +4,7 @@ static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input
 
 constexpr int CACHE_BOUND = 50;
 constexpr int CACHE_SAMPLES = 10;
+constexpr int CACHE_STEP = CACHE_BOUND / CACHE_SAMPLES;
 
 template <typename Graph>
 struct Instrument {
@@ -293,23 +294,23 @@ struct Instrument {
          << " master writes: " << master_write->read_local() << std::endl;
 
     for (int i=0; i<CACHE_SAMPLES+1; i++) {
-      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+      file << "host " << host_id << " cache " << (CACHE_STEP)*i
            << " mirror reads: " << mirror_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+      file << "host " << host_id << " cache " << (CACHE_STEP)*i
            << " mirror writes: " << mirror_write[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+      file << "host " << host_id << " cache " << (CACHE_STEP)*i
            << " remote reads: " << remote_read[i].read_local() << std::endl;
-      file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+      file << "host " << host_id << " cache " << (CACHE_STEP)*i
            << " remote writes: " << remote_write[i].read_local() << std::endl;
 
       for (uint32_t j=0; j<num_hosts; j++) {
-        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote read to host "
+        file << "host " << host_id << " cache " << (CACHE_STEP)*i << " remote read to host "
              << j << ": " << remote_read_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i << " remote write to host "
+        file << "host " << host_id << " cache " << (CACHE_STEP)*i << " remote write to host "
              << j << ": " << remote_write_to_host[j][i].read_local()
              << std::endl;
-        file << "host " << host_id << " cache " << (CACHE_BOUND/CACHE_SAMPLES)*i
+        file << "host " << host_id << " cache " << (CACHE_STEP)*i
              << " dirty mirrors for host " << j << ": "
              << remote_comm_to_host[j][i].read_local() << std::endl;
       }
