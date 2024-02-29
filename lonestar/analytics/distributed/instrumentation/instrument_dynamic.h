@@ -184,8 +184,9 @@ struct Instrument {
             remote_read[i] += 1;
             remote_read_to_host[graph->getHostID(gid)][i] += 1;
         }
-
-        mirror_read[i] += 1;
+        else {
+            mirror_read[i] += 1;
+        }
     }
 #else
     (void) node;
@@ -217,8 +218,9 @@ struct Instrument {
             remote_read[i] += 1;
             remote_read_to_host[graph->getHostID(gid)][i] += 1;
         }
-
-        mirror_write[i] += 1;
+        else {
+            mirror_write[i] += 1;
+        }
     }
 #else
     (void) node;
