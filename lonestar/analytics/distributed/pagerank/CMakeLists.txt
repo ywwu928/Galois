@@ -6,3 +6,4 @@ add_test_dist(pagerank-push-dist rmat15 ${BASEINPUT}/scalefree/rmat15.gr -graphT
 
 app_dist(static_pagerank_push static-pagerank-push)
 app_dist(dynamic_pagerank_push dynamic-pagerank-push)
+app_dist(ideal_pagerank_push ideal-pagerank-push)
