@@ -850,12 +850,19 @@ struct Gr2Adjacencylist : public Conversion {
     for (Graph::iterator ii = graph.begin(), ei = graph.end(); ii != ei; ++ii) {
       GNode src = *ii;
       file << src;
+      std::stringstream ss_num_edge;
+      std::stringstream ss_edge_dst;
+      uint64_t num_edge = 0;
       for (Graph::edge_iterator jj = graph.edge_begin(src),
                                 ej = graph.edge_end(src);
            jj != ej; ++jj) {
+        num_edge += 1;
         GNode dst = graph.getEdgeDst(jj);
-        file << " " << dst;
+        ss_edge_dst << " " << dst;
       }
+      ss_num_edge << "\t" << num_edge;
+      file << ss_num_edge.str();
+      file << ss_edge_dst.str();
       file << "\n";
     }
     file.close();
