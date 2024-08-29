@@ -2,9 +2,15 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
+#if GALOIS_MIRROR_AMOUNT
+constexpr int CACHE_GRANULARITY = 1500;
+constexpr int CACHE_STEP = 5;
+constexpr int CACHE_SAMPLES = 10;
+#else
 constexpr int CACHE_BOUND = 50;
 constexpr int CACHE_SAMPLES = 10;
 constexpr int CACHE_STEP = CACHE_BOUND / CACHE_SAMPLES;
+#endif
 
 bool sortAccess (const std::vector<uint64_t>& v1, const std::vector<uint64_t>& v2) { // descending order
     return v1[3] > v2[3]; // index 3 is # of accesses
@@ -191,9 +197,24 @@ struct Instrument {
 
       // count # of reads and writes
       int vector_size = node_access.size();
+#if GALOIS_MIRROR_AMOUNT
+      int vector_bound;
+      unsigned chunk_size;
+      unsigned remainder;
+    if (CACHE_GRANULARITY * CACHE_STEP * CACHE_SAMPLES > vector_size) {
+        vector_bound = vector_size;
+        chunk_size = vector_bound / CACHE_SAMPLES;
+        remainder = vector_bound % CACHE_SAMPLES;
+    } else {
+        vector_bound = CACHE_GRANULARITY * CACHE_STEP * CACHE_SAMPLES;
+        chunk_size = CACHE_GRANULARITY * CACHE_STEP;
+        remainder = 0;
+    }
+#else
       int vector_bound = vector_size * CACHE_BOUND / 100;
       unsigned chunk_size = vector_bound / CACHE_SAMPLES;
       unsigned remainder = vector_bound % CACHE_SAMPLES;
+#endif
 	
       for (unsigned i=0; i<CACHE_SAMPLES; i++) {
 		  for (unsigned j=0; j<chunk_size; j++) {

@@ -2,9 +2,15 @@
 
 static cll::opt<std::string> graphName("graphName", cll::desc("Name of the input graph"), cll::init("temp"));
 
+#if GALOIS_MIRROR_AMOUNT
+constexpr int CACHE_GRANULARITY = 1500;
+constexpr int CACHE_STEP = 5;
+constexpr int CACHE_SAMPLES = 10;
+#else
 constexpr int CACHE_BOUND = 50;
 constexpr int CACHE_SAMPLES = 10;
 constexpr int CACHE_STEP = CACHE_BOUND / CACHE_SAMPLES;
+#endif
 
 template <typename Graph>
 struct Instrument {
@@ -126,9 +132,24 @@ struct Instrument {
     std::multimap<uint64_t, typename Graph::GraphNode, std::greater<int>>
         sorted_indeg_nodes(indeg_nodes.begin(), indeg_nodes.end());
     // cut into levels
+#if GALOIS_MIRROR_AMOUNT
+    int64_t level_size;
+    int64_t surplus;
+    int64_t sorted_indeg_nodes_bound;
+    if (CACHE_GRANULARITY * CACHE_STEP * CACHE_SAMPLES > sorted_indeg_nodes.size()) {
+        sorted_indeg_nodes_bound = sorted_indeg_nodes.size();
+        level_size = sorted_indeg_nodes_bound / CACHE_SAMPLES;
+        surplus = sorted_indeg_nodes_bound % CACHE_SAMPLES;
+    } else {
+        level_size = CACHE_GRANULARITY * CACHE_STEP;
+        surplus = 0;
+        sorted_indeg_nodes_bound = level_size * CACHE_SAMPLES;
+    }
+#else
     int64_t sorted_indeg_nodes_bound = sorted_indeg_nodes.size() * CACHE_BOUND / 100;
     auto [level_size, surplus] =
         std::div(sorted_indeg_nodes_bound, (int64_t)CACHE_SAMPLES);
+#endif
     auto it = sorted_indeg_nodes.begin();
     auto end = std::next(it, sorted_indeg_nodes_bound);
     for (int cache_level = 1; cache_level <= CACHE_SAMPLES; cache_level++) {

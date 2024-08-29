@@ -3,6 +3,7 @@
 
 #include <string>
 #include <fstream>
+#include <cstdint>
 #include "galois/gIO.h"
 
 std::string makeOutputFilename(const std::string& outputDir);
