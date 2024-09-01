@@ -224,7 +224,6 @@ struct Instrument {
     }
 #else
     (void) node;
-    (void) comm;
 #endif
   }
 
