@@ -7,3 +7,4 @@ add_test_dist(connected-components-pull-dist rmat15 ${BASEINPUT}/scalefree/symme
 app_dist(static_cc_push static-connected-components-push)
 app_dist(dynamic_cc_push dynamic-connected-components-push)
 app_dist(ideal_cc_push ideal-connected-components-push)
+app_dist(normal_cc_push normal-connected-components-push)
