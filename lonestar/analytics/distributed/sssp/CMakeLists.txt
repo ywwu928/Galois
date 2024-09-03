@@ -3,3 +3,5 @@ add_test_dist(sssp-push-dist rmat15 ${BASEINPUT}/scalefree/rmat15.gr -graphTrans
 
 app_dist(sssp_pull sssp-pull)
 add_test_dist(sssp-pull-dist rmat15 ${BASEINPUT}/scalefree/rmat15.gr -graphTranspose=${BASEINPUT}/scalefree/transpose/rmat15.tgr)
+
+app_dist(normal_sssp_push normal-sssp-push)
