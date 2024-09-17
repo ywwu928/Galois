@@ -440,6 +440,7 @@ int main(int argc, char** argv) {
 
   StatTimer_total.start();
 
+
   std::unique_ptr<Graph> hg;
 #ifdef GALOIS_ENABLE_GPU
   std::tie(hg, syncSubstrate) =
@@ -447,6 +448,7 @@ int main(int argc, char** argv) {
 #else
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
 #endif
+  galois::runtime::getHostBarrier().wait();
 
   // bitset comm setup
   bitset_dist_current.resize(hg->size());
