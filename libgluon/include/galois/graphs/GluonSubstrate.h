@@ -115,11 +115,16 @@ private:
   BITVECTOR_STATUS* currentBVFlag;
 
   // memoization optimization
-  //! Master nodes on different hosts. For broadcast;
+  //! Master nodes of mirrors on different hosts. For broadcast;
   std::vector<std::vector<size_t>> masterNodes;
   //! Mirror nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& mirrorNodes;
+  //! Master nodes of ghosts on different hosts. For broadcast;
+  std::vector<std::vector<size_t>> ghostMasterNodes;
+  //! ghost nodes on different hosts. comes from the user graph
+  //! during initialization (we expect user to give to us)
+  std::vector<std::vector<size_t>>& ghostNodes;
   //! Maximum size of master or mirror nodes on different hosts
   size_t maxSharedSize;
 
@@ -203,31 +208,18 @@ private:
 
       galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
     }
-    incrementEvilPhase();
-  }
-
-  /**
-   * Send statistics about master/mirror nodes to each host, and
-   * report the statistics.
-   */
-  void sendInfoToHost() {
-    auto& net = galois::runtime::getSystemNetworkInterface();
-
-    uint64_t global_total_mirror_nodes =
-        userGraph.size() - userGraph.numMasters();
-    uint64_t global_total_owned_nodes = userGraph.numMasters();
-
-    // send info to host
+    
+    // send off the ghost nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
         continue;
 
       galois::runtime::SendBuffer b;
-      gSerialize(b, global_total_mirror_nodes, global_total_owned_nodes);
+      gSerialize(b, ghostNodes[x]);
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
 
-    // receive
+    // receive the ghost nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
         continue;
@@ -237,37 +229,9 @@ private:
         p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
       } while (!p);
 
-      uint64_t total_mirror_nodes_from_others;
-      uint64_t total_owned_nodes_from_others;
-      galois::runtime::gDeserialize(p->second, total_mirror_nodes_from_others,
-                                    total_owned_nodes_from_others);
-      global_total_mirror_nodes += total_mirror_nodes_from_others;
-      global_total_owned_nodes += total_owned_nodes_from_others;
+      galois::runtime::gDeserialize(p->second, ghostMasterNodes[p->first]);
     }
-    incrementEvilPhase();
-
-    assert(userGraph.globalSize() == global_total_owned_nodes);
-    // report stats
-    if (net.ID == 0) {
-      reportProxyStats(global_total_mirror_nodes, global_total_owned_nodes);
-    }
-  }
-
-  /**
-   * Sets up the communication between the different hosts that contain
-   * different parts of the graph by exchanging master/mirror information.
-   */
-  void setupCommunication() {
-    galois::CondStatTimer<MORE_DIST_STATS> Tcomm_setup("CommunicationSetupTime",
-                                                       RNAME);
-
-    // barrier so that all hosts start the timer together
-    galois::runtime::getHostBarrier().wait();
-
-    Tcomm_setup.start();
-
-    // Exchange information for memoization optimization.
-    exchangeProxyInfo();
+    
     // convert the global ids stored in the master/mirror nodes arrays to local
     // ids
     // TODO: use 32-bit distinct vectors for masters and mirrors from here on
@@ -294,11 +258,114 @@ private:
 #endif
           galois::no_stats());
     }
+    
+    for (uint32_t h = 0; h < ghostMasterNodes.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, ghostMasterNodes[h].size()),
+          [&](size_t n) {
+            ghostMasterNodes[h][n] = userGraph.getLID(ghostMasterNodes[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("GhostMasterNodes").c_str()),
+#endif
+          galois::no_stats());
+    }
+
+    for (uint32_t h = 0; h < ghostNodes.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, ghostNodes[h].size()),
+          [&](size_t n) {
+            ghostNodes[h][n] = userGraph.getLID(ghostNodes[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("GhostNodes").c_str()),
+#endif
+          galois::no_stats());
+    }
+    
+    incrementEvilPhase();
+  }
+
+  /**
+   * Send statistics about master/mirror nodes to each host, and
+   * report the statistics.
+   */
+  void sendInfoToHost() {
+    auto& net = galois::runtime::getSystemNetworkInterface();
+
+    if (net.ID == 0) {
+        uint64_t global_total_mirror_nodes = userGraph.numMirrors();
+        uint64_t global_total_ghost_nodes = userGraph.numGhosts();
+
+        // receive
+        for (unsigned x = 0; x < numHosts; ++x) {
+          if (x == id)
+            continue;
+
+          decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+          do {
+            p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+          } while (!p);
+
+          uint64_t mirror_nodes_from_others;
+          uint64_t ghost_nodes_from_others;
+          galois::runtime::gDeserialize(p->second, mirror_nodes_from_others, ghost_nodes_from_others);
+          global_total_mirror_nodes += mirror_nodes_from_others;
+          global_total_ghost_nodes += ghost_nodes_from_others;
+      }
+
+      reportProxyStats(global_total_mirror_nodes, global_total_ghost_nodes);
+    }
+    else {
+        // send info to host
+        uint64_t host_mirror_nodes = userGraph.numMirrors();
+        uint64_t host_ghost_nodes = userGraph.numGhosts();
+        
+        galois::runtime::SendBuffer b;
+        gSerialize(b, host_mirror_nodes, host_ghost_nodes);
+        net.sendTagged(0, galois::runtime::evilPhase, b);
+    }
+
+    incrementEvilPhase();
+  }
+
+  /**
+   * Reports master/mirror stats.
+   * Assumes that communication has already occured so that the host
+   * calling it actually has the info required.
+   *
+   * @param global_total_mirror_nodes number of mirror nodes on all hosts
+   * @param global_total_owned_nodes number of "owned" nodes on all hosts
+   */
+  void reportProxyStats(uint64_t global_total_mirror_nodes, uint64_t global_total_ghost_nodes) {
+    float replication_factor = (float)global_total_mirror_nodes / (float)userGraph.globalSize();
+    galois::runtime::reportStat_Single(RNAME, "ReplicationFactor", replication_factor);
+
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalNodes", userGraph.globalSize());
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalGhostNodes", global_total_ghost_nodes);
+  }
+
+  /**
+   * Sets up the communication between the different hosts that contain
+   * different parts of the graph by exchanging master/mirror information.
+   */
+  void setupCommunication() {
+    galois::CondStatTimer<MORE_DIST_STATS> Tcomm_setup("CommunicationSetupTime",
+                                                       RNAME);
+
+    // barrier so that all hosts start the timer together
+    galois::runtime::getHostBarrier().wait();
+
+    Tcomm_setup.start();
+
+    // Exchange information for memoization optimization.
+    exchangeProxyInfo();
 
     Tcomm_setup.stop();
 
     maxSharedSize = 0;
-    // report masters/mirrors to/from other hosts as statistics
+    // report masters/mirrors/ghosts to/from other hosts as statistics
     for (auto x = 0U; x < masterNodes.size(); ++x) {
       if (x == id)
         continue;
@@ -322,34 +389,21 @@ private:
         maxSharedSize = mirrorNodes[x].size();
       }
     }
+    
+    for (auto x = 0U; x < ghostNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string ghost_nodes_str =
+          "GhostNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
+      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
+          RNAME, ghost_nodes_str, ghostNodes[x].size());
+    }
 
     sendInfoToHost();
 
     // do not track memory usage of partitioning
     auto& net = galois::runtime::getSystemNetworkInterface();
     net.resetMemUsage();
-  }
-
-  /**
-   * Reports master/mirror stats.
-   * Assumes that communication has already occured so that the host
-   * calling it actually has the info required.
-   *
-   * @param global_total_mirror_nodes number of mirror nodes on all hosts
-   * @param global_total_owned_nodes number of "owned" nodes on all hosts
-   */
-  void reportProxyStats(uint64_t global_total_mirror_nodes,
-                        uint64_t GALOIS_UNUSED(global_total_owned_nodes)) {
-    float replication_factor =
-        (float)global_total_mirror_nodes /
-        (float)userGraph.globalSize();
-    galois::runtime::reportStat_Single(RNAME, "ReplicationFactor",
-                                       replication_factor);
-
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(
-        RNAME, "TotalNodes", userGraph.globalSize());
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(
-        RNAME, "TotalGlobalMirrorNodes", global_total_mirror_nodes);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -398,7 +452,7 @@ private:
         GALOIS_DIE("unsupported bare MPI");
       }
     }
-#endif
+#endifG
   }
 
 public:
@@ -430,7 +484,8 @@ public:
         cartesianGrid(_cartesianGrid), partitionAgnostic(_partitionAgnostic),
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
         num_round(0), currentBVFlag(nullptr),
-        mirrorNodes(userGraph.getMirrorNodes()) {
+        mirrorNodes(userGraph.getMirrorNodes(),
+        ghostNodes(userGraph.getGhostNodes()) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
                     "Cartesian split doesn't equal number of hosts");
@@ -450,6 +505,7 @@ public:
     initBareMPI();
     // master setup from mirrors done by setupCommunication call
     masterNodes.resize(numHosts);
+    ghostMasterNodes.resize(numHosts);
     // setup proxy communication
     galois::CondStatTimer<MORE_DIST_STATS> Tgraph_construct_comm(
         "GraphCommSetupTime", RNAME);

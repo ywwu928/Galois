@@ -76,6 +76,8 @@ private:
   std::vector<uint32_t> masterRanges;
   //! represents split of mirror nodes among threads
   std::vector<uint32_t> mirrorRanges;
+  //! represents split of ghost nodes among threads
+  std::vector<uint32_t> ghostRanges;
   //! represents split of nodes with edges (includes masters) among threads to
   //! balance edges
   std::vector<uint32_t> withEdgeRanges;
@@ -87,7 +89,7 @@ private:
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
 
-  //! Vector of ranges that stores the 3 different range objects that a user is
+  //! Vector of ranges that stores the 5 different range objects that a user is
   //! able to access
   std::vector<NodeRangeType> specificRanges;
   //! Like specificRanges, but for in edges
@@ -125,6 +127,8 @@ protected:
   std::vector<std::pair<uint64_t, uint64_t>> gid2host;
   //! Mirror nodes from different hosts. For reduce
   std::vector<std::vector<size_t>> mirrorNodes;
+  //! ghost nodes from different hosts
+  std::vector<std::vector<size_t>> ghostNodes;
 
   //! GID = localToGlobalVector[LID]
   std::vector<uint64_t> localToGlobalVector;
@@ -509,6 +513,7 @@ public:
   DistGraph(unsigned host, unsigned numHosts)
       : transposed(false), id(host), numHosts(numHosts) {
     mirrorNodes.resize(numHosts);
+    ghostNodes.resize(numHosts);
     numGlobalNodes = 0;
     numGlobalEdges = 0;
   }
@@ -523,14 +528,25 @@ public:
     std::vector<std::pair<uint32_t, uint32_t>> mirrorRangesVector;
     // order of nodes locally is masters, outgoing mirrors, incoming mirrors,
     // so just get from numOwned to end
-    if (numOwned != numNodes) {
-      assert(numOwned < numNodes);
-      mirrorRangesVector.push_back(std::make_pair(numOwned, numNodes));
+    if (numOwned != numActualNodes) {
+      assert(numOwned < numActualNodes);
+      mirrorRangesVector.push_back(std::make_pair(numOwned, numActualNodes));
     }
+
     return mirrorRangesVector;
+  }
+  
+  std::vector<std::pair<uint32_t, uint32_t>> getGhostRanges() const {
+    std::vector<std::pair<uint32_t, uint32_t>> ghostRangesVector;
+    if (numActualNodes != numNodes) {
+      assert(numActualNodes < numNodes);
+      mirrorRangesVector.push_back(std::make_pair(numActualNodes, numNodes));
+    }
+    return ghostRangesVector;
   }
 
   std::vector<std::vector<size_t>>& getMirrorNodes() { return mirrorNodes; }
+  std::vector<std::vector<size_t>>& getGhostNodes() { return ghostNodes; }
 
 private:
   virtual unsigned getHostIDImpl(uint64_t) const = 0;
@@ -686,7 +702,9 @@ public:
    */
   inline size_t numMasters() const { return numOwned; }
   
-  inline size_t numMirrors() const { return numNodes - numOwned; }
+  inline size_t numMirrors() const { return numActualNodes - numOwned; }
+  
+  inline size_t numGhosts() const { return numNodes - numActualNodes; }
 
   /**
    * Gets number of nodes with edges (may include nodes without edges)
@@ -717,7 +735,7 @@ public:
    * @returns A range object that contains all the nodes in this graph
    */
   inline const NodeRangeType& allNodesRange() const {
-    assert(specificRanges.size() == 4);
+    assert(specificRanges.size() == 5);
     return specificRanges[0];
   }
 
@@ -728,7 +746,7 @@ public:
    * @returns A range object that contains the master nodes in this graph
    */
   inline const NodeRangeType& masterNodesRange() const {
-    assert(specificRanges.size() == 4);
+    assert(specificRanges.size() == 5);
     return specificRanges[1];
   }
   
@@ -739,7 +757,18 @@ public:
    * @returns A range object that contains the master nodes in this graph
    */
   inline const NodeRangeType& mirrorNodesRange() const {
-    assert(specificRanges.size() == 4);
+    assert(specificRanges.size() == 5);
+    return specificRanges[2];
+  }
+  
+  /**
+   * Returns a range object that encapsulates only mirror nodes in this
+   * graph.
+   *
+   * @returns A range object that contains the master nodes in this graph
+   */
+  inline const NodeRangeType& ghostNodesRange() const {
+    assert(specificRanges.size() == 5);
     return specificRanges[3];
   }
 
@@ -751,8 +780,8 @@ public:
    * with outgoing edges in this graph
    */
   inline const NodeRangeType& allNodesWithEdgesRange() const {
-    assert(specificRanges.size() == 4);
-    return specificRanges[2];
+    assert(specificRanges.size() == 5);
+    return specificRanges[4];
   }
 
   /**
@@ -826,6 +855,22 @@ protected:
     galois::gDebug("Manually det. mirror thread ranges");
     mirrorRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::runtime::activeThreads, numOwned, numActualNodes, 0);
   }
+  
+  /**
+   * Determines the thread ranges for ghost nodes only and saves them to
+   * the object.
+   *
+   * Only call after graph is constructed + only call once
+   */
+  inline void determineThreadRangesGhost() {
+    // make sure this hasn't been called before
+    assert(ghostRanges.size() == 0);
+
+    // first check if we even need to do any work; if already calculated,
+    // use already calculated vector
+    galois::gDebug("Manually det. ghost thread ranges");
+    ghostRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::runtime::activeThreads, numActualNodes, numNodes, 0);
+  }
 
   /**
    * Determines the thread ranges for nodes with edges only and saves them to
@@ -853,7 +898,7 @@ protected:
   }
 
   /**
-   * Initializes the 3 range objects that a user can access to iterate
+   * Initializes the 5 range objects that a user can access to iterate
    * over the graph in different ways.
    */
   void initializeSpecificRanges() {
@@ -861,10 +906,11 @@ protected:
 
     // TODO/FIXME assertion likely not safe if a host gets no nodes
     // make sure the thread ranges have already been calculated
-    // for the 3 ranges
+    // for the 5 ranges
     assert(allNodesRanges.size() != 0);
     assert(masterRanges.size() != 0);
     assert(mirrorRanges.size() != 0);
+    assert(ghostRanges.size() != 0);
     assert(withEdgeRanges.size() != 0);
 
     // 0 is all nodes
@@ -878,26 +924,32 @@ protected:
         boost::counting_iterator<size_t>(beginMaster + numOwned),
         masterRanges.data()));
 
-    // 2 is with edge nodes
+	// 2 is mirror nodes
+    specificRanges.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numOwned),
+        boost::counting_iterator<size_t>(numActualNodes),
+        mirrorRanges.data()));
+	
+    // 3 is ghost nodes
+    specificRanges.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numActualNodes),
+        boost::counting_iterator<size_t>(numNodes),
+        mirrorRanges.data()));
+
+    // 4 is with edge nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(0),
         boost::counting_iterator<size_t>(numNodesWithEdges),
         withEdgeRanges.data()));
     
-	// 3 is master nodes
-    specificRanges.push_back(galois::runtime::makeSpecificRange(
-        boost::counting_iterator<size_t>(numOwned),
-        boost::counting_iterator<size_t>(numNodes),
-        mirrorRanges.data()));
-
-    assert(specificRanges.size() == 4);
+    assert(specificRanges.size() == 5);
   }
 
   /**
    * Specific range editor: makes the range for edges equivalent to the range
    * for masters.
    */
-  void edgesEqualMasters() { specificRanges[2] = specificRanges[1]; }
+  void edgesEqualMasters() { specificRanges[4] = specificRanges[1]; }
 
 public:
   /**

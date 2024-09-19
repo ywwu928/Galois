@@ -355,12 +355,12 @@ public:
 
     Tthread_ranges.start();
     base_DistGraph::determineThreadRanges();
-    Tthread_ranges.stop();
-
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesMirror();
+    base_DistGraph::determineThreadRangesGhost();
     base_DistGraph::determineThreadRangesWithEdges();
     base_DistGraph::initializeSpecificRanges();
+    Tthread_ranges.stop();
 
     Tgraph_construct.stop();
     galois::gPrint("[", base_DistGraph::id, "] Graph construction complete.\n");
@@ -2706,6 +2706,15 @@ private:
          i++) {
       uint32_t globalID = base_DistGraph::localToGlobalVector[i];
       base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
+          .push_back(globalID);
+    }
+    
+    base_DistGraph::ghostNodes.reserve(base_DistGraph::numNodes -
+                                        base_DistGraph::numActualNodes);
+    for (uint32_t i = base_DistGraph::numActualNodes; i < base_DistGraph::numNodes;
+         i++) {
+      uint32_t globalID = base_DistGraph::localToGlobalVector[i];
+      base_DistGraph::ghostNodes[graphPartitioner->retrieveMaster(globalID)]
           .push_back(globalID);
     }
   }
