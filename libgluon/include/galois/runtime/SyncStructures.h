@@ -521,7 +521,7 @@ public:
                                                                                \
     static bool reduce(uint32_t, struct NodeData& node, ValTy y) {             \
       {                                                                        \
-        galois::add(node.fieldname, y);                                        \
+        galois::atomicAdd(node.fieldname, y);                                        \
         return true;                                                           \
       }                                                                        \
     }                                                                          \
@@ -709,7 +709,7 @@ public:
     static bool reduce(uint32_t node_id, struct NodeData& GALOIS_UNUSED(node), \
                        ValTy y) {                                              \
       {                                                                        \
-        galois::add(fieldname[node_id], y);                                    \
+          galois::atomicAdd(fieldname[node_id], y);                                    \
         return true;                                                           \
       }                                                                        \
     }                                                                          \
@@ -1232,7 +1232,7 @@ public:
     static bool reset_batch(size_t, size_t) { return true; }                   \
                                                                                \
     static bool reduce(uint32_t, struct NodeData& node, ValTy y) {             \
-      { return y < galois::min(node.fieldname, y); }                           \
+      { return y < galois::atomicMin(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned, uint8_t*, DataCommMode) {               \
@@ -1402,7 +1402,7 @@ public:
                                                                                \
     static bool reduce(uint32_t GALOIS_UNUSED(node_id), struct NodeData& node, \
                        ValTy y) {                                              \
-      { return y > galois::max(node.fieldname, y); }                           \
+      { return y > galois::atomicMax(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned from_id, uint8_t* y,                     \
@@ -1576,7 +1576,7 @@ public:
                                                                                \
     static bool reduce(uint32_t node_id, struct NodeData& GALOIS_UNUSED(node), \
                        ValTy y) {                                              \
-      { return y < galois::min(fieldname[node_id], y); }                       \
+      { return y < galois::atomicMin(fieldname[node_id], y); }                       \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned from_id, uint8_t* y,                     \
