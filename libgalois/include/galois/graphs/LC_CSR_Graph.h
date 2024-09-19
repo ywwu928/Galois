@@ -163,6 +163,8 @@ protected:
   EdgeData edgeData;
 
   uint64_t numNodes;
+  uint64_t numActualNodes;
+  uint64_t numGhostNodes;
   uint64_t numEdges;
 
   typedef internal::EdgeSortIterator<
@@ -516,15 +518,17 @@ public:
 
   void allocateFrom(const FileGraph& graph) {
     numNodes = graph.size();
+    numActualNodes = graph.size();
+    numGhostNodes = 0;
     numEdges = graph.sizeEdges();
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
+      nodeData.allocateBlocked(numActualNodes);
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
@@ -534,16 +538,39 @@ public:
 
   void allocateFrom(uint32_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
+    numActualNodes = nNodes;
+    numGhostNodes = 0;
     numEdges = nEdges;
 
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
+      nodeData.allocateBlocked(numActualNodes);
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(numActualNodes);
+      edgeIndData.allocateInterleaved(numNodes);
+      edgeDst.allocateInterleaved(numEdges);
+      edgeData.allocateInterleaved(numEdges);
+      this->outOfLineAllocateInterleaved(numNodes);
+    }
+  }
+  
+  void allocateFrom(uint32_t nTotalNodes, uint32_t nActualNodes, uint64_t nEdges) {
+    numNodes = nTotalNodes;
+    numActualNodes = nActualNodes;
+    numGhostNodes = nTotalNodes - nActualNodes;
+    numEdges = nEdges;
+
+    if (UseNumaAlloc) {
+      nodeData.allocateBlocked(numActualNodes);
+      edgeIndData.allocateBlocked(numNodes);
+      edgeDst.allocateBlocked(numEdges);
+      edgeData.allocateBlocked(numEdges);
+      this->outOfLineAllocateBlocked(numNodes);
+    } else {
+      nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
@@ -553,17 +580,19 @@ public:
 
   void destroyAndAllocateFrom(uint32_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
+    numActualNodes = nNodes;
+    numGhostNodes = 0;
     numEdges = nEdges;
 
     deallocate();
     if (UseNumaAlloc) {
-      nodeData.allocateBlocked(numNodes);
+      nodeData.allocateBlocked(numActualNodes);
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
-      nodeData.allocateInterleaved(numNodes);
+      nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
@@ -573,13 +602,13 @@ public:
 
   void constructNodes() {
 #ifndef GALOIS_GRAPH_CONSTRUCT_SERIAL
-    for (uint32_t x = 0; x < numNodes; ++x) {
+    for (uint32_t x = 0; x < numActualNodes; ++x) {
       nodeData.constructAt(x);
       this->outOfLineConstructAt(x);
     }
 #else
     galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
+        galois::iterate(UINT64_C(0), numActualNodes),
         [&](uint64_t x) {
           nodeData.constructAt(x);
           this->outOfLineConstructAt(x);

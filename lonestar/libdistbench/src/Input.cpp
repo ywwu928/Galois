@@ -81,3 +81,7 @@ cll::opt<bool> saveLocalGraph("saveLocalGraph",
 cll::opt<std::string> mastersFile("mastersFile",
                                   cll::desc("File specifying masters blocking"),
                                   cll::init(""), cll::Hidden);
+
+cll::opt<int> mirrorThreshold("mirrorThreshold",
+                                  cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (-1 means full mirroring)"),
+                                  cll::init(-1));

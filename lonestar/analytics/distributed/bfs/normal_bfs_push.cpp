@@ -525,9 +525,8 @@ int main(int argc, char** argv) {
     }
 
   }
-  
-  StatTimer_total.stop();
 
+  StatTimer_total.stop();
 
   return 0;
 }

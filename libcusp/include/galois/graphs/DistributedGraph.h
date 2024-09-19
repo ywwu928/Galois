@@ -104,6 +104,8 @@ protected:
   uint64_t numGlobalNodes; //!< Total nodes in the global unpartitioned graph.
   uint64_t numGlobalEdges; //!< Total edges in the global unpartitioned graph.
   uint32_t numNodes;       //!< Num nodes in this graph in total
+  uint32_t numActualNodes; //!< Num actual existing nodes in this graph in total
+  uint32_t numGhostNodes;  //!< Num ghost nodes in this graph in total
   uint64_t numEdges;       //!< Num edges in this graph in total
 
   const unsigned id;       //!< ID of the machine.
@@ -541,6 +543,9 @@ private:
 
 public:
   virtual ~DistGraph() {}
+  
+  unsigned GetLIDHost(uint64_t lid) const { return getHostIDImpl(getGID(lid)); }
+
   //! Determines which host has the master for a particular node
   //! @returns Host id of node in question
   inline unsigned getHostID(uint64_t gid) const { return getHostIDImpl(gid); }
@@ -819,7 +824,7 @@ protected:
     // first check if we even need to do any work; if already calculated,
     // use already calculated vector
     galois::gDebug("Manually det. mirror thread ranges");
-    mirrorRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::runtime::activeThreads, numOwned, numNodes, 0);
+    mirrorRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::runtime::activeThreads, numOwned, numActualNodes, 0);
   }
 
   /**
