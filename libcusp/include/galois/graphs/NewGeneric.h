@@ -95,8 +95,17 @@ private:
 
   virtual bool isLocalImpl(uint64_t gid) const {
     assert(gid < base_DistGraph::numGlobalNodes);
-    return (base_DistGraph::globalToLocalMap.find(gid) !=
-            base_DistGraph::globalToLocalMap.end());
+
+    auto it = base_DistGraph::globalToLocalMap.find(gid);
+    if (it == base_DistGraph::globalToLocalMap.end()) {
+        return false;
+    }
+    else {
+        if (it->second >= numActualNodes)
+            return false;
+        else
+            return true;
+    }
   }
 
   // TODO current uses graph partitioner
