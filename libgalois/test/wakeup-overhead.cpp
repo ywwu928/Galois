@@ -59,7 +59,7 @@ void runDoAll(int num) {
   for (int r = 0; r < rounds; ++r) {
     galois::do_all(galois::iterate(0, num), [&](int) {
       asm volatile("" ::: "memory");
-    });
+    }, galois::steal());
   }
 }
 
@@ -102,6 +102,7 @@ int main(int argc, char* argv[]) {
       std::cerr << ".";
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    std::cout << "End while loop" << std::endl;
   };
   galois::substrate::getThreadPool().runDedicated(f);
 
@@ -111,6 +112,8 @@ int main(int argc, char* argv[]) {
     run(runExplicitThread, "ExplicitThread");
   }
   EXIT = 1;
+
+  galois::substrate::getThreadPool().waitDedicated();
 
   std::cout << "threads: " << galois::getActiveThreads() << " usable threads: "
             << galois::substrate::getThreadPool().getMaxUsableThreads()

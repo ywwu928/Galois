@@ -397,7 +397,7 @@ void FileGraph::partFromFile(const std::string& filename, NodeRange nrange,
 
   // do interleaved numa allocation with current number of threads
   if (numaMap) {
-    unsigned int numThreads   = galois::runtime::activeThreads;
+    unsigned int numThreads   = galois::getActiveThreads();
     const size_t hugePageSize = 2 * 1024 * 1024; // 2MB
 
     void* ptr;

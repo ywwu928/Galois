@@ -163,6 +163,13 @@ public:
 
   //! run function in a dedicated thread until the threadpool exits
   void runDedicated(std::function<void(void)>& f);
+  
+  //! wait until all dedicated threads are finished
+  void waitDedicated() {
+      while (reserved != 0) {
+          asmPause();
+      }
+  }
 
   // experimental: busy wait for work
   void burnPower(unsigned num);

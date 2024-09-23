@@ -365,8 +365,8 @@ protected:
 
   template <typename... WArgsTy>
   ForEachExecutor(T2, FunctionTy f, const ArgsTy& args, WArgsTy... wargs)
-      : term(substrate::getSystemTermination(activeThreads)),
-        barrier(getBarrier(activeThreads)), wl(std::forward<WArgsTy>(wargs)...),
+      : term(substrate::getSystemTermination(getActiveThreads())),
+        barrier(getBarrier(getActiveThreads())), wl(std::forward<WArgsTy>(wargs)...),
         origFunction(f), loopname(galois::internal::getLoopName(args)),
         broke(false), initTime(loopname, "Init"),
         execTime(loopname, "Execute") {}
@@ -403,7 +403,7 @@ public:
 
   void operator()() {
     bool isLeader   = substrate::ThreadPool::isLeader();
-    bool couldAbort = needsAborts && activeThreads > 1;
+    bool couldAbort = needsAborts && getActiveThreads() > 1;
     if (couldAbort && isLeader)
       go<true, true>();
     else if (couldAbort && !isLeader)
@@ -450,12 +450,13 @@ void for_each_impl(const RangeTy& range, FunctionTy&& fn, const ArgsTy& args) {
       OperatorReferenceType<decltype(std::forward<FunctionTy>(fn))>;
   typedef ForEachExecutor<WorkListTy, FuncRefType, ArgsTy> WorkTy;
 
-  auto& barrier      = getBarrier(activeThreads);
+  const auto numT = getActiveThreads();
+  auto& barrier      = getBarrier(numT);
   FuncRefType fn_ref = fn;
   WorkTy W(fn_ref, args);
   W.init(range);
   substrate::getThreadPool().run(
-      activeThreads, [&W, &range]() { W.initThread(range); }, std::ref(barrier),
+      numT, [&W, &range]() { W.initThread(range); }, std::ref(barrier),
       std::ref(W));
 }
 

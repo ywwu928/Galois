@@ -22,6 +22,7 @@
 #include "galois/substrate/CompilerSpecific.h"
 
 #include <atomic>
+#include <iostream>
 
 namespace {
 

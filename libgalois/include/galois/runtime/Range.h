@@ -31,8 +31,6 @@
 namespace galois {
 namespace runtime {
 
-extern unsigned int activeThreads;
-
 // TODO(ddn): update to have better forward iterator behavor for blocked/local
 // iteration
 
@@ -57,7 +55,7 @@ public:
 
   std::pair<block_iterator, block_iterator> block_pair() const {
     return galois::block_range(begin(), end(), substrate::ThreadPool::getTID(),
-                               activeThreads);
+                               getActiveThreads());
   }
 
   std::pair<local_iterator, local_iterator> local_pair() const {
@@ -94,7 +92,7 @@ public:
 
   std::pair<block_iterator, block_iterator> block_pair() const {
     return galois::block_range(ii, ei, substrate::ThreadPool::getTID(),
-                               activeThreads);
+                               getActiveThreads());
   }
 
   std::pair<local_iterator, local_iterator> local_pair() const {
@@ -145,7 +143,7 @@ public:
    */
   std::pair<block_iterator, block_iterator> block_pair() const {
     uint32_t my_thread_id  = substrate::ThreadPool::getTID();
-    uint32_t total_threads = runtime::activeThreads;
+    uint32_t total_threads = getActiveThreads();
 
     iterator local_begin = thread_beginnings[my_thread_id];
     iterator local_end   = thread_beginnings[my_thread_id + 1];

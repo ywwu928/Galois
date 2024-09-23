@@ -39,10 +39,6 @@
 
 namespace galois {
 
-namespace runtime {
-extern unsigned activeThreads;
-} // end namespace runtime
-
 /**
  * Large array of objects with proper specialization for void type and
  * supporting various allocation and construction policies.
@@ -82,12 +78,12 @@ protected:
     case Blocked:
       galois::gDebug("Block-alloc'd");
       m_realdata =
-          substrate::largeMallocBlocked(n * sizeof(T), runtime::activeThreads);
+          substrate::largeMallocBlocked(n * sizeof(T), getActiveThreads());
       break;
     case Interleaved:
       galois::gDebug("Interleave-alloc'd");
       m_realdata = substrate::largeMallocInterleaved(n * sizeof(T),
-                                                     runtime::activeThreads);
+                                                     getActiveThreads());
       break;
     case Local:
       galois::gDebug("Local-allocd");
@@ -242,7 +238,7 @@ public:
     assert(!m_data);
 
     m_realdata = substrate::largeMallocSpecified(numberOfElements * sizeof(T),
-                                                 runtime::activeThreads,
+                                                 getActiveThreads(),
                                                  threadRanges, sizeof(T));
 
     m_size = numberOfElements;

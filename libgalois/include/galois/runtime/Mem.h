@@ -38,11 +38,10 @@
 #include "galois/substrate/PerThreadStorage.h"
 #include "galois/substrate/PtrLock.h"
 #include "galois/substrate/SimpleLock.h"
+#include "galois/Threads.h"
 
 namespace galois {
 namespace runtime {
-
-extern unsigned activeThreads;
 
 //! Memory management functionality.
 
@@ -682,7 +681,7 @@ public:
   enum { AllocSize = 0 };
 
   void* allocate(size_t size) {
-    auto ptr = substrate::largeMallocInterleaved(size + offset, activeThreads);
+    auto ptr = substrate::largeMallocInterleaved(size + offset, getActiveThreads());
     substrate::LAptr* header =
         new ((char*)ptr.get()) substrate::LAptr{std::move(ptr)};
     return (char*)(header->get()) + offset;

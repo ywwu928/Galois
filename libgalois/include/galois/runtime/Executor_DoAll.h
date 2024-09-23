@@ -233,8 +233,8 @@ private:
   transferWork(ThreadContext& rich, ThreadContext& poor, StealAmt amount) {
 
     assert(rich.id != poor.id);
-    assert(rich.id < galois::getActiveThreads());
-    assert(poor.id < galois::getActiveThreads());
+    assert(rich.id < getActiveThreads());
+    assert(poor.id < getActiveThreads());
 
     Iter steal_beg;
     Iter steal_end;
@@ -262,7 +262,7 @@ private:
 
     auto& tp = substrate::getThreadPool();
 
-    const unsigned maxT     = galois::getActiveThreads();
+    const unsigned maxT     = getActiveThreads();
     const unsigned my_pack  = substrate::ThreadPool::getSocket();
     const unsigned per_pack = tp.getMaxThreads() / tp.getMaxSockets();
 
@@ -299,7 +299,7 @@ private:
     auto& tp       = substrate::getThreadPool();
     unsigned myPkg = substrate::ThreadPool::getSocket();
     // unsigned maxT = LL::getMaxThreads ();
-    unsigned maxT = galois::getActiveThreads();
+    unsigned maxT = getActiveThreads();
 
     for (unsigned i = 0; i < maxT; ++i) {
       ThreadContext& rich = *(workers.getRemote((poor.id + i) % maxT));
@@ -371,7 +371,7 @@ public:
       : range(_range), func(_func),
         loopname(galois::internal::getLoopName(argsTuple)),
         chunk_size(get_trait_value<chunk_size_tag>(argsTuple).value),
-        term(substrate::getSystemTermination(activeThreads)),
+        term(substrate::getSystemTermination(getActiveThreads())),
         totalTime(loopname, "Total"), initTime(loopname, "Init"),
         execTime(loopname, "Execute"), stealTime(loopname, "Steal"),
         termTime(loopname, "Term") {
@@ -467,10 +467,11 @@ struct ChooseDoAllImpl {
         R, OperatorReferenceType<decltype(std::forward<F>(func))>, ArgsT>
         exec(range, std::forward<F>(func), argsTuple);
 
-    substrate::Barrier& barrier = getBarrier(activeThreads);
+    const auto numT = getActiveThreads();
+    substrate::Barrier& barrier = getBarrier(numT);
 
     substrate::getThreadPool().run(
-        activeThreads, [&exec](void) { exec.initThread(); }, std::ref(barrier),
+        numT, [&exec](void) { exec.initThread(); }, std::ref(barrier),
         std::ref(exec));
   }
 };

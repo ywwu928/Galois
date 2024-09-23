@@ -556,8 +556,8 @@ class DAGManagerBase<OptionsTy, true> {
 
 public:
   DAGManagerBase()
-      : term(substrate::getSystemTermination(activeThreads)),
-        barrier(getBarrier(activeThreads)) {}
+      : term(substrate::getSystemTermination(getActiveThreads())),
+        barrier(getBarrier(getActiveThreads())) {}
 
   void destroyDAGManager() { data.getLocal()->heap.clear(); }
 
@@ -750,7 +750,7 @@ class BreakManagerBase<OptionsTy, true> {
 public:
   BreakManagerBase(const OptionsTy& o)
       : breakFn(get_trait_value<det_parallel_break_tag>(o.args).value),
-        barrier(getBarrier(activeThreads)) {}
+        barrier(getBarrier(getActiveThreads())) {}
 
   bool checkBreak() {
     if (substrate::ThreadPool::getTID() == 0)
@@ -780,7 +780,7 @@ class IntentToReadManagerBase<OptionsTy, true> {
   substrate::Barrier& barrier;
 
 public:
-  IntentToReadManagerBase() : barrier(getBarrier(activeThreads)) {}
+  IntentToReadManagerBase() : barrier(getBarrier(getActiveThreads())) {}
 
   void pushIntentToReadTask(Context* ctx) {
     pending.getLocal()->push_back(ctx);
@@ -1248,7 +1248,7 @@ class NewWorkManager : public IdManager<OptionsTy> {
 public:
   NewWorkManager(const OptionsTy& o)
       : IdManager<OptionsTy>(o), alloc(&heap), mergeBuf(alloc),
-        distributeBuf(alloc), barrier(getBarrier(activeThreads)) {
+        distributeBuf(alloc), barrier(getBarrier(getActiveThreads())) {
     numActive = getActiveThreads();
   }
 
@@ -1376,7 +1376,7 @@ class Executor : public BreakManager<OptionsTy>,
 public:
   Executor(const OptionsTy& o)
       : BreakManager<OptionsTy>(o), NewWorkManager<OptionsTy>(o), options(o),
-        barrier(getBarrier(activeThreads)),
+        barrier(getBarrier(getActiveThreads())),
         loopname(galois::internal::getLoopName(o.args)) {
     static_assert(!OptionsTy::needsBreak || OptionsTy::hasBreak,
                   "need to use break function to break loop");

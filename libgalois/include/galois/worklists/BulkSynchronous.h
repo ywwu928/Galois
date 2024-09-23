@@ -67,7 +67,7 @@ public:
   typedef T value_type;
 
   BulkSynchronous()
-      : barrier(runtime::getBarrier(runtime::activeThreads)), some(false),
+      : barrier(runtime::getBarrier(getActiveThreads())), some(false),
         isEmpty(false) {}
 
   void push(const value_type& val) {

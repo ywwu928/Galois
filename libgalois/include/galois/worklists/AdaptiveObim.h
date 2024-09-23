@@ -357,7 +357,7 @@ private:
       Index minOfMin                       = p.minPrio;
       Index maxOfMax                       = p.maxPrio;
       p.cleanup();
-      for (unsigned i = 1; i < runtime::activeThreads; ++i) {
+      for (unsigned i = 1; i < getActiveThreads(); ++i) {
         while (!data.getRemote(i)->lock.try_lock())
           ;
 
@@ -409,7 +409,7 @@ private:
           delta = 0;
 
         p.cleanup();
-        for (unsigned i = 1; i < runtime::activeThreads; ++i) {
+        for (unsigned i = 1; i < getActiveThreads(); ++i) {
           while (!data.getRemote(i)->lock.try_lock())
             ;
           data.getRemote(i)->cleanup();
@@ -429,7 +429,7 @@ private:
     if (BSP && !UseMonotonic) {
       msS = p.scanStart;
       if (localLeader || uniformBSP) {
-        for (unsigned i = 0; i < runtime::activeThreads; ++i) {
+        for (unsigned i = 0; i < getActiveThreads(); ++i) {
           msS = std::min(msS, data.getRemote(i)->scanStart);
         }
       } else {

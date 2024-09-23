@@ -26,11 +26,9 @@
 #include "galois/substrate/PaddedLock.h"
 #include "galois/worklists/WLCompileCheck.h"
 #include "galois/worklists/WorkListHelpers.h"
+#include "galois/Threads.h"
 
 namespace galois {
-namespace runtime {
-extern unsigned activeThreads;
-}
 namespace worklists {
 
 namespace internal {
@@ -42,7 +40,7 @@ struct squeue {
   TQ& get(int i) { return *queues.getRemote(i); }
   TQ& get() { return *queues.getLocal(); }
   int myEffectiveID() { return substrate::ThreadPool::getTID(); }
-  int size() { return runtime::activeThreads; }
+  int size() { return getActiveThreads(); }
 };
 
 template <template <typename> class PS, typename TQ>

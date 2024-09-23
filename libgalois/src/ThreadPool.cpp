@@ -145,6 +145,7 @@ void ThreadPool::threadLoop(unsigned tid) {
     } catch (const dedicated_ty dt) {
       me.done = 1;
       dt.fn();
+      --reserved;
       return;
     } catch (const std::exception& exc) {
       // catch anything thrown within try block that derives from std::exception

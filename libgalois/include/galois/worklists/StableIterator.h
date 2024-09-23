@@ -129,7 +129,7 @@ private:
     }
     ++data.nextVictim;
     ++data.numStealFailures;
-    data.nextVictim %= runtime::activeThreads;
+    data.nextVictim %= getActiveThreads();
     return galois::optional<value_type>();
   }
 
@@ -154,7 +154,7 @@ public:
       return *data.localBegin++;
 
     galois::optional<value_type> item;
-    if (Steal && 2 * data.numStealFailures > runtime::activeThreads)
+    if (Steal && 2 * data.numStealFailures > getActiveThreads())
       if ((item = pop_steal(data)))
         return item;
     if ((item = inner.pop()))
