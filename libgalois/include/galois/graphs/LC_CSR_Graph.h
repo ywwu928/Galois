@@ -405,6 +405,7 @@ public:
   GraphNode getEdgeDst(edge_iterator ni) { return edgeDst[*ni]; }
 
   size_t size() const { return numNodes; }
+  size_t actualSize() const { return numActualNodes; }
   size_t sizeEdges() const { return numEdges; }
 
   iterator begin() const { return iterator(0); }
@@ -511,7 +512,7 @@ public:
    */
   void sortAllEdgesByDst(MethodFlag mflag = MethodFlag::WRITE) {
     galois::do_all(
-        galois::iterate(size_t{0}, this->size()),
+        galois::iterate(size_t{0}, this->actualSize()),
         [=](GraphNode N) { this->sortEdgesByDst(N, mflag); },
         galois::no_stats(), galois::steal());
   }

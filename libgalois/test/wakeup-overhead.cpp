@@ -114,6 +114,7 @@ int main(int argc, char* argv[]) {
   EXIT = 1;
 
   galois::substrate::getThreadPool().waitDedicated();
+  run(runDoAll, "DoAll");
 
   std::cout << "threads: " << galois::getActiveThreads() << " usable threads: "
             << galois::substrate::getThreadPool().getMaxUsableThreads()

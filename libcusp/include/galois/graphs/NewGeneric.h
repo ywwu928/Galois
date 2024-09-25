@@ -95,17 +95,18 @@ private:
 
   virtual bool isLocalImpl(uint64_t gid) const {
     assert(gid < base_DistGraph::numGlobalNodes);
-
-    auto it = base_DistGraph::globalToLocalMap.find(gid);
-    if (it == base_DistGraph::globalToLocalMap.end()) {
-        return false;
-    }
-    else {
-        if (it->second >= numActualNodes)
-            return false;
-        else
-            return true;
-    }
+    return (base_DistGraph::globalToLocalMap.find(gid) !=
+            base_DistGraph::globalToLocalMap.end());
+  }
+  
+  virtual bool isPresentImpl(uint32_t lid) const {
+    assert(lid < base_DistGraph::numNodes);
+    return (lid < base_DistGraph::numActualNodes);
+  }
+  
+  virtual bool isGhostImpl(uint32_t lid) const {
+    assert(lid < base_DistGraph::numNodes);
+    return (lid >= base_DistGraph::numActualNodes && lid < base_DistGraph::numNodes);
   }
 
   // TODO current uses graph partitioner
@@ -364,10 +365,10 @@ public:
 
     Tthread_ranges.start();
     base_DistGraph::determineThreadRanges();
+    base_DistGraph::determineThreadRangesPresent();
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesMirror();
     base_DistGraph::determineThreadRangesGhost();
-    base_DistGraph::determineThreadRangesWithEdges();
     base_DistGraph::initializeSpecificRanges();
     Tthread_ranges.stop();
 
@@ -406,9 +407,9 @@ private:
     }
 
     assignedThreadRanges = galois::graphs::determineUnitRangesFromPrefixSum(
-        galois::runtime::activeThreads, edgePrefixSum);
+        galois::getActiveThreads(), edgePrefixSum);
 
-    for (unsigned i = 0; i < galois::runtime::activeThreads + 1; i++) {
+    for (unsigned i = 0; i < galois::getActiveThreads() + 1; i++) {
       assignedThreadRanges[i] += startNode;
     }
 
@@ -1545,8 +1546,11 @@ private:
     uint32_t totalNumNodes = base_DistGraph::numGlobalNodes;
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
-    if (mirrorThreshold <= 0) {
+    if (mirrorThreshold == 0) { // full mirroring
         partialMirrorCount = fullMirrorCount;
+    }
+    else if (mirrorThreshold < 0) { // no mirroring
+        partialMirrorCount = 0;
     }
     else {
         galois::GAccumulator<uint32_t> partialMirrorAccumulator;
@@ -1557,7 +1561,7 @@ private:
             size_t endNode;
             std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
             for (size_t i = beginNode; i < endNode; i++) {
-                if (incomingDegree[i] >= mirrorThreshold)
+                if (incomingDegree[i] > mirrorThreshold)
                     partialMirrorAccumulator += 1;
             }
         });
@@ -1577,7 +1581,7 @@ private:
     }
 
     if (fullMirrorCount > 0) {
-      if (partialMirrorCount == fullMirrorCount) {
+      if (partialMirrorCount == fullMirrorCount || partialMirrorCount == 0) { // full mirroring or no mirroring
           // TODO move this part below into separate function
           uint32_t activeThreads = galois::getActiveThreads();
           std::vector<uint64_t> threadPrefixSums(activeThreads);
@@ -1628,7 +1632,6 @@ private:
       }
       else {
           // TODO move this part below into separate function
-          uint32_t totalNumNodes = base_DistGraph::numGlobalNodes;
           uint32_t activeThreads = galois::getActiveThreads();
           std::vector<uint64_t> threadMirrorPrefixSums(activeThreads);
           std::vector<uint64_t> threadGhostPrefixSums(activeThreads);
@@ -1641,7 +1644,7 @@ private:
             uint64_t ghost_count = 0;
             for (size_t i = beginNode; i < endNode; i++) {
                 if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] >= mirrorThreshold)
+                    if (incomingDegree[i] > mirrorThreshold)
                         ++mirror_count;
                     else
                         ++ghost_count;
@@ -1673,12 +1676,14 @@ private:
             }
             uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
-              if (incomingDegree[i] >= mirrorThreshold) {
-                base_DistGraph::localToGlobalVector[startingNodeIndex +
-                                                    threadStartLocation +
-                                                    handledNodes] = i;
-                handledNodes++;
-              }
+                if (incomingMirrors.test(i)) {
+                    if (incomingDegree[i] > mirrorThreshold) {
+                      base_DistGraph::localToGlobalVector[startingNodeIndex +
+                                                          threadStartLocation +
+                                                          handledNodes] = i;
+                      handledNodes++;
+                    }
+                }
             }
           });
           
@@ -1699,12 +1704,14 @@ private:
             }
             uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
-              if (incomingDegree[i] < mirrorThreshold) {
-                base_DistGraph::localToGlobalVector[startingNodeIndex +
-                                                    threadStartLocation +
-                                                    handledNodes] = i;
-                handledNodes++;
-              }
+                if (incomingMirrors.test(i)) {
+                    if (incomingDegree[i] <= mirrorThreshold) {
+                      base_DistGraph::localToGlobalVector[startingNodeIndex +
+                                                          threadStartLocation +
+                                                          handledNodes] = i;
+                      handledNodes++;
+                    }
+                }
             }
           });
           

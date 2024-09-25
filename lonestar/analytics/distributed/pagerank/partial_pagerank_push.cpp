@@ -94,21 +94,21 @@ struct ResetGraph {
 
   ResetGraph(Graph* _graph) : graph(_graph) {}
   void static go(Graph& _graph) {
-    const auto& allNodes = _graph.allNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("ResetGraph_" +
                            (syncSubstrate->get_run_identifier()));
       galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
       StatTimer_cuda.start();
-      ResetGraph_allNodes_cuda(cuda_ctx);
+      ResetGraph_presentNodes_cuda(cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
 #endif
     } else if (personality == CPU) {
       galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
+          galois::iterate(presentNodes.begin(), presentNodes.end()),
           ResetGraph{&_graph}, galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("ResetGraph").c_str()));
@@ -138,7 +138,7 @@ struct InitializeGraph {
     // at start)
     ResetGraph::go(_graph);
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
@@ -146,7 +146,7 @@ struct InitializeGraph {
                            (syncSubstrate->get_run_identifier()));
       galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
       StatTimer_cuda.start();
-      InitializeGraph_nodesWithEdges_cuda(alpha, cuda_ctx);
+      InitializeGraph_masterNodes_cuda(alpha, cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
@@ -155,14 +155,11 @@ struct InitializeGraph {
       // regular do all without stealing; just initialization of nodes with
       // outgoing edges
       galois::do_all(
-          galois::iterate(nodesWithEdges.begin(), nodesWithEdges.end()),
+          galois::iterate(masterNodes.begin(), masterNodes.end()),
           InitializeGraph{alpha, &_graph}, galois::steal(), galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
     }
-
-    syncSubstrate->sync<writeSource, readSource, Reduce_add_nout, Bitset_nout>(
-        "InitializeGraphNout");
   }
 
   void operator()(GNode src) const {
@@ -171,7 +168,6 @@ struct InitializeGraph {
     uint32_t num_edges =
         std::distance(graph->edge_begin(src), graph->edge_end(src));
     galois::atomicAdd(sdata.nout, num_edges);
-    bitset_nout.set(src);
   }
 };
 
@@ -186,21 +182,21 @@ struct PageRank_delta {
         graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("PageRank_" + (syncSubstrate->get_run_identifier()));
       galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
       StatTimer_cuda.start();
-      PageRank_delta_nodesWithEdges_cuda(alpha, tolerance, cuda_ctx);
+      PageRank_delta_masterNodes_cuda(alpha, tolerance, cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
 #endif
     } else if (personality == CPU) {
       galois::do_all(
-          galois::iterate(nodesWithEdges.begin(), nodesWithEdges.end()),
+          galois::iterate(masterNodes.begin(), masterNodes.end()),
           PageRank_delta{alpha, tolerance, &_graph}, galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("PageRank_delta").c_str()));
@@ -237,7 +233,7 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
     DGTerminatorDetector dga;
 
     do {
@@ -254,18 +250,42 @@ struct PageRank {
         galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
         StatTimer_cuda.start();
         unsigned int __retval = 0;
-        PageRank_nodesWithEdges_cuda(__retval, cuda_ctx);
+        PageRank_masterNodes_cuda(__retval, cuda_ctx);
         dga += __retval;
         StatTimer_cuda.stop();
 #else
         abort();
 #endif
       } else if (personality == CPU) {
+        // dedicate a thread to poll for remote messages
+        syncSubstrate->reset_terminateFlag();
+        syncSubstrate->reset_pollTerminate();
+        std::function<void(void)> func = [&]() {
+                syncSubstrate->poll_for_msg_term<Reduce_add_residual>();
+        };
+        galois::substrate::getThreadPool().runDedicated(func);
+        
+        // launch all other threads to compute
         galois::do_all(
-            galois::iterate(nodesWithEdges), PageRank{&_graph, dga},
+            galois::iterate(masterNodes), PageRank{&_graph, dga},
             galois::no_stats(), galois::steal(),
             galois::loopname(
                 syncSubstrate->get_run_identifier("PageRank").c_str()));
+        
+        // inform all other hosts that this host has finished sending messages
+        syncSubstrate->send_terminator_to_remote();
+        // force all messages to be processed before continuing
+        syncSubstrate->net_flush();
+
+        // dedicate a thread to poll for terminate message
+        syncSubstrate->set_pollTerminate();
+
+        // launch all other threads to poll for messages
+        galois::on_each(
+            [&](unsigned int, unsigned int) {
+                syncSubstrate->poll_for_msg<Reduce_add_residual>();
+            }
+        );
       }
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
@@ -297,11 +317,18 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-        NodeData& ddata = graph->getData(dst);
+      
+        if (graph->isGhost(dst)) {
+            uint64_t dst_GID = graph->getGID(dst);
+            syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostID(dst_GID), dst_GID, _delta);
+        }
+        else {
+            NodeData& ddata = graph->getData(dst);
 
-        galois::atomicAdd(ddata.residual, _delta);
+            galois::atomicAdd(ddata.residual, _delta);
 
-        bitset_residual.set(dst);
+            bitset_residual.set(dst);
+        }
       }
     }
   }
@@ -507,7 +534,6 @@ int main(int argc, char** argv) {
 #endif
 
   bitset_residual.resize(hg->size());
-  bitset_nout.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
@@ -544,13 +570,11 @@ int main(int argc, char** argv) {
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
         bitset_residual_reset_cuda(cuda_ctx);
-        bitset_nout_reset_cuda(cuda_ctx);
 #else
         abort();
 #endif
       } else {
         bitset_residual.reset();
-        bitset_nout.reset();
       }
 
       (*syncSubstrate).set_num_run(run + 1);

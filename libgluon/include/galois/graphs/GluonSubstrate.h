@@ -28,6 +28,9 @@
 
 #include <unordered_map>
 #include <fstream>
+#include <atomic>
+#include <cstdint>
+#include <algorithm>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
@@ -120,12 +123,10 @@ private:
   //! Mirror nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& mirrorNodes;
-  //! Master nodes of ghosts on different hosts. For broadcast;
-  std::vector<std::vector<size_t>> ghostMasterNodes;
-  //! ghost nodes on different hosts. comes from the user graph
+  //! Mirror nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& ghostNodes;
-  //! Maximum size of master or mirror nodes on different hosts
+  //! Master nodes of ghosts on different hosts. For broadcast;
   size_t maxSharedSize;
 
 #ifdef GALOIS_USE_BARE_MPI
@@ -183,6 +184,7 @@ private:
    * Let other hosts know about which host has what mirrors/masters;
    * used for later communication of mirrors/masters.
    */
+
   void exchangeProxyInfo() {
     auto& net = galois::runtime::getSystemNetworkInterface();
 
@@ -207,29 +209,6 @@ private:
       } while (!p);
 
       galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
-    }
-    
-    // send off the ghost nodes
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-
-      galois::runtime::SendBuffer b;
-      gSerialize(b, ghostNodes[x]);
-      net.sendTagged(x, galois::runtime::evilPhase, b);
-    }
-
-    // receive the ghost nodes
-    for (unsigned x = 0; x < numHosts; ++x) {
-      if (x == id)
-        continue;
-
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
-      do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
-      } while (!p);
-
-      galois::runtime::gDeserialize(p->second, ghostMasterNodes[p->first]);
     }
     
     // convert the global ids stored in the master/mirror nodes arrays to local
@@ -259,30 +238,6 @@ private:
           galois::no_stats());
     }
     
-    for (uint32_t h = 0; h < ghostMasterNodes.size(); ++h) {
-      galois::do_all(
-          galois::iterate(size_t{0}, ghostMasterNodes[h].size()),
-          [&](size_t n) {
-            ghostMasterNodes[h][n] = userGraph.getLID(ghostMasterNodes[h][n]);
-          },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("GhostMasterNodes").c_str()),
-#endif
-          galois::no_stats());
-    }
-
-    for (uint32_t h = 0; h < ghostNodes.size(); ++h) {
-      galois::do_all(
-          galois::iterate(size_t{0}, ghostNodes[h].size()),
-          [&](size_t n) {
-            ghostNodes[h][n] = userGraph.getLID(ghostNodes[h][n]);
-          },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("GhostNodes").c_str()),
-#endif
-          galois::no_stats());
-    }
-    
     incrementEvilPhase();
   }
 
@@ -291,11 +246,22 @@ private:
    * report the statistics.
    */
   void sendInfoToHost() {
+    uint64_t host_master_nodes = userGraph.numMasters();
+    uint64_t host_mirror_nodes = userGraph.numMirrors();
+    uint64_t host_ghost_nodes = userGraph.numGhosts();
+  
+    std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    std::string ghost_nodes_str = "GhostNodes_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, ghost_nodes_str, host_ghost_nodes);
+        
     auto& net = galois::runtime::getSystemNetworkInterface();
 
     if (net.ID == 0) {
-        uint64_t global_total_mirror_nodes = userGraph.numMirrors();
-        uint64_t global_total_ghost_nodes = userGraph.numGhosts();
+        uint64_t global_total_mirror_nodes = host_mirror_nodes;
+        uint64_t global_total_ghost_nodes = host_ghost_nodes;
 
         // receive
         for (unsigned x = 0; x < numHosts; ++x) {
@@ -318,9 +284,6 @@ private:
     }
     else {
         // send info to host
-        uint64_t host_mirror_nodes = userGraph.numMirrors();
-        uint64_t host_ghost_nodes = userGraph.numGhosts();
-        
         galois::runtime::SendBuffer b;
         gSerialize(b, host_mirror_nodes, host_ghost_nodes);
         net.sendTagged(0, galois::runtime::evilPhase, b);
@@ -369,10 +332,6 @@ private:
     for (auto x = 0U; x < masterNodes.size(); ++x) {
       if (x == id)
         continue;
-      std::string master_nodes_str =
-          "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
-          RNAME, master_nodes_str, masterNodes[x].size());
       if (masterNodes[x].size() > maxSharedSize) {
         maxSharedSize = masterNodes[x].size();
       }
@@ -381,22 +340,9 @@ private:
     for (auto x = 0U; x < mirrorNodes.size(); ++x) {
       if (x == id)
         continue;
-      std::string mirror_nodes_str =
-          "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
-          RNAME, mirror_nodes_str, mirrorNodes[x].size());
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
       }
-    }
-    
-    for (auto x = 0U; x < ghostNodes.size(); ++x) {
-      if (x == id)
-        continue;
-      std::string ghost_nodes_str =
-          "GhostNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
-          RNAME, ghost_nodes_str, ghostNodes[x].size());
     }
 
     sendInfoToHost();
@@ -452,7 +398,7 @@ private:
         GALOIS_DIE("unsupported bare MPI");
       }
     }
-#endifG
+#endif
   }
 
 public:
@@ -484,7 +430,7 @@ public:
         cartesianGrid(_cartesianGrid), partitionAgnostic(_partitionAgnostic),
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
         num_round(0), currentBVFlag(nullptr),
-        mirrorNodes(userGraph.getMirrorNodes(),
+        mirrorNodes(userGraph.getMirrorNodes()),
         ghostNodes(userGraph.getGhostNodes()) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
@@ -505,16 +451,12 @@ public:
     initBareMPI();
     // master setup from mirrors done by setupCommunication call
     masterNodes.resize(numHosts);
-    ghostMasterNodes.resize(numHosts);
     // setup proxy communication
     galois::CondStatTimer<MORE_DIST_STATS> Tgraph_construct_comm(
         "GraphCommSetupTime", RNAME);
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
-	
-	std::string master_nodes_str = "NumMasterNodesOf_" + std::to_string(id);
-	galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, userGraph.numMasters());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -3596,6 +3538,118 @@ public:
       }
     }
   }
+
+/* For Polling */
+private:
+    std::atomic<bool> terminateFlag;
+    std::atomic<bool> pollTerminate;
+
+public:
+    void reset_terminateFlag() {
+        terminateFlag = false;
+    }
+    void set_terminateFlag() {
+        terminateFlag = true;
+    }
+
+    void reset_pollTerminate() {
+        pollTerminate = false;
+    }
+    void set_pollTerminate() {
+        pollTerminate = true;
+    }
+
+    template<typename FnTy>
+    void poll_for_msg() {
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        decltype(net.recieveTagged(0, nullptr)) p;
+        while (true) {
+            do {
+                p = net.recieveTagged(0, nullptr);
+                if (!p) {
+                    galois::substrate::asmPause();
+                }
+            } while (!p && !terminateFlag);
+            
+            if (p) { // receive message
+                uint64_t gid;
+                typename FnTy::ValTy val;
+                galois::runtime::gDeserialize(p->second, gid, val);
+                uint32_t lid = userGraph.getLID(gid);
+                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+            }
+            else { // terminate
+                break;
+            }
+        }
+    }
+    
+    template<typename FnTy>
+    void poll_for_msg_term() {
+        std::vector<bool> end_list(numHosts);
+        end_list[id] = true;
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        decltype(net.recieveTagged(0, nullptr)) p;
+        while (true) {
+            do {
+                p = net.recieveTagged(0, nullptr);
+                if (!p) {
+                    if (pollTerminate) {
+                        break;
+                    }
+                    else {
+                        galois::substrate::asmPause();
+                    }
+                }
+            } while (!p);
+            
+            if (p) { // receive message
+                uint64_t gid;
+                typename FnTy::ValTy val;
+                galois::runtime::gDeserialize(p->second, gid, val);
+                uint32_t lid = userGraph.getLID(gid);
+                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+            }
+            else { // poll terminate message
+                do {
+                    p = net.recieveTagged(1, nullptr);
+                    if (!p) {
+                        galois::substrate::asmPause();
+                    }
+                } while (!p);
+
+                end_list[p->first] = true;
+                auto it = std::find(end_list.begin(), end_list.end(), false);
+                if (it == end_list.end()) {
+                    set_terminateFlag();
+                    break;
+                }
+            }
+        }
+    }
+
+    void net_flush() {
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        net.flush();
+    }
+
+    template <typename FnTy>
+    void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        galois::runtime::SendBuffer b;
+        gSerialize(b, gid, val);
+        net.sendTagged(dst, 0, b);
+    }
+  
+    void send_terminator_to_remote() {
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        for (unsigned h = 1; h < numHosts; ++h) {
+            unsigned x = (id + h) % numHosts;
+            galois::runtime::SendBuffer b;
+            gSerialize(b, true);
+            net.sendTagged(x, 1, b);
+        }
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Checkpointing code for graph
