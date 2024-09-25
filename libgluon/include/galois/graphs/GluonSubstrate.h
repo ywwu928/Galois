@@ -303,10 +303,13 @@ private:
   void reportProxyStats(uint64_t global_total_mirror_nodes, uint64_t global_total_ghost_nodes) {
     float replication_factor = (float)global_total_mirror_nodes / (float)userGraph.globalSize();
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor", replication_factor);
+    float memory_overhead = (float)(userGraph.globalSize() + userGraph.globalSizeEdges() + global_total_mirror_nodes) / (float)(userGraph.globalSize() + userGraph.globalSizeEdges());
+    galois::runtime::reportStat_Single(RNAME, "AggregatedMemoryOverhead", memory_overhead);
 
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalNodes", userGraph.globalSize());
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalMasterNodes", userGraph.globalSize());
     galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
     galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalGhostNodes", global_total_ghost_nodes);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalEdges", userGraph.globalSizeEdges());
   }
 
   /**
