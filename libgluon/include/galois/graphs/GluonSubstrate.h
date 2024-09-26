@@ -3564,12 +3564,11 @@ public:
 
     template<typename FnTy>
     void poll_for_msg() {
-        unsigned tid = galois::substrate::ThreadPool::getTID();
         auto& net = galois::runtime::getSystemNetworkInterface();
         decltype(net.receiveTagged(0)) p;
         while (true) {
             do {
-                p = net.receiveTagged(0, 0, tid);
+                p = net.receiveTagged(0);
                 if (!p) {
                     galois::substrate::asmPause();
                 }
@@ -3590,14 +3589,13 @@ public:
     
     template<typename FnTy>
     void poll_for_msg_term() {
-        unsigned tid = galois::substrate::ThreadPool::getTID();
         std::vector<bool> end_list(numHosts);
         end_list[id] = true;
         auto& net = galois::runtime::getSystemNetworkInterface();
         decltype(net.receiveTagged(0)) p;
         while (true) {
             do {
-                p = net.receiveTagged(0, 0, tid);
+                p = net.receiveTagged(0);
                 if (!p) {
                     if (pollTerminate) {
                         break;
@@ -3617,7 +3615,7 @@ public:
             }
             else { // poll terminate message
                 do {
-                    p = net.receiveTagged(1, 0, tid);
+                    p = net.receiveTagged(1);
                     if (!p) {
                         galois::substrate::asmPause();
                     }

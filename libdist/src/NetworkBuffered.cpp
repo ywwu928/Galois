@@ -451,7 +451,8 @@ public:
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
-  receiveTagged(uint32_t tag, int phase, unsigned thread_id) {
+  receiveTagged(uint32_t tag, int phase) {
+      unsigned thread_id = galois::substrate::ThreadPool::getTID();
       tag += phase;
       
       for (unsigned t=0; t<numT; t++) {
