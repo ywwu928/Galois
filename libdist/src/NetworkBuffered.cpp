@@ -359,6 +359,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           ++statSendEnqueued;
           netio->enqueue(std::move(msg));
         }
+        
         // handle receive
         NetworkIO::message rdata = netio->dequeue();
         if (rdata.data.size()) {
@@ -398,13 +399,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               ++inflightRecvs;
               recvData[curThreadNum][rdata.host].add(std::move(sub_msg));
               curThreadNum = (curThreadNum + 1) % numT;
-            }
+          }
         }
       }
     }
     finalizeMPI();
   }
-
+  
   std::thread worker;
   std::atomic<int> ready;
 
@@ -414,8 +415,9 @@ public:
     inflightRecvs       = 0;
     ready               = 0;
     anyReceivedMessages = false;
-    numT = galois::getActiveThreads();
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
+    galois::substrate::getThreadPool().addBackgroundThreadNum(1);
+    numT = galois::getActiveThreads();
     while (ready != 1) {
     };
     
@@ -431,6 +433,7 @@ public:
   virtual ~NetworkInterfaceBuffered() {
     ready = 3;
     worker.join();
+    galois::substrate::getThreadPool().subtractBackgroundThreadNum(1);
   }
 
   std::unique_ptr<galois::runtime::NetworkIO> netio;
