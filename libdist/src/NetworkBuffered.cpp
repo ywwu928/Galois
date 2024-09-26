@@ -31,10 +31,6 @@
 #include "galois/runtime/Tracer.h"
 #include "galois/Threads.h"
 
-#ifdef GALOIS_USE_LCI
-#define NO_AGG
-#endif
-
 #include <thread>
 #include <mutex>
 #include <iostream>
@@ -78,13 +74,12 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class recvBuffer {
     std::deque<NetworkIO::message> data;
-    SimpleLock qlock;
+    SimpleLock rlock;
     // tag of head of queue
     std::atomic<uint32_t> dataPresent;
 
   public:
     std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs) {
-#ifndef NO_AGG
       if (data.empty() || data.front().tag != tag)
         return std::optional<RecvBuffer>();
 
@@ -99,27 +94,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
 
       return std::optional<RecvBuffer>(RecvBuffer(std::move(vec), sizeof(uint32_t)));
-#else
-      if (data.empty() || data.front().tag != tag)
-        return std::optional<RecvBuffer>();
-
-      vTy vec(std::move(data.front().data));
-
-      data.pop_front();
-      --inflightRecvs;
-      if (!data.empty()) {
-        dataPresent = data.front().tag;
-      } else {
-        dataPresent = ~0;
-      }
-
-      return std::optional<RecvBuffer>(RecvBuffer(std::move(vec), 0));
-#endif
     }
 
     // Worker thread interface
     void add(NetworkIO::message m) {
-      std::lock_guard<SimpleLock> lg(qlock);
+      std::lock_guard<SimpleLock> lg(rlock);
       if (data.empty()) {
         galois::runtime::trace("ADD LATEST ", m.tag);
         dataPresent = m.tag;
@@ -147,9 +126,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
     uint32_t getPresentTag() { return dataPresent; }
 
-    bool try_lock() { return qlock.try_lock();}
+    bool try_lock() { return rlock.try_lock();}
     
-    void unlock() { return qlock.unlock();}
+    void unlock() { return rlock.unlock();}
   }; // end recv buffer class
 
   std::vector<std::vector<recvBuffer>> recvData;
@@ -169,7 +148,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     std::atomic<unsigned> urgent;
     //! @todo FIXME track time since some epoch in an atomic.
     std::chrono::high_resolution_clock::time_point time;
-    SimpleLock lock, timelock;
+    SimpleLock slock, timelock;
 
   public:
     unsigned long statSendTimeout;
@@ -177,16 +156,27 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     unsigned long statSendUrgent;
 
     size_t size() { return messages.size(); }
+    
+    void subtractNumBytes(size_t num) {
+        numBytes -= num;
+    }
 
     void markUrgent() {
       if (numBytes) {
-        std::lock_guard<SimpleLock> lg(lock);
+        std::lock_guard<SimpleLock> lg(slock);
         urgent = messages.size();
       }
     }
 
+    bool isUrgent() {
+        return (urgent > 0);
+    }
+
+    void decrementUrgent() {
+        --urgent;
+    }
+
     bool ready() {
-#ifndef NO_AGG
       if (numBytes == 0)
         return false;
       if (urgent) {
@@ -210,69 +200,22 @@ class NetworkInterfaceBuffered : public NetworkInterface {
         return true;
       }
       return false;
-#else
-      return messages.size() > 0;
-#endif
     }
 
-    std::pair<uint32_t, vTy>
-    assemble(std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
-      std::unique_lock<SimpleLock> lg(lock);
-      if (messages.empty())
-        return std::make_pair(~0, vTy());
-#ifndef NO_AGG
-      // compute message size
-      uint32_t len = 0;
-      int num      = 0;
-      uint32_t tag = messages.front().tag;
-      for (auto& m : messages) {
-        if (m.tag != tag) {
-          break;
-        } else {
-          // do not let it go over the integer limit because MPI_Isend cannot
-          // deal with it
-          if ((m.data.size() + sizeof(uint32_t) + len + num) >
-              static_cast<size_t>(std::numeric_limits<int>::max())) {
-            break;
-          }
-          len += m.data.size();
-          num += sizeof(uint32_t);
-        }
-      }
-      lg.unlock();
-      // construct message
-      vTy vec;
-      vec.reserve(len + num);
-      // go out of our way to avoid locking out senders when making messages
-      lg.lock();
-      do {
-        auto& m = messages.front();
-        lg.unlock();
-        union {
-          uint32_t a;
-          uint8_t b[sizeof(uint32_t)];
-        } foo;
-        foo.a = m.data.size();
-        vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
-        vec.insert(vec.end(), m.data.begin(), m.data.end());
-        if (urgent)
-          --urgent;
-        lg.lock();
-        messages.pop_front();
-        --inflightSends;
-      } while (vec.size() < len + num);
-      ++inflightSends;
-      numBytes -= len;
-#else
-      uint32_t tag = messages.front().tag;
-      vTy vec(std::move(messages.front().data));
-      messages.pop_front();
-#endif
-      return std::make_pair(tag, std::move(vec));
+    void lock() {
+        slock.lock();
+    }
+
+    void unlock() {
+        slock.unlock();
+    }
+
+    std::deque<msg>& getMessages() {
+        return messages;
     }
 
     void add(uint32_t tag, vTy& b) {
-      std::lock_guard<SimpleLock> lg(lock);
+      std::lock_guard<SimpleLock> lg(slock);
       if (messages.empty()) {
         std::lock_guard<SimpleLock> lg(timelock);
         time = std::chrono::high_resolution_clock::now();
@@ -285,7 +228,89 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     }
   }; // end send buffer class
 
-  std::vector<sendBuffer> sendData;
+  std::vector<std::vector<sendBuffer>> sendData;
+    
+  std::pair<uint32_t, vTy>
+  assemble(unsigned dst, unsigned start_tid, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
+      uint32_t tag = ~0;
+      bool tag_set = false;
+      
+      vTy vec;
+      uint32_t len = 0;
+      int num      = 0;
+      bool skip = false;
+      
+      for (unsigned t=0; t<numT; t++) {
+          if (skip) {
+              break;
+          }
+
+          unsigned tid = (start_tid + t) % numT;
+          
+          auto& sendBuf = sendData[tid][dst];
+          if (sendBuf.ready()) {
+              sendBuf.lock();
+              
+              // set tag
+              auto& messages = sendBuf.getMessages();
+              if (messages.empty()) {
+                  continue;
+              }
+              else {
+                  if (!tag_set) {
+                      tag = messages.front().tag;
+                      tag_set = true;
+                  }
+              }
+
+              // compute message size
+              for (auto& m : messages) {
+                  if (m.tag != tag) {
+                      break;
+                  } else {
+                      // do not let it go over the integer limit because MPI_Isend cannot
+                      // deal with it
+                      if ((m.data.size() + sizeof(uint32_t) + len + num) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                          skip = true;
+                          break;
+                      }
+
+                      len += m.data.size();
+                      num += sizeof(uint32_t);
+                  }
+              }
+              sendBuf.unlock();
+              
+              // construct message
+              vec.reserve(len + num);
+              
+              // go out of our way to avoid locking out senders when making messages
+              sendBuf.lock();
+              while (vec.size() < len) {
+                auto& m = messages.front();
+                sendBuf.unlock();
+
+                union {
+                  uint32_t a;
+                  uint8_t b[sizeof(uint32_t)];
+                } foo;
+                foo.a = m.data.size();
+                vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                vec.insert(vec.end(), m.data.begin(), m.data.end());
+                if (sendBuf.isUrgent())
+                  sendBuf.decrementUrgent();
+                
+                sendBuf.lock();
+                sendBuf.subtractNumBytes(m.data.size());
+                messages.pop_front();
+                --inflightSends;
+              };
+              sendBuf.unlock();
+          }
+      }
+      
+      return std::make_pair(tag, std::move(vec));
+  }
 
   uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
       if ((data_array.size() - offset) > sizeof(uint32_t)) {
@@ -344,21 +369,25 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     ready = 1;
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
-    unsigned int curThreadNum = 0;
+    unsigned int sendThreadNum = 0;
+    unsigned int recvThreadNum = 0;
     while (ready != 3) {
       for (unsigned i = 0; i < Num; ++i) {
         netio->progress();
+
         // handle send queue i
-        auto& sd = sendData[i];
-        if (sd.ready()) {
-          NetworkIO::message msg;
-          msg.host                    = i;
-          std::tie(msg.tag, msg.data) = sd.assemble(inflightSends);
-          galois::runtime::trace("BufferedSending", msg.host, msg.tag,
-                                 galois::runtime::printVec(msg.data));
+        NetworkIO::message msg;
+        msg.host = i;
+        std::tie(msg.tag, msg.data) = assemble(i, sendThreadNum, inflightSends);
+
+        if (msg.tag != ~0U && msg.data.size() != 0) {
+          ++inflightSends;
+          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
           ++statSendEnqueued;
           netio->enqueue(std::move(msg));
         }
+
+        sendThreadNum = (sendThreadNum + 1) % numT;
         
         // handle receive
         NetworkIO::message rdata = netio->dequeue();
@@ -397,8 +426,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
               // Add the disassembled message to the receive buffer
               ++inflightRecvs;
-              recvData[curThreadNum][rdata.host].add(std::move(sub_msg));
-              curThreadNum = (curThreadNum + 1) % numT;
+              recvData[recvThreadNum][rdata.host].add(std::move(sub_msg));
+
+              recvThreadNum = (recvThreadNum + 1) % numT;
           }
         }
       }
@@ -426,7 +456,11 @@ public:
         std::vector<recvBuffer> temp(Num);
         threadRecvData = std::move(temp);
     }
-    sendData = decltype(sendData)(Num);
+    sendData.resize(numT);
+    for (auto& threadSendData : sendData) {
+        std::vector<sendBuffer> temp(Num);
+        threadSendData = std::move(temp);
+    }
     ready    = 2;
   }
 
@@ -446,7 +480,9 @@ public:
     statSendBytes += buf.size();
     galois::runtime::trace("sendTagged", dest, tag,
                            galois::runtime::printVec(buf.getVec()));
-    auto& sd = sendData[dest];
+    
+    unsigned thread_id = galois::substrate::ThreadPool::getTID();
+    auto& sd = sendData[thread_id][dest];
     sd.add(tag, buf.getVec());
   }
 
@@ -482,8 +518,11 @@ public:
   }
   
   virtual void flush() {
-    for (auto& sd : sendData)
-      sd.markUrgent();
+    for (auto& threadSendData : sendData) {
+        for (auto& sd : threadSendData) {
+            sd.markUrgent();
+        }
+    }
   }
 
   virtual bool anyPendingSends() { return (inflightSends > 0); }
@@ -507,10 +546,12 @@ public:
 
   virtual std::vector<unsigned long> reportExtra() const {
     std::vector<unsigned long> retval(5);
-    for (auto& sd : sendData) {
-      retval[0] += sd.statSendTimeout;
-      retval[1] += sd.statSendOverflow;
-      retval[2] += sd.statSendUrgent;
+    for (auto& threadSendData : sendData) {
+        for (auto& sd : threadSendData) {
+            retval[0] += sd.statSendTimeout;
+            retval[1] += sd.statSendOverflow;
+            retval[2] += sd.statSendUrgent;
+        }
     }
     retval[3] = statSendEnqueued;
     retval[4] = statRecvDequeued;
@@ -525,10 +566,12 @@ public:
     retval[2].first = "SendUrgent";
     retval[3].first = "SendEnqueued";
     retval[4].first = "RecvDequeued";
-    for (auto& sd : sendData) {
-      retval[0].second += sd.statSendTimeout;
-      retval[1].second += sd.statSendOverflow;
-      retval[2].second += sd.statSendUrgent;
+    for (auto& threadSendData : sendData) {
+        for (auto& sd : threadSendData) {
+            retval[0].second += sd.statSendTimeout;
+            retval[1].second += sd.statSendOverflow;
+            retval[2].second += sd.statSendUrgent;
+        }
     }
     retval[3].second = statSendEnqueued;
     retval[4].second = statRecvDequeued;
