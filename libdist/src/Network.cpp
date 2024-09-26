@@ -113,8 +113,7 @@ void NetworkInterface::broadcast(void (*recv)(uint32_t, RecvBuffer&),
 }
 
 void NetworkInterface::handleReceives() {
-  std::unique_lock<substrate::SimpleLock> lg;
-  auto opt = recieveTagged(0, &lg);
+  auto opt = receiveTagged(0);
   while (opt) {
     uint32_t src    = std::get<0>(*opt);
     RecvBuffer& buf = std::get<1>(*opt);
@@ -124,7 +123,7 @@ void NetworkInterface::handleReceives() {
     assert(fp);
     auto f = (void (*)(uint32_t, RecvBuffer&))fp;
     f(src, buf);
-    opt = recieveTagged(0, &lg);
+    opt = receiveTagged(0);
   }
 }
 

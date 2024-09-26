@@ -181,11 +181,9 @@ void DistStatManager::combineAtHost_0_helper2(void) {
 void DistStatManager::receiveAtHost_0_helper(void) {
   size_t syncTypePhase = 0;
   {
-    decltype(getSystemNetworkInterface().recieveTagged(
-        galois::runtime::evilPhase, nullptr, syncTypePhase)) p;
+    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
     do {
-      p = getSystemNetworkInterface().recieveTagged(galois::runtime::evilPhase,
-                                                    nullptr, syncTypePhase);
+      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
 
       if (p) {
         RecvBuffer& b = p->second;
@@ -202,11 +200,9 @@ void DistStatManager::receiveAtHost_0_helper(void) {
 
   ++syncTypePhase;
   {
-    decltype(getSystemNetworkInterface().recieveTagged(
-        galois::runtime::evilPhase, nullptr, syncTypePhase)) p;
+    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
     do {
-      p = getSystemNetworkInterface().recieveTagged(galois::runtime::evilPhase,
-                                                    nullptr, syncTypePhase);
+      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
 
       if (p) {
         uint32_t hostID = p->first;
@@ -229,11 +225,9 @@ void DistStatManager::receiveAtHost_0_helper(void) {
 void DistStatManager::receiveAtHost_0_helper2(void) {
   size_t syncTypePhase = 0;
   {
-    decltype(getSystemNetworkInterface().recieveTagged(
-        galois::runtime::evilPhase, nullptr, syncTypePhase)) p;
+    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
     do {
-      p = getSystemNetworkInterface().recieveTagged(galois::runtime::evilPhase,
-                                                    nullptr, syncTypePhase);
+      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
 
       if (p) {
         uint32_t hostID = p->first;
@@ -254,11 +248,9 @@ void DistStatManager::receiveAtHost_0_helper2(void) {
 
   ++syncTypePhase;
   {
-    decltype(getSystemNetworkInterface().recieveTagged(
-        galois::runtime::evilPhase, nullptr, syncTypePhase)) p;
+    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
     do {
-      p = getSystemNetworkInterface().recieveTagged(galois::runtime::evilPhase,
-                                                    nullptr, syncTypePhase);
+      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
 
       if (p) {
         uint32_t hostID = p->first;

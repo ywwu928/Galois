@@ -279,10 +279,10 @@ void sendAndReceiveEdgeChunkCounts(std::vector<uint64_t>& chunkCounts) {
   for (unsigned h = 0; h < totalNumHosts; h++) {
     if (h == hostID)
       continue;
-    decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) rBuffer;
+    decltype(net.receiveTagged(galois::runtime::evilPhase)) rBuffer;
 
     do {
-      rBuffer = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      rBuffer = net.receiveTagged(galois::runtime::evilPhase);
     } while (!rBuffer);
 
     galois::runtime::gDeserialize(rBuffer->second, recvChunkCounts);
@@ -416,12 +416,12 @@ uint64_t receiveEdgeCounts() {
   for (unsigned h = 0; h < totalNumHosts; h++) {
     if (h == hostID)
       continue;
-    decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) rBuffer;
+    decltype(net.receiveTagged(galois::runtime::evilPhase)) rBuffer;
 
     uint64_t recvCount;
 
     do {
-      rBuffer = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      rBuffer = net.receiveTagged(galois::runtime::evilPhase);
     } while (!rBuffer);
     galois::runtime::gDeserialize(rBuffer->second, recvCount);
 
@@ -451,8 +451,8 @@ void receiveAssignedEdges(std::atomic<uint64_t>& edgesToReceive,
 
         while (edgesToReceive) {
           decltype(
-              net.recieveTagged(galois::runtime::evilPhase, nullptr)) rBuffer;
-          rBuffer = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+              net.receiveTagged(galois::runtime::evilPhase)) rBuffer;
+          rBuffer = net.receiveTagged(galois::runtime::evilPhase);
 
           // the buffer will have edge data as well if localsrctodata is
           // nonempty (it will be nonempty if initialized to non-empty by the
@@ -524,10 +524,10 @@ std::vector<uint64_t> getEdgesPerHost(uint64_t localAssignedEdges) {
       continue;
     }
 
-    decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) rBuffer;
+    decltype(net.receiveTagged(galois::runtime::evilPhase)) rBuffer;
     uint64_t otherAssignedEdges;
     do {
-      rBuffer = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      rBuffer = net.receiveTagged(galois::runtime::evilPhase);
     } while (!rBuffer);
     galois::runtime::gDeserialize(rBuffer->second, otherAssignedEdges);
 

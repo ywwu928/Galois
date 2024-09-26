@@ -547,9 +547,9 @@ private:
 
     // receive loop
     for (unsigned h = 0; h < net.Num - 1; h++) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       uint32_t sendingHost = p->first;
       // deserialize proxiesOnOtherHosts
@@ -676,9 +676,9 @@ private:
 
     for (unsigned h = 0; h < net.Num - 1; h++) {
       // expect data from comm partner back
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
 
       uint32_t sendingHost = p->first;
@@ -1066,7 +1066,7 @@ private:
           }
 
           // overlap receives
-          auto buffer = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+          auto buffer = net.receiveTagged(galois::runtime::evilPhase);
           this->processReceivedEdgeBuffer(buffer, graph, receivedNodes);
         },
 #if MORE_DIST_STATS
@@ -1135,8 +1135,8 @@ private:
 
     // receive edges for all mirror nodes
     while (receivedNodes < nodesToReceive) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
-      p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      p = net.receiveTagged(galois::runtime::evilPhase);
       processReceivedEdgeBuffer(p, graph, receivedNodes);
     }
   }

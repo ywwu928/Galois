@@ -562,9 +562,9 @@ private:
     // Step 5: recv bitset to other hosts; this indicates which local nodes each
     // other host needs to be informed of updates of
     for (unsigned h = 0; h < net.Num - 1; h++) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       uint32_t sendingHost = p->first;
       // deserialize into neighbor bitsets
@@ -674,13 +674,13 @@ private:
                      std::vector<uint64_t>& edgeLoads,
                      galois::DynamicBitSet& loadsClear) {
     auto& net = galois::runtime::getSystemNetworkInterface();
-    decltype(net.recieveTagged(base_DistGraph::evilPhasePlus1(), nullptr)) p;
+    decltype(net.receiveTagged(base_DistGraph::evilPhasePlus1())) p;
 
     galois::StatTimer recvTimer("Phase0AsyncRecvLoadTime", GRNAME);
     recvTimer.start();
     do {
       // note the +1
-      p = net.recieveTagged(base_DistGraph::evilPhasePlus1(), nullptr);
+      p = net.receiveTagged(base_DistGraph::evilPhasePlus1());
 
       if (p) {
         unsigned messageType = (unsigned)-1;
@@ -1001,9 +1001,9 @@ private:
                         std::vector<uint32_t>& receivedMasters) {
     auto& net = galois::runtime::getSystemNetworkInterface();
 
-    decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+    decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
     do {
-      p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      p = net.receiveTagged(galois::runtime::evilPhase);
     } while (!p);
 
     uint32_t sendingHost = p->first;
@@ -1046,11 +1046,11 @@ private:
       std::unordered_map<uint64_t, uint32_t>& gid2offsets,
       galois::DynamicBitSet& hostFinished) {
     auto& net = galois::runtime::getSystemNetworkInterface();
-    decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+    decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
 
     // repeat loop until no message
     do {
-      p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      p = net.receiveTagged(galois::runtime::evilPhase);
       if (p) {
         uint32_t sendingHost = p->first;
         unsigned messageType = (unsigned)-1;
@@ -2283,9 +2283,9 @@ private:
 
     for (unsigned h = 0; h < net.Num - 1; h++) {
       // expect data from comm partner back
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
 
       uint32_t sendingHost = p->first;
@@ -2893,7 +2893,7 @@ private:
 
             // overlap receives
             auto buffer =
-                net.recieveTagged(galois::runtime::evilPhase, nullptr);
+                net.receiveTagged(galois::runtime::evilPhase);
             this->processReceivedEdgeBuffer(buffer, graph, receivedNodes);
           },
 #if MORE_DIST_STATS
@@ -3039,7 +3039,7 @@ private:
 
             // overlap receives
             auto buffer =
-                net.recieveTagged(galois::runtime::evilPhase, nullptr);
+                net.receiveTagged(galois::runtime::evilPhase);
             this->processReceivedEdgeBuffer(buffer, graph, receivedNodes);
           },
 #if MORE_DIST_STATS
@@ -3111,8 +3111,8 @@ private:
 
     // receive edges for all mirror nodes
     while (receivedNodes < nodesToReceive) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
-      p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      p = net.receiveTagged(galois::runtime::evilPhase);
       processReceivedEdgeBuffer(p, graph, receivedNodes);
     }
   }

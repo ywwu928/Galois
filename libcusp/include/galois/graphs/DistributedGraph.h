@@ -264,9 +264,9 @@ private:
     net.flush();
     unsigned received = 1;
     while (received < numHosts) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       assert(p->first != id);
       auto& b = p->second;
@@ -334,9 +334,9 @@ private:
     net.flush();
     unsigned received = 1;
     while (received < numHosts) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       assert(p->first != id);
       auto& b = p->second;
@@ -451,9 +451,9 @@ protected:
     net.flush();
     unsigned received = 1;
     while (received < numHosts) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       assert(p->first != id);
       auto& b = p->second;

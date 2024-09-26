@@ -29,6 +29,7 @@
 #include "galois/runtime/Network.h"
 #include "galois/runtime/NetworkIO.h"
 #include "galois/runtime/Tracer.h"
+#include "galois/Threads.h"
 
 #ifdef GALOIS_USE_LCI
 #define NO_AGG
@@ -52,6 +53,9 @@ namespace {
  * buffers.
  */
 class NetworkInterfaceBuffered : public NetworkInterface {
+  using NetworkInterface::ID;
+  using NetworkInterface::Num;
+
   static const int COMM_MIN =
       1400; //! bytes (sligtly smaller than an ethernet packet)
   static const int COMM_DELAY = 100; //! microseconds delay
@@ -63,6 +67,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   unsigned long statRecvBytes;
   unsigned long statRecvDequeued;
   bool anyReceivedMessages;
+
+  unsigned int numT;
 
   // using vTy = std::vector<uint8_t>;
   using vTy = galois::PODResizeableArray<uint8_t>;
@@ -77,10 +83,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     std::atomic<uint32_t> dataPresent;
 
   public:
-    std::optional<RecvBuffer> popMsg(uint32_t tag,
-                                     std::atomic<size_t>& inflightRecvs) {
-      std::lock_guard<SimpleLock> lg(qlock);
-
+    std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs) {
 #ifndef NO_AGG
       if (data.empty() || data.front().tag != tag)
         return std::optional<RecvBuffer>();
@@ -143,10 +146,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     size_t size() { return data.size(); }
 
     uint32_t getPresentTag() { return dataPresent; }
+
+    bool try_lock() { return qlock.try_lock();}
+    
+    void unlock() { return qlock.unlock();}
   }; // end recv buffer class
 
-  std::vector<recvBuffer> recvData;
-  std::vector<SimpleLock> recvLock;
+  std::vector<std::vector<recvBuffer>> recvData;
 
   /**
    * Send buffers for the buffered network interface
@@ -338,8 +344,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     ready = 1;
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
+    unsigned int curThreadNum = 0;
     while (ready != 3) {
-      for (unsigned i = 0; i < sendData.size(); ++i) {
+      for (unsigned i = 0; i < Num; ++i) {
         netio->progress();
         // handle send queue i
         auto& sd = sendData[i];
@@ -361,7 +368,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                                           0));
           galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag,
                                  galois::runtime::printVec(rdata.data));
-          //recvData[rdata.host].add(std::move(rdata));
 
           // Disassemble the aggregated message
           --inflightRecvs;
@@ -390,7 +396,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
               // Add the disassembled message to the receive buffer
               ++inflightRecvs;
-              recvData[rdata.host].add(std::move(sub_msg));
+              recvData[curThreadNum][rdata.host].add(std::move(sub_msg));
+              curThreadNum = (curThreadNum + 1) % numT;
             }
         }
       }
@@ -402,19 +409,21 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::atomic<int> ready;
 
 public:
-  using NetworkInterface::ID;
-  using NetworkInterface::Num;
-
   NetworkInterfaceBuffered() {
     inflightSends       = 0;
     inflightRecvs       = 0;
     ready               = 0;
     anyReceivedMessages = false;
+    numT = galois::getActiveThreads();
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
     while (ready != 1) {
     };
-    recvData = decltype(recvData)(Num);
-    recvLock.resize(Num);
+    
+    recvData.resize(numT);
+    for (auto& threadRecvData : recvData) {
+        std::vector<recvBuffer> temp(Num);
+        threadRecvData = std::move(temp);
+    }
     sendData = decltype(sendData)(Num);
     ready    = 2;
   }
@@ -439,38 +448,35 @@ public:
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
-  recieveTagged(uint32_t tag,
-                std::unique_lock<galois::substrate::SimpleLock>* rlg,
-                int phase) {
-    tag += phase;
-    for (unsigned h = 0; h < recvData.size(); ++h) {
-      auto& rq = recvData[h];
-      if (rq.hasData(tag)) {
-        if (recvLock[h].try_lock()) {
-          std::unique_lock<galois::substrate::SimpleLock> lg(recvLock[h],
-                                                             std::adopt_lock);
-          auto buf = rq.popMsg(tag, inflightRecvs);
-          if (buf) {
-            ++statRecvNum;
-            statRecvBytes += buf->size();
-            memUsageTracker.decrementMemUsage(buf->size());
-            if (rlg)
-              *rlg = std::move(lg);
-            galois::runtime::trace("recvTagged", h, tag,
-                                   galois::runtime::printVec(buf->getVec()));
-            anyReceivedMessages = true;
-            return std::optional<std::pair<uint32_t, RecvBuffer>>(
-                std::make_pair(h, std::move(*buf)));
+  receiveTagged(uint32_t tag, int phase, unsigned thread_id) {
+      tag += phase;
+      
+      for (unsigned t=0; t<numT; t++) {
+          unsigned tid = (thread_id + t) % numT;
+          for (unsigned h = 0; h < Num; ++h) {
+              auto& rq = recvData[tid][h];
+              if (rq.hasData(tag)) {
+                  if (rq.try_lock()) {
+                      auto buf = rq.popMsg(tag, inflightRecvs);
+                      rq.unlock();
+                      if (buf) {
+                          ++statRecvNum;
+                          statRecvBytes += buf->size();
+                          memUsageTracker.decrementMemUsage(buf->size());
+                          galois::runtime::trace("recvTagged", h, tag, galois::runtime::printVec(buf->getVec()));
+                          anyReceivedMessages = true;
+                          return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(*buf)));
+                      }
+                  }
+              }
+
+              galois::runtime::trace("recvTagged BLOCKED this by that", tag, rq.getPresentTag());
           }
-        }
       }
-      galois::runtime::trace("recvTagged BLOCKED this by that", tag,
-                             rq.getPresentTag());
-    }
 
-    return std::optional<std::pair<uint32_t, RecvBuffer>>();
+      return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
-
+  
   virtual void flush() {
     for (auto& sd : sendData)
       sd.markUrgent();

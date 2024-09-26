@@ -211,9 +211,8 @@ public:
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
-  recieveTagged(uint32_t tag,
-                std::unique_lock<galois::substrate::SimpleLock>* /*rlg*/,
-                int phase) {
+  receiveTagged(uint32_t tag, int phase, std::unique_lock<galois::substrate::SimpleLock>*, unsigned thread_id) {
+    (void) thread_id;
     if (tag == 0)
       phase = 2;
     // static int count = 0;

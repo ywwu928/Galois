@@ -203,9 +203,9 @@ private:
       if (x == id)
         continue;
 
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
 
       galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
@@ -268,9 +268,9 @@ private:
           if (x == id)
             continue;
 
-          decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+          decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
           do {
-            p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+            p = net.receiveTagged(galois::runtime::evilPhase);
           } while (!p);
 
           uint64_t mirror_nodes_from_others;
@@ -2501,10 +2501,10 @@ private:
       size_t syncTypePhase = 0;
       if (syncType == syncBroadcast)
         syncTypePhase = 1;
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr,
+      decltype(net.receiveTagged(galois::runtime::evilPhase,
                                  syncTypePhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr,
+        p = net.receiveTagged(galois::runtime::evilPhase,
                               syncTypePhase);
 
         if (p) {
@@ -2520,9 +2520,9 @@ private:
           continue;
 
         Twait.start();
-        decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+        decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
         do {
-          p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+          p = net.receiveTagged(galois::runtime::evilPhase);
         } while (!p);
         Twait.stop();
 
@@ -3564,11 +3564,12 @@ public:
 
     template<typename FnTy>
     void poll_for_msg() {
+        unsigned tid = galois::substrate::ThreadPool::getTID();
         auto& net = galois::runtime::getSystemNetworkInterface();
-        decltype(net.recieveTagged(0, nullptr)) p;
+        decltype(net.receiveTagged(0)) p;
         while (true) {
             do {
-                p = net.recieveTagged(0, nullptr);
+                p = net.receiveTagged(0, 0, tid);
                 if (!p) {
                     galois::substrate::asmPause();
                 }
@@ -3589,13 +3590,14 @@ public:
     
     template<typename FnTy>
     void poll_for_msg_term() {
+        unsigned tid = galois::substrate::ThreadPool::getTID();
         std::vector<bool> end_list(numHosts);
         end_list[id] = true;
         auto& net = galois::runtime::getSystemNetworkInterface();
-        decltype(net.recieveTagged(0, nullptr)) p;
+        decltype(net.receiveTagged(0)) p;
         while (true) {
             do {
-                p = net.recieveTagged(0, nullptr);
+                p = net.receiveTagged(0, 0, tid);
                 if (!p) {
                     if (pollTerminate) {
                         break;
@@ -3609,14 +3611,13 @@ public:
             if (p) { // receive message
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                //galois::gPrint("Recv msg size = ", p->second.size(), "\n");
                 galois::runtime::gDeserialize(p->second, gid, val);
                 uint32_t lid = userGraph.getLID(gid);
                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
             }
             else { // poll terminate message
                 do {
-                    p = net.recieveTagged(1, nullptr);
+                    p = net.receiveTagged(1, 0, tid);
                     if (!p) {
                         galois::substrate::asmPause();
                     }
@@ -3626,7 +3627,6 @@ public:
                 auto it = std::find(end_list.begin(), end_list.end(), false);
                 if (it == end_list.end()) {
                     set_terminateFlag();
-                    //galois::gPrint("Host ", id, " terminateFlag = ", terminateFlag, "\n");
                     break;
                 }
             }
@@ -3643,7 +3643,6 @@ public:
         auto& net = galois::runtime::getSystemNetworkInterface();
         galois::runtime::SendBuffer b;
         gSerialize(b, gid, val);
-        //galois::gPrint("Send msg size = ", b.size(), "\n");
         net.sendTagged(dst, 0, b);
     }
   

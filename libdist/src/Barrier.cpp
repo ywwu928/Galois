@@ -68,11 +68,11 @@ public:
 
     unsigned received = 1; // self
     while (received < net.Num) {
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
         net.handleReceives(); // flush all receives from net.sendMsg() or
                               // net.sendSimple()
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       assert(p->first != net.ID);
       // ignore received data

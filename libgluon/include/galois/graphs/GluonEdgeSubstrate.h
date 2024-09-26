@@ -141,9 +141,9 @@ private:
       if (x == id)
         continue;
 
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
 
       galois::runtime::gDeserialize(p->second, masterEdges[p->first]);
@@ -177,9 +177,9 @@ private:
       if (x == id)
         continue;
 
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+        p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
 
       uint64_t totalMirrorFromOther;
@@ -1958,10 +1958,10 @@ private:
       size_t syncTypePhase = 0;
       if (syncType == syncBroadcast)
         syncTypePhase = 1;
-      decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr,
+      decltype(net.receiveTagged(galois::runtime::evilPhase,
                                  syncTypePhase)) p;
       do {
-        p = net.recieveTagged(galois::runtime::evilPhase, nullptr,
+        p = net.receiveTagged(galois::runtime::evilPhase,
                               syncTypePhase);
 
         if (p) {
@@ -1977,9 +1977,9 @@ private:
           continue;
 
         Twait.start();
-        decltype(net.recieveTagged(galois::runtime::evilPhase, nullptr)) p;
+        decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
         do {
-          p = net.recieveTagged(galois::runtime::evilPhase, nullptr);
+          p = net.receiveTagged(galois::runtime::evilPhase);
         } while (!p);
         Twait.stop();
 

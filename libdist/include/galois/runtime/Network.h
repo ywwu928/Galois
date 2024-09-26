@@ -134,9 +134,8 @@ public:
 
   //! Receive a tagged message
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
-  recieveTagged(uint32_t tag, std::unique_lock<substrate::SimpleLock>* rlg,
-                int type = 0) = 0;
-
+  receiveTagged(uint32_t tag, int type = 0, unsigned thread_id = 0) = 0;
+  
   //! move send buffers out to network
   virtual void flush() = 0;
 
