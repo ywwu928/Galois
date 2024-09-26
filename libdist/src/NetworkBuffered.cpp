@@ -231,85 +231,68 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::vector<std::vector<sendBuffer>> sendData;
     
   std::pair<uint32_t, vTy>
-  assemble(unsigned dst, unsigned start_tid, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
-      uint32_t tag = ~0;
-      bool tag_set = false;
-      
-      vTy vec;
-      uint32_t len = 0;
-      int num      = 0;
-      bool skip = false;
-      
-      for (unsigned t=0; t<numT; t++) {
-          if (skip) {
-              break;
-          }
-
-          unsigned tid = (start_tid + t) % numT;
+  assemble(unsigned dst, unsigned tid, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
+      auto& sendBuf = sendData[tid][dst];
+      if (sendBuf.ready()) {
+          sendBuf.lock();
           
-          auto& sendBuf = sendData[tid][dst];
-          if (sendBuf.ready()) {
-              sendBuf.lock();
-              
-              // set tag
-              auto& messages = sendBuf.getMessages();
-              if (messages.empty()) {
-                  continue;
-              }
-              else {
-                  if (!tag_set) {
-                      tag = messages.front().tag;
-                      tag_set = true;
-                  }
-              }
-
-              // compute message size
-              for (auto& m : messages) {
-                  if (m.tag != tag) {
-                      break;
-                  } else {
-                      // do not let it go over the integer limit because MPI_Isend cannot
-                      // deal with it
-                      if ((m.data.size() + sizeof(uint32_t) + len + num) > static_cast<size_t>(std::numeric_limits<int>::max())) {
-                          skip = true;
-                          break;
-                      }
-
-                      len += m.data.size();
-                      num += sizeof(uint32_t);
-                  }
-              }
-              sendBuf.unlock();
-              
-              // construct message
-              vec.reserve(len + num);
-              
-              // go out of our way to avoid locking out senders when making messages
-              sendBuf.lock();
-              while (vec.size() < len) {
-                auto& m = messages.front();
-                sendBuf.unlock();
-
-                union {
-                  uint32_t a;
-                  uint8_t b[sizeof(uint32_t)];
-                } foo;
-                foo.a = m.data.size();
-                vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
-                vec.insert(vec.end(), m.data.begin(), m.data.end());
-                if (sendBuf.isUrgent())
-                  sendBuf.decrementUrgent();
-                
-                sendBuf.lock();
-                sendBuf.subtractNumBytes(m.data.size());
-                messages.pop_front();
-                --inflightSends;
-              };
-              sendBuf.unlock();
+          auto& messages = sendBuf.getMessages();
+          if (messages.empty()) {
+              return std::make_pair(~0, vTy());
           }
+          
+          uint32_t len = 0;
+          int num      = 0;
+          uint32_t tag = messages.front().tag;
+
+          // compute message size
+          for (auto& m : messages) {
+              if (m.tag != tag) {
+                  break;
+              } else {
+                  // do not let it go over the integer limit because MPI_Isend cannot
+                  // deal with it
+                  if ((m.data.size() + sizeof(uint32_t) + len + num) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                      break;
+                  }
+
+                  len += m.data.size();
+                  num += sizeof(uint32_t);
+              }
+          }
+          sendBuf.unlock();
+          
+          // construct message
+          vTy vec;
+          vec.reserve(len + num);
+          
+          // go out of our way to avoid locking out senders when making messages
+          sendBuf.lock();
+          do {
+            auto& m = messages.front();
+            sendBuf.unlock();
+
+            union {
+              uint32_t a;
+              uint8_t b[sizeof(uint32_t)];
+            } foo;
+            foo.a = m.data.size();
+            vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+            vec.insert(vec.end(), m.data.begin(), m.data.end());
+            if (sendBuf.isUrgent())
+              sendBuf.decrementUrgent();
+            
+            sendBuf.lock();
+            messages.pop_front();
+            --inflightSends;
+          } while(vec.size() < len + num);
+          sendBuf.subtractNumBytes(len);
+          ++inflightSends;
+          sendBuf.unlock();
+          return std::make_pair(tag, std::move(vec));
       }
       
-      return std::make_pair(tag, std::move(vec));
+      return std::make_pair(~0, vTy());
   }
 
   uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
@@ -369,68 +352,63 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     ready = 1;
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
-    unsigned int sendThreadNum = 0;
     unsigned int recvThreadNum = 0;
     while (ready != 3) {
       for (unsigned i = 0; i < Num; ++i) {
-        netio->progress();
-
-        // handle send queue i
-        NetworkIO::message msg;
-        msg.host = i;
-        std::tie(msg.tag, msg.data) = assemble(i, sendThreadNum, inflightSends);
-
-        if (msg.tag != ~0U && msg.data.size() != 0) {
-          ++inflightSends;
-          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-          ++statSendEnqueued;
-          netio->enqueue(std::move(msg));
-        }
-
-        sendThreadNum = (sendThreadNum + 1) % numT;
-        
-        // handle receive
-        NetworkIO::message rdata = netio->dequeue();
-        if (rdata.data.size()) {
-          ++statRecvDequeued;
-          assert(rdata.data.size() !=
-                 (unsigned int)std::count(rdata.data.begin(), rdata.data.end(),
-                                          0));
-          galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag,
-                                 galois::runtime::printVec(rdata.data));
-
-          // Disassemble the aggregated message
-          --inflightRecvs;
-          size_t offset = 0;
-          while (offset < rdata.data.size()) {
-              // Read the length of the next message
-              uint32_t len = getSubMessageLen(rdata.data, offset);
-              if (len == ~0U || len == 0) {
-                  galois::gError("Cannot read the length of the received message!\n");
-                  break; // Not enough data to read the message size
-              }
-
-              NetworkIO::message sub_msg;
-              sub_msg.host = rdata.host;
-              sub_msg.tag = rdata.tag;
+          for (unsigned t=0; t<numT; t++) {
+              netio->progress();
               
-              // Read the message data
-              auto vec = getSubMessage(rdata.data, offset, len);
-              if (vec.has_value()) {
-                  sub_msg.data = std::move(vec.value());
-              }
-              else {
-                  galois::gError("Cannot read the entire received message (length mismatch)!\n");
-                  break; // Not enough data for the complete message
-              }
+              // handle send queue i
+              NetworkIO::message msg;
+              msg.host = i;
+              std::tie(msg.tag, msg.data) = assemble(i, t, inflightSends);
 
-              // Add the disassembled message to the receive buffer
-              ++inflightRecvs;
-              recvData[recvThreadNum][rdata.host].add(std::move(sub_msg));
+              if (msg.tag != ~0U) {
+                  galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                  ++statSendEnqueued;
+                  netio->enqueue(std::move(msg));
+              }
+              
+              // handle receive
+              NetworkIO::message rdata = netio->dequeue();
+              if (rdata.data.size()) {
+                  ++statRecvDequeued;
+                  assert(rdata.data.size() != (unsigned int)std::count(rdata.data.begin(), rdata.data.end(), 0));
+                  galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag, galois::runtime::printVec(rdata.data));
 
-              recvThreadNum = (recvThreadNum + 1) % numT;
+                  // Disassemble the aggregated message
+                  --inflightRecvs;
+                  size_t offset = 0;
+                  while (offset < rdata.data.size()) {
+                      // Read the length of the next message
+                      uint32_t len = getSubMessageLen(rdata.data, offset);
+                      if (len == ~0U || len == 0) {
+                          galois::gError("Cannot read the length of the received message!\n");
+                          break; // Not enough data to read the message size
+                      }
+
+                      NetworkIO::message sub_msg;
+                      sub_msg.host = rdata.host;
+                      sub_msg.tag = rdata.tag;
+                      
+                      // Read the message data
+                      auto vec = getSubMessage(rdata.data, offset, len);
+                      if (vec.has_value()) {
+                          sub_msg.data = std::move(vec.value());
+                      }
+                      else {
+                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
+                          break; // Not enough data for the complete message
+                      }
+
+                      // Add the disassembled message to the receive buffer
+                      ++inflightRecvs;
+                      recvData[recvThreadNum][rdata.host].add(std::move(sub_msg));
+
+                      recvThreadNum = (recvThreadNum + 1) % numT;
+                  }
+              }            
           }
-        }
       }
     }
     finalizeMPI();
