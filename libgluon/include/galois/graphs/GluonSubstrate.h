@@ -3609,6 +3609,7 @@ public:
             if (p) { // receive message
                 uint64_t gid;
                 typename FnTy::ValTy val;
+                //galois::gPrint("Recv msg size = ", p->second.size(), "\n");
                 galois::runtime::gDeserialize(p->second, gid, val);
                 uint32_t lid = userGraph.getLID(gid);
                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
@@ -3625,6 +3626,7 @@ public:
                 auto it = std::find(end_list.begin(), end_list.end(), false);
                 if (it == end_list.end()) {
                     set_terminateFlag();
+                    //galois::gPrint("Host ", id, " terminateFlag = ", terminateFlag, "\n");
                     break;
                 }
             }
@@ -3641,6 +3643,7 @@ public:
         auto& net = galois::runtime::getSystemNetworkInterface();
         galois::runtime::SendBuffer b;
         gSerialize(b, gid, val);
+        //galois::gPrint("Send msg size = ", b.size(), "\n");
         net.sendTagged(dst, 0, b);
     }
   

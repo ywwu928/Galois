@@ -72,120 +72,30 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class recvBuffer {
     std::deque<NetworkIO::message> data;
-    size_t frontOffset;
     SimpleLock qlock;
     // tag of head of queue
     std::atomic<uint32_t> dataPresent;
-
-    bool sizeAtLeast(size_t n, uint32_t tag) {
-      size_t tot = -frontOffset;
-      for (auto& v : data) {
-        if (v.tag == tag) {
-          tot += v.data.size();
-          if (tot >= n)
-            return true;
-        } else {
-          return false;
-        }
-      }
-      return false;
-    }
-
-    template <typename IterTy>
-    void copyOut(IterTy it, size_t n) {
-      // assert(sizeAtLeast(n));
-      // fast path is first buffer
-      { // limit scope
-        auto& f0data = data[0].data;
-        for (int k = frontOffset, ke = f0data.size(); k < ke && n; ++k, --n)
-          *it++ = f0data[k];
-      }
-      if (n) { // more data (slow path)
-        for (int j = 1, je = data.size(); j < je && n; ++j) {
-          auto& vdata = data[j].data;
-          for (int k = 0, ke = vdata.size(); k < ke && n; ++k, --n) {
-            *it++ = vdata[k];
-          }
-        }
-      }
-    }
-
-    /**
-     * Return a (moved) vector if the len bytes requested are the last len
-     * bytes of the front of the buffer queue
-     */
-    std::optional<vTy> popVec(uint32_t len,
-                              std::atomic<size_t>& inflightRecvs) {
-      if (data[0].data.size() == frontOffset + len) {
-        vTy retval(std::move(data[0].data));
-        data.pop_front();
-        --inflightRecvs;
-        frontOffset = 0;
-        if (data.size()) {
-          dataPresent = data.front().tag;
-        } else {
-          dataPresent = ~0;
-        }
-        return std::optional<vTy>(std::move(retval));
-      } else {
-        return std::optional<vTy>();
-      }
-    }
-
-    void erase(size_t n, std::atomic<size_t>& inflightRecvs) {
-      frontOffset += n;
-      while (frontOffset && frontOffset >= data.front().data.size()) {
-        frontOffset -= data.front().data.size();
-        data.pop_front();
-        --inflightRecvs;
-      }
-      if (data.size()) {
-        dataPresent = data.front().tag;
-      } else {
-        dataPresent = ~0;
-      }
-    }
-
-    uint32_t getLenFromFront(uint32_t tag) {
-      if (sizeAtLeast(sizeof(uint32_t), tag)) {
-        union {
-          uint8_t a[sizeof(uint32_t)];
-          uint32_t b;
-        } c;
-        copyOut(&c.a[0], sizeof(uint32_t));
-        return c.b;
-      } else {
-        return ~0;
-      }
-    }
 
   public:
     std::optional<RecvBuffer> popMsg(uint32_t tag,
                                      std::atomic<size_t>& inflightRecvs) {
       std::lock_guard<SimpleLock> lg(qlock);
-#ifndef NO_AGG
-      uint32_t len = getLenFromFront(tag);
-      //      assert(len);
-      if (len == ~0U || len == 0)
-        return std::optional<RecvBuffer>();
-      if (!sizeAtLeast(sizeof(uint32_t) + len, tag))
-        return std::optional<RecvBuffer>();
-      erase(4, inflightRecvs);
 
-      // Try just using the buffer
-      if (auto r = popVec(len, inflightRecvs)) {
-        auto start = r->size() - len;
-        //        std::cerr << "FP " << r->size() << " " << len << " " << start
-        //        << "\n";
-        return std::optional<RecvBuffer>(RecvBuffer(std::move(*r), start));
+#ifndef NO_AGG
+      if (data.empty() || data.front().tag != tag)
+        return std::optional<RecvBuffer>();
+
+      vTy vec(std::move(data.front().data));
+
+      data.pop_front();
+      --inflightRecvs;
+      if (!data.empty()) {
+        dataPresent = data.front().tag;
+      } else {
+        dataPresent = ~0;
       }
 
-      RecvBuffer buf(len);
-      // FIXME: This is slows things down 25%
-      copyOut((char*)buf.linearData(), len);
-      erase(len, inflightRecvs);
-      // std::cerr << "p " << tag << " " << len << "\n";
-      return std::optional<RecvBuffer>(std::move(buf));
+      return std::optional<RecvBuffer>(RecvBuffer(std::move(vec), sizeof(uint32_t)));
 #else
       if (data.empty() || data.front().tag != tag)
         return std::optional<RecvBuffer>();
@@ -371,6 +281,38 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   std::vector<sendBuffer> sendData;
 
+  uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
+      if ((data_array.size() - offset) > sizeof(uint32_t)) {
+          union {
+              uint8_t a[sizeof(uint32_t)];
+              uint32_t b;
+          } c;
+
+          for (size_t i=0; i<sizeof(uint32_t); i++) {
+              c.a[i] = data_array[offset + i];
+          }
+
+          return c.b;
+      } else {
+          return ~0;
+      }
+  }
+
+  std::optional<vTy> getSubMessage(vTy& data_array, size_t& offset, uint32_t len) {
+      if ((data_array.size() - offset) > len) {
+          vTy vec;
+
+          vec.insert(vec.end(), data_array.begin() + offset, data_array.begin() + offset + sizeof(uint32_t));
+          offset += sizeof(uint32_t);
+          vec.insert(vec.end(), data_array.begin() + offset, data_array.begin() + offset + len);
+          offset += len;
+
+          return std::optional<vTy>(std::move(vec));
+      } else {
+          return std::optional<vTy>();
+      }
+  }
+
   void workerThread() {
     initializeMPI();
     int rank;
@@ -419,7 +361,37 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                                           0));
           galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag,
                                  galois::runtime::printVec(rdata.data));
-          recvData[rdata.host].add(std::move(rdata));
+          //recvData[rdata.host].add(std::move(rdata));
+
+          // Disassemble the aggregated message
+          --inflightRecvs;
+          size_t offset = 0;
+          while (offset < rdata.data.size()) {
+              // Read the length of the next message
+              uint32_t len = getSubMessageLen(rdata.data, offset);
+              if (len == ~0U || len == 0) {
+                  galois::gError("Cannot read the length of the received message!\n");
+                  break; // Not enough data to read the message size
+              }
+
+              NetworkIO::message sub_msg;
+              sub_msg.host = rdata.host;
+              sub_msg.tag = rdata.tag;
+              
+              // Read the message data
+              auto vec = getSubMessage(rdata.data, offset, len);
+              if (vec.has_value()) {
+                  sub_msg.data = std::move(vec.value());
+              }
+              else {
+                  galois::gError("Cannot read the entire received message (length mismatch)!\n");
+                  break; // Not enough data for the complete message
+              }
+
+              // Add the disassembled message to the receive buffer
+              ++inflightRecvs;
+              recvData[rdata.host].add(std::move(sub_msg));
+            }
         }
       }
     }

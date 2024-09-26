@@ -102,7 +102,7 @@ protected:
   MachineTopoInfo mi;
   std::vector<per_signal*> signals;
   std::vector<std::thread> threads;
-  unsigned reserved;
+  std::atomic<unsigned> reserved;
   unsigned masterFastmode;
   bool running;
   std::function<void(void)> work;
