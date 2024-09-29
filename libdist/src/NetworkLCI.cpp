@@ -266,20 +266,17 @@ public:
   virtual unsigned long reportRecvMsgs() const { return statRecvNum; }
 
   virtual std::vector<unsigned long> reportExtra() const {
-    std::vector<unsigned long> retval(5);
+    std::vector<unsigned long> retval(2);
     return retval;
   }
 
   virtual std::vector<std::pair<std::string, unsigned long>>
   reportExtraNamed() const {
-    std::vector<std::pair<std::string, unsigned long>> retval(5);
-    retval[0].first  = "SendTimeout";
-    retval[1].first  = "SendOverflow";
-    retval[2].first  = "SendUrgent";
-    retval[3].first  = "SendEnqueued";
-    retval[4].first  = "RecvDequeued";
-    retval[3].second = statSendEnqueued;
-    retval[4].second = statRecvDequeued;
+    std::vector<std::pair<std::string, unsigned long>> retval(2);
+    retval[0].first  = "SendEnqueued";
+    retval[1].first  = "RecvDequeued";
+    retval[0].second = statSendEnqueued;
+    retval[1].second = statRecvDequeued;
     return retval;
   }
 };

@@ -152,34 +152,21 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     SimpleLock slock;
 
   public:
-    unsigned long statSendOverflow;
-
     size_t size() { return messages.size(); }
 
     void setFlush() {
         flush = true;
     }
-
-    bool ready() {
-      if (flush) {
-        return true;
-      }
-
-      if (numBytes >= COMM_MIN) {
-        ++statSendOverflow;
-        return true;
-      }
-
-      return false;
+    
+    bool checkFlush() {
+        return flush;
     }
     
     void assemble(std::vector<std::pair<uint32_t, vTy>>& payloads, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
         slock.lock();
           
         if (messages.empty()) {
-            if (flush) {
-                flush = false;
-            }
+            flush = false;
             slock.unlock();
             return;
         }
@@ -241,9 +228,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
         }
 
-        if (flush) {
-            flush = false;
-        }
+        flush = false;
         slock.unlock();
 
         // push all payloads in the map into the vector
@@ -267,6 +252,10 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       numBytes += b.size();
       galois::runtime::trace("BufferedAdd", oldNumBytes, numBytes, tag, galois::runtime::printVec(b));
       messages.emplace_back(tag, b);
+
+      if (numBytes >= COMM_MIN) {
+          flush = true;
+      }
     }
   }; // end send buffer class
 
@@ -336,7 +325,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           
           // handle send queue
           auto& sd = sendData[i];
-          if (sd.ready()) {
+          if (sd.checkFlush()) {
               std::vector<std::pair<uint32_t, vTy>> payloads;
               sd.assemble(payloads, inflightSends);
               
@@ -570,26 +559,19 @@ public:
   virtual unsigned long reportRecvMsgs() const { return statRecvNum; }
 
   virtual std::vector<unsigned long> reportExtra() const {
-    std::vector<unsigned long> retval(3);
-    for (auto& sd : sendData) {
-        retval[0] += sd.statSendOverflow;
-    }
-    retval[1] = statSendEnqueued;
-    retval[2] = statRecvDequeued;
+    std::vector<unsigned long> retval(2);
+    retval[0] = statSendEnqueued;
+    retval[1] = statRecvDequeued;
     return retval;
   }
 
   virtual std::vector<std::pair<std::string, unsigned long>>
   reportExtraNamed() const {
-    std::vector<std::pair<std::string, unsigned long>> retval(3);
-    retval[0].first = "SendOverflow";
-    retval[1].first = "SendEnqueued";
-    retval[2].first = "RecvDequeued";
-    for (auto& sd : sendData) {
-        retval[0].second += sd.statSendOverflow;
-    }
-    retval[1].second = statSendEnqueued;
-    retval[2].second = statRecvDequeued;
+    std::vector<std::pair<std::string, unsigned long>> retval(2);
+    retval[0].first = "SendEnqueued";
+    retval[1].first = "RecvDequeued";
+    retval[0].second = statSendEnqueued;
+    retval[1].second = statRecvDequeued;
     return retval;
   }
 };
