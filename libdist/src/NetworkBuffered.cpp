@@ -35,6 +35,8 @@
 #include <mutex>
 #include <iostream>
 #include <limits>
+#include <unordered_map>
+#include <tuple>
 
 using namespace galois::runtime;
 using namespace galois::substrate;
@@ -76,13 +78,14 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     std::deque<NetworkIO::message> data;
     SimpleLock rlock;
     // tag of head of queue
-    std::atomic<uint32_t> dataPresent;
+    std::atomic<uint32_t> dataPresent = ~0;
 
   public:
-    std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs) {
+    std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs, uint32_t& src) {
       if (data.empty() || data.front().tag != tag)
         return std::optional<RecvBuffer>();
 
+      src = data.front().host;
       vTy vec(std::move(data.front().data));
 
       data.pop_front();
@@ -131,7 +134,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     void unlock() { return rlock.unlock();}
   }; // end recv buffer class
 
-  std::vector<std::vector<recvBuffer>> recvData;
+  std::vector<recvBuffer> recvData;
 
   /**
    * Send buffers for the buffered network interface
@@ -144,156 +147,130 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     };
 
     std::deque<msg> messages;
-    std::atomic<size_t> numBytes;
-    std::atomic<unsigned> urgent;
-    //! @todo FIXME track time since some epoch in an atomic.
-    std::chrono::high_resolution_clock::time_point time;
-    SimpleLock slock, timelock;
+    std::atomic<bool> flush = false;
+    std::atomic<size_t> numBytes = 0;
+    SimpleLock slock;
 
   public:
-    unsigned long statSendTimeout;
     unsigned long statSendOverflow;
-    unsigned long statSendUrgent;
 
     size_t size() { return messages.size(); }
-    
-    void subtractNumBytes(size_t num) {
-        numBytes -= num;
-    }
 
-    void markUrgent() {
-      if (numBytes) {
-        std::lock_guard<SimpleLock> lg(slock);
-        urgent = messages.size();
-      }
-    }
-
-    bool isUrgent() {
-        return (urgent > 0);
-    }
-
-    void decrementUrgent() {
-        --urgent;
+    void setFlush() {
+        flush = true;
     }
 
     bool ready() {
-      if (numBytes == 0)
-        return false;
-      if (urgent) {
-        ++statSendUrgent;
+      if (flush) {
         return true;
       }
-      if (numBytes > COMM_MIN) {
+
+      if (numBytes >= COMM_MIN) {
         ++statSendOverflow;
         return true;
       }
-      auto n = std::chrono::high_resolution_clock::now();
-      decltype(n) mytime;
-      {
-        std::lock_guard<SimpleLock> lg(timelock);
-        mytime = time;
-      }
-      auto elapsed =
-          std::chrono::duration_cast<std::chrono::microseconds>(n - mytime);
-      if (elapsed.count() > COMM_DELAY) {
-        ++statSendTimeout;
-        return true;
-      }
+
       return false;
     }
-
-    void lock() {
+    
+    void assemble(std::vector<std::pair<uint32_t, vTy>>& payloads, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
         slock.lock();
-    }
+          
+        if (messages.empty()) {
+            if (flush) {
+                flush = false;
+            }
+            slock.unlock();
+            return;
+        }
 
-    void unlock() {
+        std::unordered_map<uint32_t, std::tuple<uint32_t, int, vTy>> tagMap;
+
+        // compute message size
+        while (!messages.empty()) {
+            auto& m = messages.front();
+            
+            union {
+                uint32_t a;
+                uint8_t b[sizeof(uint32_t)];
+            } foo;
+
+            if (tagMap.find(m.tag) != tagMap.end()) {
+                uint32_t& len = std::get<0>(tagMap[m.tag]);
+                int& num = std::get<1>(tagMap[m.tag]);
+                vTy& vec = std::get<2>(tagMap[m.tag]);
+                // do not let it go over the integer limit because MPI_Isend cannot deal with it
+                if ((len + num + m.data.size() + sizeof(uint32_t)) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                    // first put onto payloads
+                    payloads.push_back(std::make_pair(m.tag, std::move(vec)));
+                    ++inflightSends;
+                    // then reset values
+                    len = m.data.size();
+                    num = sizeof(uint32_t);
+                    vTy vec_temp;
+                    
+                    foo.a = m.data.size();
+                    vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                    vec.insert(vec.end(), m.data.begin(), m.data.end());
+
+                    vec = std::move(vec_temp);
+                }
+                else {
+                    len += m.data.size();
+                    num += sizeof(uint32_t);
+
+                    foo.a = m.data.size();
+                    vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                    vec.insert(vec.end(), m.data.begin(), m.data.end());
+                }
+            } else {
+                uint32_t len = m.data.size();
+                int num = sizeof(uint32_t);
+                vTy vec;
+                
+                foo.a = m.data.size();
+                vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                vec.insert(vec.end(), m.data.begin(), m.data.end());
+
+                tagMap[m.tag] = std::make_tuple(len, num, std::move(vec));
+            }
+            
+            messages.pop_front();
+            --inflightSends;
+            numBytes -= m.data.size();
+
+        }
+
+        if (flush) {
+            flush = false;
+        }
         slock.unlock();
-    }
 
-    std::deque<msg>& getMessages() {
-        return messages;
+        // push all payloads in the map into the vector
+        for (auto it=tagMap.begin(); it!=tagMap.end(); ++it) {
+            payloads.push_back(std::make_pair(it->first, std::move(std::get<2>(it->second))));
+            ++inflightSends;
+        }
+
+        // sort the payloads with respect to tag
+        // lower tag value should go first (to make sure remote request get sent out before the termination message)
+        std::sort(payloads.begin(), payloads.end(),
+                [](const auto& a, const auto& b) {
+                    return a.first < b.first;
+                }
+        );
     }
 
     void add(uint32_t tag, vTy& b) {
       std::lock_guard<SimpleLock> lg(slock);
-      if (messages.empty()) {
-        std::lock_guard<SimpleLock> lg(timelock);
-        time = std::chrono::high_resolution_clock::now();
-      }
       unsigned oldNumBytes = numBytes;
       numBytes += b.size();
-      galois::runtime::trace("BufferedAdd", oldNumBytes, numBytes, tag,
-                             galois::runtime::printVec(b));
+      galois::runtime::trace("BufferedAdd", oldNumBytes, numBytes, tag, galois::runtime::printVec(b));
       messages.emplace_back(tag, b);
     }
   }; // end send buffer class
 
-  std::vector<std::vector<sendBuffer>> sendData;
-    
-  std::pair<uint32_t, vTy>
-  assemble(unsigned dst, unsigned tid, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
-      auto& sendBuf = sendData[tid][dst];
-      if (sendBuf.ready()) {
-          sendBuf.lock();
-          
-          auto& messages = sendBuf.getMessages();
-          if (messages.empty()) {
-              return std::make_pair(~0, vTy());
-          }
-          
-          uint32_t len = 0;
-          int num      = 0;
-          uint32_t tag = messages.front().tag;
-
-          // compute message size
-          for (auto& m : messages) {
-              if (m.tag != tag) {
-                  break;
-              } else {
-                  // do not let it go over the integer limit because MPI_Isend cannot
-                  // deal with it
-                  if ((m.data.size() + sizeof(uint32_t) + len + num) > static_cast<size_t>(std::numeric_limits<int>::max())) {
-                      break;
-                  }
-
-                  len += m.data.size();
-                  num += sizeof(uint32_t);
-              }
-          }
-          sendBuf.unlock();
-          
-          // construct message
-          vTy vec;
-          vec.reserve(len + num);
-          
-          // go out of our way to avoid locking out senders when making messages
-          sendBuf.lock();
-          do {
-            auto& m = messages.front();
-            sendBuf.unlock();
-
-            union {
-              uint32_t a;
-              uint8_t b[sizeof(uint32_t)];
-            } foo;
-            foo.a = m.data.size();
-            vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
-            vec.insert(vec.end(), m.data.begin(), m.data.end());
-            if (sendBuf.isUrgent())
-              sendBuf.decrementUrgent();
-            
-            sendBuf.lock();
-            messages.pop_front();
-            --inflightSends;
-          } while(vec.size() < len + num);
-          sendBuf.subtractNumBytes(len);
-          ++inflightSends;
-          sendBuf.unlock();
-          return std::make_pair(tag, std::move(vec));
-      }
-      
-      return std::make_pair(~0, vTy());
-  }
+  std::vector<sendBuffer> sendData;
 
   uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
       if ((data_array.size() - offset) > sizeof(uint32_t)) {
@@ -355,60 +332,67 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     unsigned int recvThreadNum = 0;
     while (ready != 3) {
       for (unsigned i = 0; i < Num; ++i) {
-          for (unsigned t=0; t<numT; t++) {
-              netio->progress();
+          netio->progress();
+          
+          // handle send queue
+          auto& sd = sendData[i];
+          if (sd.ready()) {
+              std::vector<std::pair<uint32_t, vTy>> payloads;
+              sd.assemble(payloads, inflightSends);
               
-              // handle send queue i
-              NetworkIO::message msg;
-              msg.host = i;
-              std::tie(msg.tag, msg.data) = assemble(i, t, inflightSends);
+              for (size_t k=0; k<payloads.size(); k++) {
+                  NetworkIO::message msg;
+                  msg.host = i;
+                  msg.tag = payloads[k].first;
+                  msg.data = std::move(payloads[k].second);
 
-              if (msg.tag != ~0U) {
-                  galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-                  ++statSendEnqueued;
-                  netio->enqueue(std::move(msg));
-              }
-              
-              // handle receive
-              NetworkIO::message rdata = netio->dequeue();
-              if (rdata.data.size()) {
-                  ++statRecvDequeued;
-                  assert(rdata.data.size() != (unsigned int)std::count(rdata.data.begin(), rdata.data.end(), 0));
-                  galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag, galois::runtime::printVec(rdata.data));
-
-                  // Disassemble the aggregated message
-                  --inflightRecvs;
-                  size_t offset = 0;
-                  while (offset < rdata.data.size()) {
-                      // Read the length of the next message
-                      uint32_t len = getSubMessageLen(rdata.data, offset);
-                      if (len == ~0U || len == 0) {
-                          galois::gError("Cannot read the length of the received message!\n");
-                          break; // Not enough data to read the message size
-                      }
-
-                      NetworkIO::message sub_msg;
-                      sub_msg.host = rdata.host;
-                      sub_msg.tag = rdata.tag;
-                      
-                      // Read the message data
-                      auto vec = getSubMessage(rdata.data, offset, len);
-                      if (vec.has_value()) {
-                          sub_msg.data = std::move(vec.value());
-                      }
-                      else {
-                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
-                          break; // Not enough data for the complete message
-                      }
-
-                      // Add the disassembled message to the receive buffer
-                      ++inflightRecvs;
-                      recvData[recvThreadNum][rdata.host].add(std::move(sub_msg));
-
-                      recvThreadNum = (recvThreadNum + 1) % numT;
+                  if (msg.tag != ~0U) {
+                      galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                      ++statSendEnqueued;
+                      netio->enqueue(std::move(msg));
                   }
-              }            
+              }
           }
+          
+          // handle receive
+          NetworkIO::message rdata = netio->dequeue();
+          if (rdata.data.size()) {
+              ++statRecvDequeued;
+              assert(rdata.data.size() != (unsigned int)std::count(rdata.data.begin(), rdata.data.end(), 0));
+              galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag, galois::runtime::printVec(rdata.data));
+
+              // Disassemble the aggregated message
+              --inflightRecvs;
+              size_t offset = 0;
+              while (offset < rdata.data.size()) {
+                  // Read the length of the next message
+                  uint32_t len = getSubMessageLen(rdata.data, offset);
+                  if (len == ~0U || len == 0) {
+                      galois::gError("Cannot read the length of the received message!\n");
+                      break; // Not enough data to read the message size
+                  }
+
+                  NetworkIO::message sub_msg;
+                  sub_msg.host = rdata.host;
+                  sub_msg.tag = rdata.tag;
+                  
+                  // Read the message data
+                  auto vec = getSubMessage(rdata.data, offset, len);
+                  if (vec.has_value()) {
+                      sub_msg.data = std::move(vec.value());
+                  }
+                  else {
+                      galois::gError("Cannot read the entire received message (length mismatch)!\n");
+                      break; // Not enough data for the complete message
+                  }
+
+                  // Add the disassembled message to the receive buffer
+                  ++inflightRecvs;
+                  recvData[recvThreadNum].add(std::move(sub_msg));
+
+                  recvThreadNum = (recvThreadNum + 1) % numT;
+              }
+          }            
       }
     }
     finalizeMPI();
@@ -429,16 +413,8 @@ public:
     while (ready != 1) {
     };
     
-    recvData.resize(numT);
-    for (auto& threadRecvData : recvData) {
-        std::vector<recvBuffer> temp(Num);
-        threadRecvData = std::move(temp);
-    }
-    sendData.resize(numT);
-    for (auto& threadSendData : sendData) {
-        std::vector<sendBuffer> temp(Num);
-        threadSendData = std::move(temp);
-    }
+    recvData = decltype(recvData)(numT);
+    sendData = decltype(sendData)(Num);
     ready    = 2;
   }
 
@@ -459,8 +435,7 @@ public:
     galois::runtime::trace("sendTagged", dest, tag,
                            galois::runtime::printVec(buf.getVec()));
     
-    unsigned thread_id = galois::substrate::ThreadPool::getTID();
-    auto& sd = sendData[thread_id][dest];
+    auto& sd = sendData[dest];
     sd.add(tag, buf.getVec());
   }
 
@@ -471,35 +446,107 @@ public:
       
       for (unsigned t=0; t<numT; t++) {
           unsigned tid = (thread_id + t) % numT;
-          for (unsigned h = 0; h < Num; ++h) {
-              auto& rq = recvData[tid][h];
-              if (rq.hasData(tag)) {
-                  if (rq.try_lock()) {
-                      auto buf = rq.popMsg(tag, inflightRecvs);
-                      rq.unlock();
-                      if (buf) {
-                          ++statRecvNum;
-                          statRecvBytes += buf->size();
-                          memUsageTracker.decrementMemUsage(buf->size());
-                          galois::runtime::trace("recvTagged", h, tag, galois::runtime::printVec(buf->getVec()));
-                          anyReceivedMessages = true;
-                          return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(*buf)));
-                      }
+          auto& rq = recvData[tid];
+          if (rq.hasData(tag)) {
+              if (rq.try_lock()) {
+                  uint32_t src;
+                  auto buf = rq.popMsg(tag, inflightRecvs, src);
+                  rq.unlock();
+                  if (buf) {
+                      ++statRecvNum;
+                      statRecvBytes += buf->size();
+                      memUsageTracker.decrementMemUsage(buf->size());
+                      galois::runtime::trace("recvTagged", src, tag, galois::runtime::printVec(buf->getVec()));
+                      anyReceivedMessages = true;
+                      return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
                   }
               }
-
-              galois::runtime::trace("recvTagged BLOCKED this by that", tag, rq.getPresentTag());
           }
+
+          galois::runtime::trace("recvTagged BLOCKED this by that", tag, rq.getPresentTag());
+      }
+
+      return std::optional<std::pair<uint32_t, RecvBuffer>>();
+  }
+  
+  virtual std::optional<std::tuple<bool, uint32_t, RecvBuffer>>
+  receiveTaggedCheckTermination(uint32_t tag, uint32_t termination_tag) {
+      unsigned thread_id = galois::substrate::ThreadPool::getTID();
+      
+      for (unsigned t=0; t<numT; t++) {
+          unsigned tid = (thread_id + t) % numT;
+          auto& rq = recvData[tid];
+          if (rq.hasData(tag)) {
+              if (rq.try_lock()) {
+                  uint32_t src;
+                  auto buf = rq.popMsg(tag, inflightRecvs, src);
+                  rq.unlock();
+                  if (buf) {
+                      ++statRecvNum;
+                      statRecvBytes += buf->size();
+                      memUsageTracker.decrementMemUsage(buf->size());
+                      galois::runtime::trace("recvTaggedCheckTermination", src, tag, galois::runtime::printVec(buf->getVec()));
+                      anyReceivedMessages = true;
+                      return std::optional<std::tuple<bool, uint32_t, RecvBuffer>>(std::make_tuple(false, src, std::move(*buf)));
+                  }
+              }
+          }
+          else if (rq.hasData(termination_tag)) {
+              if (rq.try_lock()) {
+                  uint32_t src;
+                  auto buf = rq.popMsg(termination_tag, inflightRecvs, src);
+                  rq.unlock();
+                  if (buf) {
+                      ++statRecvNum;
+                      statRecvBytes += buf->size();
+                      memUsageTracker.decrementMemUsage(buf->size());
+                      galois::runtime::trace("recvTaggedCheckTermination", src, termination_tag, galois::runtime::printVec(buf->getVec()));
+                      anyReceivedMessages = true;
+                      return std::optional<std::tuple<bool, uint32_t, RecvBuffer>>(std::make_tuple(true, src, std::move(*buf)));
+                  }
+              }
+          }
+
+          galois::runtime::trace("recvTagged BLOCKED this by that", tag, rq.getPresentTag());
+      }
+
+      return std::optional<std::tuple<bool, uint32_t, RecvBuffer>>();
+  }
+  
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTaggedCheckEmpty(uint32_t tag, bool& empty) {
+      unsigned thread_id = galois::substrate::ThreadPool::getTID();
+      empty = true;
+      
+      for (unsigned t=0; t<numT; t++) {
+          unsigned tid = (thread_id + t) % numT;
+          auto& rq = recvData[tid];
+          if (rq.hasData(tag)) {
+              empty = false;
+              if (rq.try_lock()) {
+                  uint32_t src;
+                  auto buf = rq.popMsg(tag, inflightRecvs, src);
+                  rq.unlock();
+                  if (buf) {
+                      ++statRecvNum;
+                      statRecvBytes += buf->size();
+                      memUsageTracker.decrementMemUsage(buf->size());
+                      galois::runtime::trace("recvTagged", src, tag, galois::runtime::printVec(buf->getVec()));
+                      anyReceivedMessages = true;
+                      return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
+                  }
+              }
+          }
+
+          galois::runtime::trace("recvTagged BLOCKED this by that", tag, rq.getPresentTag());
       }
 
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
   
   virtual void flush() {
-    for (auto& threadSendData : sendData) {
-        for (auto& sd : threadSendData) {
-            sd.markUrgent();
-        }
+    for (auto& sd : sendData) {
+        sd.setFlush();
     }
   }
 
@@ -523,36 +570,26 @@ public:
   virtual unsigned long reportRecvMsgs() const { return statRecvNum; }
 
   virtual std::vector<unsigned long> reportExtra() const {
-    std::vector<unsigned long> retval(5);
-    for (auto& threadSendData : sendData) {
-        for (auto& sd : threadSendData) {
-            retval[0] += sd.statSendTimeout;
-            retval[1] += sd.statSendOverflow;
-            retval[2] += sd.statSendUrgent;
-        }
+    std::vector<unsigned long> retval(3);
+    for (auto& sd : sendData) {
+        retval[0] += sd.statSendOverflow;
     }
-    retval[3] = statSendEnqueued;
-    retval[4] = statRecvDequeued;
+    retval[1] = statSendEnqueued;
+    retval[2] = statRecvDequeued;
     return retval;
   }
 
   virtual std::vector<std::pair<std::string, unsigned long>>
   reportExtraNamed() const {
-    std::vector<std::pair<std::string, unsigned long>> retval(5);
-    retval[0].first = "SendTimeout";
-    retval[1].first = "SendOverflow";
-    retval[2].first = "SendUrgent";
-    retval[3].first = "SendEnqueued";
-    retval[4].first = "RecvDequeued";
-    for (auto& threadSendData : sendData) {
-        for (auto& sd : threadSendData) {
-            retval[0].second += sd.statSendTimeout;
-            retval[1].second += sd.statSendOverflow;
-            retval[2].second += sd.statSendUrgent;
-        }
+    std::vector<std::pair<std::string, unsigned long>> retval(3);
+    retval[0].first = "SendOverflow";
+    retval[1].first = "SendEnqueued";
+    retval[2].first = "RecvDequeued";
+    for (auto& sd : sendData) {
+        retval[0].second += sd.statSendOverflow;
     }
-    retval[3].second = statSendEnqueued;
-    retval[4].second = statRecvDequeued;
+    retval[1].second = statSendEnqueued;
+    retval[2].second = statRecvDequeued;
     return retval;
   }
 };

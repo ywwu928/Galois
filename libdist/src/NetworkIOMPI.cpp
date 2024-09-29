@@ -93,7 +93,7 @@ private:
         : memUsageTracker(tracker), inflightSends(sends) {}
 
     void complete() {
-      while (!inflight.empty()) {
+      if (!inflight.empty()) {
         int flag = 0;
         MPI_Status status;
         auto& f = inflight.front();
@@ -103,8 +103,7 @@ private:
           memUsageTracker.decrementMemUsage(f.data.size());
           inflight.pop_front();
           --inflightSends;
-        } else
-          break;
+        }
       }
     }
 
@@ -114,7 +113,7 @@ private:
       galois::runtime::trace("MPI SEND", f.host, f.tag, f.data.size(),
                              galois::runtime::printVec(f.data));
 #ifdef GALOIS_SUPPORT_ASYNC
-      int rv = MPI_Issend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag,
+      int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag,
                           MPI_COMM_WORLD, &f.req);
 #else
       int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag,
@@ -168,7 +167,7 @@ private:
         }
 #endif
       }
-
+      
       // complete messages
       if (!inflight.empty()) {
         auto& m  = inflight.front();

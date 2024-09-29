@@ -31,6 +31,7 @@
 #include <atomic>
 #include <cstdint>
 #include <algorithm>
+#include <vector>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
@@ -198,6 +199,9 @@ private:
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
 
+    // force all messages to be processed before continuing
+    net.flush();
+
     // receive the mirror nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -287,6 +291,9 @@ private:
         galois::runtime::SendBuffer b;
         gSerialize(b, host_mirror_nodes, host_ghost_nodes);
         net.sendTagged(0, galois::runtime::evilPhase, b);
+        
+        // force all messages to be processed before continuing
+        net.flush();
     }
 
     incrementEvilPhase();
@@ -434,7 +441,8 @@ public:
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
         num_round(0), currentBVFlag(nullptr),
         mirrorNodes(userGraph.getMirrorNodes()),
-        ghostNodes(userGraph.getGhostNodes()) {
+        ghostNodes(userGraph.getGhostNodes()),
+        terminateList(numHosts) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
                     "Cartesian split doesn't equal number of hosts");
@@ -3544,89 +3552,92 @@ public:
 
 /* For Polling */
 private:
+    std::vector<std::atomic<bool>> terminateList;
     std::atomic<bool> terminateFlag;
-    std::atomic<bool> pollTerminate;
+    std::atomic<bool> doneFlag;
 
 public:
-    void reset_terminateFlag() {
+    void reset_termination() {
+        for (uint32_t i=0; i<numHosts; i++) {
+            terminateList[i] = false;
+        }
+        terminateList[id] = true;
         terminateFlag = false;
-    }
-    void set_terminateFlag() {
-        terminateFlag = true;
-    }
-
-    void reset_pollTerminate() {
-        pollTerminate = false;
-    }
-    void set_pollTerminate() {
-        pollTerminate = true;
+        doneFlag = false;
     }
 
     template<typename FnTy>
     void poll_for_msg() {
         auto& net = galois::runtime::getSystemNetworkInterface();
-        decltype(net.receiveTagged(0)) p;
+
+        decltype(net.receiveTaggedCheckTermination(0, 1)) p;
         while (true) {
             do {
-                p = net.receiveTagged(0);
+                if (terminateFlag) {
+                    break;
+                }
+
+                p = net.receiveTaggedCheckTermination(0, 1);
                 if (!p) {
                     galois::substrate::asmPause();
                 }
-            } while (!p && !terminateFlag);
+            } while (!p);
             
-            if (p) { // receive message
-                uint64_t gid;
-                typename FnTy::ValTy val;
-                galois::runtime::gDeserialize(p->second, gid, val);
-                uint32_t lid = userGraph.getLID(gid);
-                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+            if (p) { // received message
+                if (std::get<0>(*p)) { // termination message
+                    uint32_t src = std::get<1>(*p);
+                    terminateList[src] = true;
+                    
+                    bool recvAll = true;
+                    for (uint32_t i=0; i<numHosts; i++) {
+                        if (terminateList[i] == false) {
+                            recvAll = false;
+                            break;
+                        }
+                    }
+                    if (recvAll) {
+                        terminateFlag = true;
+                    }
+                }
+                else { // regular message
+                    uint64_t gid;
+                    typename FnTy::ValTy val;
+                    galois::runtime::gDeserialize(std::get<2>(*p), gid, val);
+                    uint32_t lid = userGraph.getLID(gid);
+                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                }
             }
-            else { // terminate
+
+            if (terminateFlag) {
                 break;
             }
         }
-    }
-    
-    template<typename FnTy>
-    void poll_for_msg_term() {
-        std::vector<bool> end_list(numHosts);
-        end_list[id] = true;
-        auto& net = galois::runtime::getSystemNetworkInterface();
-        decltype(net.receiveTagged(0)) p;
+        
+        bool empty = false;
+        decltype(net.receiveTaggedCheckEmpty(0, empty)) q;
         while (true) {
             do {
-                p = net.receiveTagged(0);
-                if (!p) {
-                    if (pollTerminate) {
-                        break;
-                    }
-                    else {
-                        galois::substrate::asmPause();
-                    }
+                if (empty) {
+                    doneFlag = true;
+                    break;
                 }
-            } while (!p);
+
+                q = net.receiveTaggedCheckEmpty(0, empty);
+                if (!q) {
+                    galois::substrate::asmPause();
+                }
+            } while (!q);
             
-            if (p) { // receive message
+            if (q) { // received message
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                galois::runtime::gDeserialize(p->second, gid, val);
+                galois::runtime::gDeserialize(q->second, gid, val);
                 uint32_t lid = userGraph.getLID(gid);
                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
             }
-            else { // poll terminate message
-                do {
-                    p = net.receiveTagged(1);
-                    if (!p) {
-                        galois::substrate::asmPause();
-                    }
-                } while (!p);
 
-                end_list[p->first] = true;
-                auto it = std::find(end_list.begin(), end_list.end(), false);
-                if (it == end_list.end()) {
-                    set_terminateFlag();
-                    break;
-                }
+            if (doneFlag) {
+                break;
             }
         }
     }

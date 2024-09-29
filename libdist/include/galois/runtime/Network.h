@@ -136,6 +136,12 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
+  virtual std::optional<std::tuple<bool, uint32_t, RecvBuffer>>
+  receiveTaggedCheckTermination(uint32_t tag, uint32_t terminate_tag) = 0;
+  
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTaggedCheckEmpty(uint32_t tag, bool& empty) = 0;
+  
   //! move send buffers out to network
   virtual void flush() = 0;
 
