@@ -54,9 +54,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-  static const int COMM_MIN =
-      1400; //! bytes (sligtly smaller than an ethernet packet)
-  static const int COMM_DELAY = 100; //! microseconds delay
+  static const int COMM_MIN = 1400; //! bytes (sligtly smaller than an ethernet packet)
 
   unsigned long statSendNum;
   unsigned long statSendBytes;
@@ -163,19 +161,12 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     }
     
     void assemble(std::vector<std::pair<uint32_t, vTy>>& payloads, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
-        slock.lock();
-          
-        if (messages.empty()) {
-            flush = false;
-            slock.unlock();
-            return;
-        }
-
         std::unordered_map<uint32_t, std::tuple<uint32_t, int, vTy>> tagMap;
 
-        // compute message size
         while (!messages.empty()) {
+            slock.lock();
             auto& m = messages.front();
+            slock.unlock();
             
             union {
                 uint32_t a;
@@ -197,8 +188,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                     vTy vec_temp;
                     
                     foo.a = m.data.size();
-                    vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
-                    vec.insert(vec.end(), m.data.begin(), m.data.end());
+                    vec_temp.insert(vec_temp.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                    vec_temp.insert(vec_temp.end(), m.data.begin(), m.data.end());
 
                     vec = std::move(vec_temp);
                 }
@@ -222,14 +213,14 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                 tagMap[m.tag] = std::make_tuple(len, num, std::move(vec));
             }
             
+            slock.lock();
             messages.pop_front();
+            slock.unlock();
             --inflightSends;
             numBytes -= m.data.size();
-
         }
 
         flush = false;
-        slock.unlock();
 
         // push all payloads in the map into the vector
         for (auto it=tagMap.begin(); it!=tagMap.end(); ++it) {
