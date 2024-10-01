@@ -588,7 +588,6 @@ public:
     ready               = 0;
     anyReceivedMessages = false;
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
-    galois::substrate::getThreadPool().addBackgroundThreadNum(1);
     numT = galois::getActiveThreads();
     while (ready != 1) {
     };
@@ -613,7 +612,6 @@ public:
   virtual ~NetworkInterfaceBuffered() {
     ready = 3;
     worker.join();
-    galois::substrate::getThreadPool().subtractBackgroundThreadNum(1);
   }
 
   std::unique_ptr<galois::runtime::NetworkIO> netio;

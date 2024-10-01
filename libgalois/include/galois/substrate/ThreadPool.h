@@ -102,7 +102,6 @@ protected:
   MachineTopoInfo mi;
   std::vector<per_signal*> signals;
   std::vector<std::thread> threads;
-  std::atomic<unsigned> background;
   std::atomic<unsigned> reserved;
   unsigned masterFastmode;
   bool running;
@@ -172,14 +171,6 @@ public:
       }
   }
 
-  void addBackgroundThreadNum(unsigned num) {
-      background += num;
-  }
-  
-  void subtractBackgroundThreadNum(unsigned num) {
-      background -= num;
-  }
-
   // experimental: busy wait for work
   void burnPower(unsigned num);
   // experimental: leave busy wait
@@ -187,8 +178,8 @@ public:
 
   bool isRunning() const { return running; }
 
-  //! return the number of non-background and non-reserved threads in the pool
-  unsigned getMaxUsableThreads() const { return mi.maxThreads - reserved - background; }
+  //! return the number of non-reserved threads in the pool
+  unsigned getMaxUsableThreads() const { return mi.maxThreads - reserved; }
   //! return the number of threads supported by the thread pool on the current
   //! machine
   unsigned getMaxThreads() const { return mi.maxThreads; }

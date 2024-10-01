@@ -38,7 +38,7 @@ using galois::substrate::ThreadPool;
 thread_local ThreadPool::per_signal ThreadPool::my_box;
 
 ThreadPool::ThreadPool()
-    : mi(getHWTopo().machineTopoInfo), background(0), reserved(0), masterFastmode(false),
+    : mi(getHWTopo().machineTopoInfo), reserved(0), masterFastmode(false),
       running(false) {
   signals.resize(mi.maxThreads);
   initThread(0);
