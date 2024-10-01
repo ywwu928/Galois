@@ -93,7 +93,7 @@ private:
         : memUsageTracker(tracker), inflightSends(sends) {}
 
     void complete() {
-      while (!inflight.empty()) {
+      if (!inflight.empty()) {
         int flag = 0;
         MPI_Status status;
         auto& f = inflight.front();
@@ -103,9 +103,6 @@ private:
           memUsageTracker.decrementMemUsage(f.data.size());
           inflight.pop_front();
           --inflightSends;
-        }
-        else {
-            break;
         }
       }
     }
@@ -167,7 +164,7 @@ private:
       }
       
       // complete messages
-      while (!inflight.empty()) {
+      if (!inflight.empty()) {
         auto& m  = inflight.front();
         int flag = 0;
         rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
@@ -175,9 +172,6 @@ private:
         if (flag) {
           done.emplace_back(m.host, m.tag, std::move(m.data));
           inflight.pop_front();
-        }
-        else {
-            break;
         }
       }
     }
