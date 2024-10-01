@@ -111,6 +111,8 @@ public:
   //! buf is invalidated by this operation
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0) = 0;
+  
+  virtual void sendWork(uint32_t dest, SendBuffer& buf) = 0;
 
   //! Send a message to all hosts.  A message is simply a
   //! landing pad (recv) and some data (buf)
@@ -136,14 +138,19 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
-  virtual std::optional<std::tuple<bool, uint32_t, RecvBuffer>>
-  receiveTaggedCheckTermination(uint32_t tag, uint32_t terminate_tag) = 0;
-  
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
-  receiveTaggedCheckEmpty(uint32_t tag, bool& empty) = 0;
+  receiveRemoteWork(bool& terminateFlag) = 0;
+  
+  virtual void resetTermination() = 0;
   
   //! move send buffers out to network
   virtual void flush() = 0;
+  
+  virtual void flushData() = 0;
+  
+  virtual void flushRemoteWork() = 0;
+  
+  virtual void broadcastTermination() = 0;
 
   //! @returns true if any send is in progress or is pending to be enqueued
   virtual bool anyPendingSends() = 0;
@@ -176,6 +183,11 @@ public:
 //! Variable that keeps track of which network send/recv phase a program is
 //! currently on. Can be seen as a count of send/recv rounds that have occured.
 extern uint32_t evilPhase;
+
+//! Reserved tag for remote work
+extern uint32_t remoteWorkTag;
+//! Reserved tag for remote termination message
+extern uint32_t terminationTag;
 
 //! Get the network interface
 //! @returns network interface

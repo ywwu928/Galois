@@ -34,6 +34,8 @@
 using namespace galois::runtime;
 
 uint32_t galois::runtime::evilPhase = 2; // 0 and 1 is reserved
+uint32_t galois::runtime::remoteWorkTag = 0; // 0 is reserved for remote work
+uint32_t galois::runtime::terminationTag = 1; // 1 is reserved for remote termination message
 
 uint32_t galois::runtime::NetworkInterface::ID  = 0;
 uint32_t galois::runtime::NetworkInterface::Num = 1;

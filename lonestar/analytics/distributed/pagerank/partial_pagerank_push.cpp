@@ -235,6 +235,8 @@ struct PageRank {
     unsigned _num_iterations   = 0;
     const auto& masterNodes = _graph.masterNodesRange();
     DGTerminatorDetector dga;
+    
+    //auto& net = galois::runtime::getSystemNetworkInterface();
 
     do {
       syncSubstrate->set_num_round(_num_iterations);
@@ -257,13 +259,17 @@ struct PageRank {
         abort();
 #endif
       } else if (personality == CPU) {
+        //galois::gPrint("Host ", net.ID, " point 1\n");
         // dedicate a thread to poll for remote messages
-        syncSubstrate->reset_terminateFlag();
-        syncSubstrate->reset_pollTerminate();
         std::function<void(void)> func = [&]() {
-                syncSubstrate->poll_for_msg_term<Reduce_add_residual>();
+                syncSubstrate->poll_for_msg<Reduce_add_residual>();
         };
         galois::substrate::getThreadPool().runDedicated(func);
+        //galois::gPrint("Host ", net.ID, " point 2\n");
+        
+        std::string send_str("SendTimer_" + std::to_string(_num_iterations));
+        galois::StatTimer StatTimer_send(send_str.c_str(), REGION_NAME);
+        StatTimer_send.start();
         
         // launch all other threads to compute
         galois::do_all(
@@ -271,14 +277,21 @@ struct PageRank {
             galois::no_stats(), galois::steal(),
             galois::loopname(
                 syncSubstrate->get_run_identifier("PageRank").c_str()));
+        /*for (auto& src: masterNodes) {
+            PageRank{&_graph, dga}(src);
+        }*/
+        StatTimer_send.stop();
+        //galois::gPrint("Host ", net.ID, " point 3\n");
         
         // inform all other hosts that this host has finished sending messages
-        syncSubstrate->send_terminator_to_remote();
         // force all messages to be processed before continuing
         syncSubstrate->net_flush();
+        //galois::gPrint("Host ", net.ID, " point 4\n");
 
-        // dedicate a thread to poll for terminate message
-        syncSubstrate->set_pollTerminate();
+
+        std::string recv_str("RecvTimer_" + std::to_string(_num_iterations));
+        galois::StatTimer StatTimer_recv(recv_str.c_str(), REGION_NAME);
+        StatTimer_recv.start();
 
         // launch all other threads to poll for messages
         galois::on_each(
@@ -286,10 +299,17 @@ struct PageRank {
                 syncSubstrate->poll_for_msg<Reduce_add_residual>();
             }
         );
+        //syncSubstrate->poll_for_msg<Reduce_add_residual>();
+        //galois::gPrint("Host ", net.ID, " point 5\n");
+        syncSubstrate->reset_termination();
+        galois::substrate::getThreadPool().waitDedicated();
+        StatTimer_recv.stop();
+        //galois::gPrint("Host ", net.ID, " point 6\n");
       }
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
+      //galois::gPrint("Host ", net.ID, " point 7\n");
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),

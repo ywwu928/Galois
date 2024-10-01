@@ -93,7 +93,7 @@ private:
         : memUsageTracker(tracker), inflightSends(sends) {}
 
     void complete() {
-      if (!inflight.empty()) {
+      while (!inflight.empty()) {
         int flag = 0;
         MPI_Status status;
         auto& f = inflight.front();
@@ -104,6 +104,9 @@ private:
           inflight.pop_front();
           --inflightSends;
         }
+        else {
+            break;
+        }
       }
     }
 
@@ -112,13 +115,8 @@ private:
       auto& f = inflight.back();
       galois::runtime::trace("MPI SEND", f.host, f.tag, f.data.size(),
                              galois::runtime::printVec(f.data));
-#ifdef GALOIS_SUPPORT_ASYNC
       int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag,
                           MPI_COMM_WORLD, &f.req);
-#else
-      int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag,
-                         MPI_COMM_WORLD, &f.req);
-#endif
       handleError(rv);
     }
   };
@@ -169,7 +167,7 @@ private:
       }
       
       // complete messages
-      if (!inflight.empty()) {
+      while (!inflight.empty()) {
         auto& m  = inflight.front();
         int flag = 0;
         rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
@@ -177,6 +175,9 @@ private:
         if (flag) {
           done.emplace_back(m.host, m.tag, std::move(m.data));
           inflight.pop_front();
+        }
+        else {
+            break;
         }
       }
     }

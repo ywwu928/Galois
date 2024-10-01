@@ -441,8 +441,7 @@ public:
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
         num_round(0), currentBVFlag(nullptr),
         mirrorNodes(userGraph.getMirrorNodes()),
-        ghostNodes(userGraph.getGhostNodes()),
-        terminateList(numHosts) {
+        ghostNodes(userGraph.getGhostNodes()) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
                     "Cartesian split doesn't equal number of hosts");
@@ -3551,100 +3550,47 @@ public:
   }
 
 /* For Polling */
-private:
-    std::vector<std::atomic<bool>> terminateList;
-    std::atomic<bool> terminateFlag;
-    std::atomic<bool> doneFlag;
-
 public:
     void reset_termination() {
-        for (uint32_t i=0; i<numHosts; i++) {
-            terminateList[i] = false;
-        }
-        terminateList[id] = true;
-        terminateFlag = false;
-        doneFlag = false;
+        auto& net = galois::runtime::getSystemNetworkInterface();
+        net.resetTermination();
     }
 
     template<typename FnTy>
     void poll_for_msg() {
         auto& net = galois::runtime::getSystemNetworkInterface();
 
-        decltype(net.receiveTaggedCheckTermination(0, 1)) p;
+        bool terminateFlag;
+        decltype(net.receiveRemoteWork(terminateFlag)) p;
         while (true) {
             do {
+                p = net.receiveRemoteWork(terminateFlag);
                 if (terminateFlag) {
                     break;
                 }
-
-                p = net.receiveTaggedCheckTermination(0, 1);
                 if (!p) {
                     galois::substrate::asmPause();
                 }
             } while (!p);
             
-            if (p) { // received message
-                if (std::get<0>(*p)) { // termination message
-                    uint32_t src = std::get<1>(*p);
-                    terminateList[src] = true;
-                    
-                    bool recvAll = true;
-                    for (uint32_t i=0; i<numHosts; i++) {
-                        if (terminateList[i] == false) {
-                            recvAll = false;
-                            break;
-                        }
-                    }
-                    if (recvAll) {
-                        terminateFlag = true;
-                    }
-                }
-                else { // regular message
-                    uint64_t gid;
-                    typename FnTy::ValTy val;
-                    galois::runtime::gDeserialize(std::get<2>(*p), gid, val);
-                    uint32_t lid = userGraph.getLID(gid);
-                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
-                }
-            }
-
             if (terminateFlag) {
                 break;
             }
-        }
-        
-        bool empty = false;
-        decltype(net.receiveTaggedCheckEmpty(0, empty)) q;
-        while (true) {
-            do {
-                if (empty) {
-                    doneFlag = true;
-                    break;
-                }
 
-                q = net.receiveTaggedCheckEmpty(0, empty);
-                if (!q) {
-                    galois::substrate::asmPause();
-                }
-            } while (!q);
-            
-            if (q) { // received message
+            if (p) { // received message
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                galois::runtime::gDeserialize(q->second, gid, val);
+                galois::runtime::gDeserialize(p->second, gid, val);
                 uint32_t lid = userGraph.getLID(gid);
                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
-            }
-
-            if (doneFlag) {
-                break;
             }
         }
     }
 
     void net_flush() {
         auto& net = galois::runtime::getSystemNetworkInterface();
-        net.flush();
+        net.flushRemoteWork();
+        net.broadcastTermination();
     }
 
     template <typename FnTy>
@@ -3652,17 +3598,7 @@ public:
         auto& net = galois::runtime::getSystemNetworkInterface();
         galois::runtime::SendBuffer b;
         gSerialize(b, gid, val);
-        net.sendTagged(dst, 0, b);
-    }
-  
-    void send_terminator_to_remote() {
-        auto& net = galois::runtime::getSystemNetworkInterface();
-        for (unsigned h = 1; h < numHosts; ++h) {
-            unsigned x = (id + h) % numHosts;
-            galois::runtime::SendBuffer b;
-            gSerialize(b, true);
-            net.sendTagged(x, 1, b);
-        }
+        net.sendWork(dst, b);
     }
 
 ////////////////////////////////////////////////////////////////////////////////
