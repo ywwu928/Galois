@@ -27,7 +27,6 @@
  */
 
 #include "galois/runtime/Network.h"
-#include "galois/runtime/NetworkIO.h"
 #include "galois/runtime/Tracer.h"
 #include "galois/Threads.h"
 #include "galois/concurrentqueue.h"
@@ -60,22 +59,72 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   unsigned long statSendNum;
   unsigned long statSendBytes;
-  unsigned long statSendEnqueued;
   unsigned long statRecvNum;
   unsigned long statRecvBytes;
-  unsigned long statRecvDequeued;
   bool anyReceivedMessages;
 
   unsigned int numT;
 
   // using vTy = std::vector<uint8_t>;
   using vTy = galois::PODResizeableArray<uint8_t>;
+  
+  /**
+   * Wrapper for dealing with MPI error codes. Program dies if the error code
+   * isn't MPI_SUCCESS.
+   *
+   * @param rc Error code to check for success
+   */
+  static void handleError(int rc) {
+      if (rc != MPI_SUCCESS) {
+          MPI_Abort(MPI_COMM_WORLD, rc);
+      }
+  }
+  
+  /**
+   * Get the host id of the caller.
+   *
+   * @returns host id of the caller with regard to the MPI setup
+   */
+  int getID() {
+      int taskRank;
+      handleError(MPI_Comm_rank(MPI_COMM_WORLD, &taskRank));
+      return taskRank;
+  }
+
+  /**
+   * Get the total number of hosts in the system.
+   *
+   * @returns number of hosts with regard to the MPI setup
+   */
+  int getNum() {
+      int numTasks;
+      handleError(MPI_Comm_size(MPI_COMM_WORLD, &numTasks));
+      return numTasks;
+  }
+
+  struct message {
+      uint32_t host; //!< destination of this message
+      uint32_t tag;  //!< tag on message indicating distinct communication phases
+      vTy data;      //!< data portion of message
+
+      //! Default constructor initializes host and tag to large numbers.
+      message() : host(~0), tag(~0) {}
+      //! @param h Host to send message to
+      //! @param t Tag to associate with message
+      //! @param d Data to save in message
+      message(uint32_t h, uint32_t t, vTy&& d)
+          : host(h), tag(t), data(std::move(d)) {}
+
+      //! A message is valid if there is data to be sent
+      //! @returns true if data is non-empty
+      bool valid() const { return !data.empty(); }
+  };
 
   /**
    * Receive buffers for the buffered network interface
    */
   class recvBuffer {
-    std::deque<NetworkIO::message> data;
+    std::deque<message> data;
     SimpleLock rlock;
     // tag of head of queue
     std::atomic<uint32_t> dataPresent = ~0;
@@ -100,7 +149,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     }
 
     // Worker thread interface
-    void add(NetworkIO::message m) {
+    void add(message m) {
       std::lock_guard<SimpleLock> lg(rlock);
       if (data.empty()) {
         galois::runtime::trace("ADD LATEST ", m.tag);
@@ -132,7 +181,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class concurrentRecvBuffer {
     // single producer multiple consumer
-    moodycamel::ConcurrentQueue<NetworkIO::message> data;
+    moodycamel::ConcurrentQueue<message> data;
     unsigned int numT;
     moodycamel::ProducerToken ptok;
 
@@ -142,7 +191,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     }
 
     std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs, uint32_t& src) {
-      NetworkIO::message m;
+      message m;
 
       if (data.try_dequeue_from_producer(ptok, m)) {
           src = m.host;
@@ -156,7 +205,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     }
 
     // Worker thread interface
-    void add(NetworkIO::message m) {
+    void add(message m) {
       data.enqueue(ptok, std::move(m));
     }
 
@@ -379,6 +428,46 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   std::vector<sendBufferRemoteWork> sendRemoteWork;
 
+  /**
+   * Message type to send/recv in this network IO layer.
+   */
+  struct mpiMessage {
+      uint32_t host;
+      uint32_t tag;
+      vTy data;
+      MPI_Request req;
+        
+      mpiMessage(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
+      mpiMessage(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
+  };
+  
+  std::deque<mpiMessage> sendInflight;
+    
+  void sendComplete() {
+      if (!sendInflight.empty()) {
+          int flag = 0;
+          MPI_Status status;
+          auto& f = sendInflight.front();
+          int rv  = MPI_Test(&f.req, &flag, &status);
+          handleError(rv);
+          if (flag) {
+              memUsageTracker.decrementMemUsage(f.data.size());
+              sendInflight.pop_front();
+              --inflightSends;
+          }
+      }
+  }
+
+  void send(message m) {
+      sendInflight.emplace_back(m.host, m.tag, std::move(m.data));
+      auto& f = sendInflight.back();
+      galois::runtime::trace("MPI SEND", f.host, f.tag, f.data.size(), galois::runtime::printVec(f.data));
+      int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
+      handleError(rv);
+  }
+  
+  std::deque<mpiMessage> recvInflight;
+
   uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
       if ((data_array.size() - offset) > sizeof(uint32_t)) {
           union {
@@ -411,125 +500,64 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
   }
 
-  void workerThread() {
-    initializeMPI();
-    int rank;
-    int hostSize;
-
-    int rankSuccess = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (rankSuccess != MPI_SUCCESS) {
-      MPI_Abort(MPI_COMM_WORLD, rankSuccess);
-    }
-
-    int sizeSuccess = MPI_Comm_size(MPI_COMM_WORLD, &hostSize);
-    if (sizeSuccess != MPI_SUCCESS) {
-      MPI_Abort(MPI_COMM_WORLD, sizeSuccess);
-    }
-
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
-    std::tie(netio, ID, Num) =
-        makeNetworkIOMPI(memUsageTracker, inflightSends, inflightRecvs);
-
-    assert(ID == (unsigned)rank);
-    assert(Num == (unsigned)hostSize);
-
-    ready = 1;
-    while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
-    };
-    while (ready != 3) {
-      for (unsigned i = 0; i < Num; ++i) {
-          netio->progress();
-          
-          if (i != ID) {
-              // handle send queue
-              // 1. remote work
-              auto& srw = sendRemoteWork[i];
-              if (srw.checkFlush()) {
-                  std::vector<std::pair<uint32_t, vTy>> payloads;
-                  srw.assemble(payloads, inflightSends);
-                  
-                  for (size_t k=0; k<payloads.size(); k++) {
-                      NetworkIO::message msg;
-                      msg.host = i;
-                      msg.tag = payloads[k].first;
-                      msg.data = std::move(payloads[k].second);
-
-                      if (msg.tag != ~0U) {
-                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-                          ++statSendEnqueued;
-                          netio->enqueue(std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
-                      }
-                  }
-
-                  
-                  // 2. termination
-                  if (sendTermination[i]) {
-                      ++inflightSends;
-                      NetworkIO::message msg;
-                      msg.host = i;
-                      msg.tag = galois::runtime::terminationTag;
-                      
-                      ++statSendEnqueued;
-                      netio->enqueue(std::move(msg));
-                      //galois::gPrint("Host ", ID, " : MPI_Send termination to Host ", i, "\n");
-
-                      sendTermination[i] = false;
-                  }
-              }
-              // 3. data
-              auto& sd = sendData[i];
-              if (sd.checkFlush()) {
-                  std::vector<std::pair<uint32_t, vTy>> payloads;
-                  sd.assemble(payloads, inflightSends);
-                  
-                  for (size_t k=0; k<payloads.size(); k++) {
-                      NetworkIO::message msg;
-                      msg.host = i;
-                      msg.tag = payloads[k].first;
-                      msg.data = std::move(payloads[k].second);
-
-                      if (msg.tag != ~0U) {
-                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-                          ++statSendEnqueued;
-                          netio->enqueue(std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
-                      }
-                  }
-              }
+    // FIXME: Does synchronous recieves overly halt forward progress?
+  void recvProbe() {
+      int flag = 0;
+      MPI_Status status;
+      // check for new messages
+      int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
+      handleError(rv);
+      if (flag) {
+#ifdef GALOIS_USE_BARE_MPI
+          assert(status.MPI_TAG <= 32767);
+          if (status.MPI_TAG != 32767) {
+#endif
+              int nbytes;
+              rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
+              handleError(rv);
+              recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+              auto& m = recvInflight.back();
+              memUsageTracker.incrementMemUsage(m.data.size());
+              rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+              handleError(rv);
+              galois::runtime::trace("MPI IRECV", status.MPI_SOURCE, status.MPI_TAG, m.data.size());
+#ifdef GALOIS_USE_BARE_MPI
           }
-          
-          // handle receive
-          NetworkIO::message rdata = netio->dequeue();
-          if (rdata.tag == galois::runtime::terminationTag) {
-              -- inflightRecvs;
-              hostTermination[rdata.host] = true;
-              //galois::gPrint("Host ", ID, " : received termination from Host ", rdata.host, "\n");
-          }
-          else {
-              if (rdata.data.size()) {
-                  //galois::gPrint("Host ", ID, " : MPI_recv from Host ", rdata.host, "\n");
-                  ++statRecvDequeued;
-                  assert(rdata.data.size() != (unsigned int)std::count(rdata.data.begin(), rdata.data.end(), 0));
-                  galois::runtime::trace("BufferedRecieving", rdata.host, rdata.tag, galois::runtime::printVec(rdata.data));
+#endif
+      }
+  
+      // complete messages
+      if (!recvInflight.empty()) {
+          auto& m  = recvInflight.front();
+          int flag = 0;
+          rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+          handleError(rv);
+          if (flag) {
+              if (m.tag == galois::runtime::terminationTag) {
+                  hostTermination[m.host] = true;
+                  //galois::gPrint("Host ", ID, " : received termination from Host ", m.host, "\n");
+              }
+              else {
+                  //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
+                  assert(m.data.size() != (unsigned int)std::count(m.data.begin(), m.data.end(), 0));
+                  galois::runtime::trace("BufferedRecieving", m.host, m.tag, galois::runtime::printVec(m.data));
 
                   // Disassemble the aggregated message
-                  --inflightRecvs;
                   size_t offset = 0;
-                  while (offset < rdata.data.size()) {
+                  while (offset < m.data.size()) {
                       // Read the length of the next message
-                      uint32_t len = getSubMessageLen(rdata.data, offset);
+                      uint32_t len = getSubMessageLen(m.data, offset);
                       if (len == ~0U || len == 0) {
                           galois::gError("Cannot read the length of the received message!\n");
                           break; // Not enough data to read the message size
                       }
 
-                      NetworkIO::message sub_msg;
-                      sub_msg.host = rdata.host;
-                      sub_msg.tag = rdata.tag;
+                      message sub_msg;
+                      sub_msg.host = m.host;
+                      sub_msg.tag = m.tag;
                       
                       // Read the message data
-                      auto vec = getSubMessage(rdata.data, offset, len);
+                      auto vec = getSubMessage(m.data, offset, len);
                       if (vec.has_value()) {
                           sub_msg.data = std::move(vec.value());
                       }
@@ -547,6 +575,99 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       }
                       
                       ++inflightRecvs;
+                  }
+              }
+                
+              recvInflight.pop_front();
+          }
+      }
+  }
+
+  void workerThread() {
+    initializeMPI();
+    int rank;
+    int hostSize;
+
+    int rankSuccess = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rankSuccess != MPI_SUCCESS) {
+      MPI_Abort(MPI_COMM_WORLD, rankSuccess);
+    }
+
+    int sizeSuccess = MPI_Comm_size(MPI_COMM_WORLD, &hostSize);
+    if (sizeSuccess != MPI_SUCCESS) {
+      MPI_Abort(MPI_COMM_WORLD, sizeSuccess);
+    }
+
+    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
+    ID = getID();
+    Num = getNum();
+
+    assert(ID == (unsigned)rank);
+    assert(Num == (unsigned)hostSize);
+
+    ready = 1;
+    while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
+    };
+    while (ready != 3) {
+      for (unsigned i = 0; i < Num; ++i) {
+          // push progress forward on the network IO
+          sendComplete();
+          recvProbe();
+          
+          if (i != ID) {
+              // handle send queue
+              // 1. remote work
+              auto& srw = sendRemoteWork[i];
+              if (srw.checkFlush()) {
+                  std::vector<std::pair<uint32_t, vTy>> payloads;
+                  srw.assemble(payloads, inflightSends);
+                  
+                  for (size_t k=0; k<payloads.size(); k++) {
+                      message msg;
+                      msg.host = i;
+                      msg.tag = payloads[k].first;
+                      msg.data = std::move(payloads[k].second);
+
+                      if (msg.tag != ~0U) {
+                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                          memUsageTracker.incrementMemUsage(msg.data.size());
+                          send(std::move(msg));
+                          //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
+                      }
+                  }
+
+                  
+                  // 2. termination
+                  if (sendTermination[i]) {
+                      ++inflightSends;
+                      message msg;
+                      msg.host = i;
+                      msg.tag = galois::runtime::terminationTag;
+                      
+                      send(std::move(msg));
+                      //galois::gPrint("Host ", ID, " : MPI_Send termination to Host ", i, "\n");
+
+                      sendTermination[i] = false;
+                  }
+              }
+              // 3. data
+              auto& sd = sendData[i];
+              if (sd.checkFlush()) {
+                  std::vector<std::pair<uint32_t, vTy>> payloads;
+                  sd.assemble(payloads, inflightSends);
+                  
+                  for (size_t k=0; k<payloads.size(); k++) {
+                      message msg;
+                      msg.host = i;
+                      msg.tag = payloads[k].first;
+                      msg.data = std::move(payloads[k].second);
+
+                      if (msg.tag != ~0U) {
+                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                          memUsageTracker.incrementMemUsage(msg.data.size());
+                          send(std::move(msg));
+                          //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
+                      }
                   }
               }
           }
@@ -589,8 +710,7 @@ public:
     anyReceivedMessages = false;
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
     numT = galois::getActiveThreads();
-    while (ready != 1) {
-    };
+    while (ready != 1) {};
     
     sendData = decltype(sendData)(Num);
     sendRemoteWork = decltype(sendRemoteWork)(Num);
@@ -613,8 +733,6 @@ public:
     ready = 3;
     worker.join();
   }
-
-  std::unique_ptr<galois::runtime::NetworkIO> netio;
 
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int phase) {
@@ -741,18 +859,12 @@ public:
 
   virtual std::vector<unsigned long> reportExtra() const {
     std::vector<unsigned long> retval(2);
-    retval[0] = statSendEnqueued;
-    retval[1] = statRecvDequeued;
     return retval;
   }
 
   virtual std::vector<std::pair<std::string, unsigned long>>
   reportExtraNamed() const {
     std::vector<std::pair<std::string, unsigned long>> retval(2);
-    retval[0].first = "SendEnqueued";
-    retval[1].first = "RecvDequeued";
-    retval[0].second = statSendEnqueued;
-    retval[1].second = statRecvDequeued;
     return retval;
   }
 };
