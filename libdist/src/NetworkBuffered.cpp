@@ -30,6 +30,7 @@
 #include "galois/runtime/Tracer.h"
 #include "galois/Threads.h"
 #include "galois/concurrentqueue.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <thread>
 #include <mutex>
@@ -38,11 +39,18 @@
 #include <unordered_map>
 #include <tuple>
 #include <functional>
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
 
 using namespace galois::runtime;
 using namespace galois::substrate;
 
+namespace cll = llvm::cl;
+
 namespace {
+
+cll::opt<int> commCoreID("commCoreID", cll::desc("The core id to pin the communication thread to"), cll::init(0));
 
 /**
  * @class NetworkInterfaceBuffered
@@ -86,9 +94,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    * @returns host id of the caller with regard to the MPI setup
    */
   int getID() {
-      int taskRank;
-      handleError(MPI_Comm_rank(MPI_COMM_WORLD, &taskRank));
-      return taskRank;
+      int rank;
+      handleError(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+      return rank;
   }
 
   /**
@@ -97,9 +105,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    * @returns number of hosts with regard to the MPI setup
    */
   int getNum() {
-      int numTasks;
-      handleError(MPI_Comm_size(MPI_COMM_WORLD, &numTasks));
-      return numTasks;
+      int hostSize;
+      handleError(MPI_Comm_size(MPI_COMM_WORLD, &hostSize));
+      return hostSize;
   }
 
   struct message {
@@ -584,96 +592,98 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   }
 
   void workerThread() {
-    initializeMPI();
-    int rank;
-    int hostSize;
+      // Set thread affinity
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);           // Clear the CPU set
+      CPU_SET(commCoreID, &cpuset);   // Set the specified core
 
-    int rankSuccess = MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (rankSuccess != MPI_SUCCESS) {
-      MPI_Abort(MPI_COMM_WORLD, rankSuccess);
-    }
+      // Get the native handle of the std::thread
+      pthread_t thread = pthread_self();
+    
+      // Set the CPU affinity of the thread
+      if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
+          std::cerr << "Error setting thread affinity" << std::endl;
+          return;
+      }
 
-    int sizeSuccess = MPI_Comm_size(MPI_COMM_WORLD, &hostSize);
-    if (sizeSuccess != MPI_SUCCESS) {
-      MPI_Abort(MPI_COMM_WORLD, sizeSuccess);
-    }
+      initializeMPI();
+      galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
+      ID = getID();
+      Num = getNum();
 
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
-    ID = getID();
-    Num = getNum();
+      int core_id = sched_getcpu(); // Get the current CPU core
+      galois::gPrint("Host ", ID, " : workerThread running on core ", core_id, "\n");
 
-    assert(ID == (unsigned)rank);
-    assert(Num == (unsigned)hostSize);
-
-    ready = 1;
-    while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
-    };
-    while (ready != 3) {
-      for (unsigned i = 0; i < Num; ++i) {
-          // push progress forward on the network IO
-          sendComplete();
-          recvProbe();
+      ready = 1;
+      while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
+      };
+      while (ready != 3) {
+          for (unsigned i = 0; i < Num; ++i) {
+              // push progress forward on the network IO
+              sendComplete();
+              recvProbe();
           
-          if (i != ID) {
-              // handle send queue
-              // 1. remote work
-              auto& srw = sendRemoteWork[i];
-              if (srw.checkFlush()) {
-                  std::vector<std::pair<uint32_t, vTy>> payloads;
-                  srw.assemble(payloads, inflightSends);
-                  
-                  for (size_t k=0; k<payloads.size(); k++) {
-                      message msg;
-                      msg.host = i;
-                      msg.tag = payloads[k].first;
-                      msg.data = std::move(payloads[k].second);
+              if (i != ID) {
+                  // handle send queue
+                  // 1. remote work
+                  auto& srw = sendRemoteWork[i];
+                  if (srw.checkFlush()) {
+                      std::vector<std::pair<uint32_t, vTy>> payloads;
+                      srw.assemble(payloads, inflightSends);
+                      
+                      for (size_t k=0; k<payloads.size(); k++) {
+                          message msg;
+                          msg.host = i;
+                          msg.tag = payloads[k].first;
+                          msg.data = std::move(payloads[k].second);
 
-                      if (msg.tag != ~0U) {
-                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-                          memUsageTracker.incrementMemUsage(msg.data.size());
+                          if (msg.tag != ~0U) {
+                              galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                              memUsageTracker.incrementMemUsage(msg.data.size());
+                              send(std::move(msg));
+                              //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
+                          }
+                      }
+
+                      
+                      // 2. termination
+                      if (sendTermination[i]) {
+                          ++inflightSends;
+                          message msg;
+                          msg.host = i;
+                          msg.tag = galois::runtime::terminationTag;
+                          
                           send(std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
+                          //galois::gPrint("Host ", ID, " : MPI_Send termination to Host ", i, "\n");
+
+                          sendTermination[i] = false;
                       }
                   }
-
-                  
-                  // 2. termination
-                  if (sendTermination[i]) {
-                      ++inflightSends;
-                      message msg;
-                      msg.host = i;
-                      msg.tag = galois::runtime::terminationTag;
+                  // 3. data
+                  auto& sd = sendData[i];
+                  if (sd.checkFlush()) {
+                      std::vector<std::pair<uint32_t, vTy>> payloads;
+                      sd.assemble(payloads, inflightSends);
                       
-                      send(std::move(msg));
-                      //galois::gPrint("Host ", ID, " : MPI_Send termination to Host ", i, "\n");
+                      for (size_t k=0; k<payloads.size(); k++) {
+                          message msg;
+                          msg.host = i;
+                          msg.tag = payloads[k].first;
+                          msg.data = std::move(payloads[k].second);
 
-                      sendTermination[i] = false;
-                  }
-              }
-              // 3. data
-              auto& sd = sendData[i];
-              if (sd.checkFlush()) {
-                  std::vector<std::pair<uint32_t, vTy>> payloads;
-                  sd.assemble(payloads, inflightSends);
-                  
-                  for (size_t k=0; k<payloads.size(); k++) {
-                      message msg;
-                      msg.host = i;
-                      msg.tag = payloads[k].first;
-                      msg.data = std::move(payloads[k].second);
-
-                      if (msg.tag != ~0U) {
-                          galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
-                          memUsageTracker.incrementMemUsage(msg.data.size());
-                          send(std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
+                          if (msg.tag != ~0U) {
+                              galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
+                              memUsageTracker.incrementMemUsage(msg.data.size());
+                              send(std::move(msg));
+                              //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
+                          }
                       }
                   }
               }
           }
       }
-    }
-    finalizeMPI();
+      
+      finalizeMPI();
   }
   
   std::thread worker;
