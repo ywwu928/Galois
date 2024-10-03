@@ -24,6 +24,12 @@
 #include <vector>
 
 #include "galois/config.h"
+#include <llvm/Support/CommandLine.h>
+
+namespace cll = llvm::cl;
+
+extern int commThreadNum;
+extern cll::opt<unsigned int> commCoreID;
 
 namespace galois::substrate {
 

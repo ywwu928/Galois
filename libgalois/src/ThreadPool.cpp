@@ -40,10 +40,10 @@ thread_local ThreadPool::per_signal ThreadPool::my_box;
 ThreadPool::ThreadPool()
     : mi(getHWTopo().machineTopoInfo), reserved(0), masterFastmode(false),
       running(false) {
-  signals.resize(mi.maxThreads);
+  signals.resize(getMaxThreads());
   initThread(0);
 
-  for (unsigned i = 1; i < mi.maxThreads; ++i) {
+  for (unsigned i = 1; i < getMaxThreads(); ++i) {
     std::thread t(&ThreadPool::threadLoop, this, i);
     threads.emplace_back(std::move(t));
   }
@@ -64,7 +64,7 @@ ThreadPool::~ThreadPool() {
 
 void ThreadPool::destroyCommon() {
   beKind(); // reset fastmode
-  run(mi.maxThreads, []() { throw shutdown_ty(); });
+  run(getMaxThreads(), []() { throw shutdown_ty(); });
 }
 
 void ThreadPool::burnPower(unsigned num) {
@@ -119,7 +119,7 @@ void ThreadPool::initThread(unsigned tid) {
   signals[tid] = &my_box;
   my_box.topo  = getHWTopo().threadTopoInfo[tid];
   // Initialize
-  substrate::initPTS(mi.maxThreads);
+  substrate::initPTS(getMaxThreads());
 
   if (!EnvCheck("GALOIS_DO_NOT_BIND_THREADS")) {
     if (my_box.topo.tid != 0 || !EnvCheck("GALOIS_DO_NOT_BIND_MAIN_THREAD")) {
@@ -236,9 +236,9 @@ void ThreadPool::runDedicated(std::function<void(void)>& f) {
                 "Can't start dedicated thread during parallel section");
   ++reserved;
 
-  GALOIS_ASSERT(reserved < mi.maxThreads, "Too many dedicated threads");
+  GALOIS_ASSERT(reserved < getMaxThreads(), "Too many dedicated threads");
   work          = [&f]() { throw dedicated_ty{f}; };
-  auto child    = signals[mi.maxThreads - reserved];
+  auto child    = signals[getMaxThreads() - reserved];
   child->wbegin = 0;
   child->wend   = 0;
   child->done   = 0;
