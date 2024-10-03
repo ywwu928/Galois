@@ -30,7 +30,6 @@
 #include "galois/runtime/Tracer.h"
 #include "galois/Threads.h"
 #include "galois/concurrentqueue.h"
-#include "llvm/Support/CommandLine.h"
 
 #include <thread>
 #include <mutex>
@@ -46,11 +45,7 @@
 using namespace galois::runtime;
 using namespace galois::substrate;
 
-namespace cll = llvm::cl;
-
 namespace {
-
-cll::opt<int> commCoreID("commCoreID", cll::desc("The core id to pin the communication thread to"), cll::init(0));
 
 /**
  * @class NetworkInterfaceBuffered
@@ -120,8 +115,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       //! @param h Host to send message to
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      message(uint32_t h, uint32_t t, vTy&& d)
-          : host(h), tag(t), data(std::move(d)) {}
+      message(uint32_t h, uint32_t t, vTy&& d) : host(h), tag(t), data(std::move(d)) {}
+      message(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
 
       //! A message is valid if there is data to be sent
       //! @returns true if data is non-empty
@@ -590,8 +585,79 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
       }
   }
+  
+  void recvProbeBlocking() {
+      int flag = 0;
+      MPI_Status status;
+      // check for new messages
+      int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
+      handleError(rv);
+      if (flag) {
+#ifdef GALOIS_USE_BARE_MPI
+          assert(status.MPI_TAG <= 32767);
+          if (status.MPI_TAG != 32767) {
+#endif
+              int nbytes;
+              rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
+              handleError(rv);
+              message m(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+              memUsageTracker.incrementMemUsage(nbytes);
+              rv = MPI_Recv(m.data.data(), nbytes, MPI_BYTE, m.host, m.tag, MPI_COMM_WORLD, &status);
+              handleError(rv);
+              galois::runtime::trace("MPI RECV", status.MPI_SOURCE, status.MPI_TAG, m.data.size());
 
+              if (m.tag == galois::runtime::terminationTag) {
+                  hostTermination[m.host] = true;
+                  //galois::gPrint("Host ", ID, " : received termination from Host ", m.host, "\n");
+              }
+              else {
+                  //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
+                  assert(m.data.size() != (unsigned int)std::count(m.data.begin(), m.data.end(), 0));
+                  galois::runtime::trace("BufferedRecieving", m.host, m.tag, galois::runtime::printVec(m.data));
+
+                  // Disassemble the aggregated message
+                  size_t offset = 0;
+                  while (offset < m.data.size()) {
+                      // Read the length of the next message
+                      uint32_t len = getSubMessageLen(m.data, offset);
+                      if (len == ~0U || len == 0) {
+                          galois::gError("Cannot read the length of the received message!\n");
+                          break; // Not enough data to read the message size
+                      }
+
+                      message sub_msg;
+                      sub_msg.host = m.host;
+                      sub_msg.tag = m.tag;
+                      
+                      // Read the message data
+                      auto vec = getSubMessage(m.data, offset, len);
+                      if (vec.has_value()) {
+                          sub_msg.data = std::move(vec.value());
+                      }
+                      else {
+                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
+                          break; // Not enough data for the complete message
+                      }
+
+                      // Add the disassembled message to the receive buffer
+                      if (sub_msg.tag == galois::runtime::remoteWorkTag) {
+                          recvRemoteWork.add(std::move(sub_msg));
+                      }
+                      else {
+                          recvData.add(std::move(sub_msg));
+                      }
+                      
+                      ++inflightRecvs;
+                  }
+              }
+#ifdef GALOIS_USE_BARE_MPI
+          }
+#endif
+      }
+  }
+  
   void workerThread() {
+
       // Set thread affinity
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);           // Clear the CPU set
@@ -610,9 +676,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
       ID = getID();
       Num = getNum();
-
-      int core_id = sched_getcpu(); // Get the current CPU core
-      galois::gPrint("Host ", ID, " : workerThread running on core ", core_id, "\n");
 
       ready = 1;
       while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
