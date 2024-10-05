@@ -2189,7 +2189,8 @@ private:
 							// may only define a (noexcept) move constructor, and so calls to the
 							// cctor will not compile, even if they are in an if branch that will never
 							// be executed
-							new ((*this->tailBlock)[currentTailIndex]) T(details::nomove_if<!MOODYCAMEL_NOEXCEPT_CTOR(T, decltype(*itemFirst), new (static_cast<T*>(nullptr)) T(details::deref_noexcept(itemFirst)))>::eval(*itemFirst));
+							//new ((*this->tailBlock)[currentTailIndex]) T(details::nomove_if<!MOODYCAMEL_NOEXCEPT_CTOR(T, decltype(*itemFirst), new (static_cast<T*>(nullptr)) T(details::deref_noexcept(itemFirst)))>::eval(*itemFirst));
+						    new ((*this->tailBlock)[currentTailIndex]) T(std::forward<decltype(*itemFirst)>(*itemFirst));
 							++currentTailIndex;
 							++itemFirst;
 						}

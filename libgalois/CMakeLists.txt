@@ -105,6 +105,10 @@ if (VTune_FOUND)
   target_link_libraries(galois_shmem PRIVATE ${VTune_LIBRARIES})
 endif()
 
+if (PAPI_FOUND)
+    target_link_libraries(galois_shmem PRIVATE ${PAPI_LIBRARIES})
+endif()
+
 add_subdirectory(test)
 
 install(

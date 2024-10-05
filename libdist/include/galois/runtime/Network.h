@@ -138,7 +138,7 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
-  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  virtual std::optional<RecvBuffer>
   receiveRemoteWork(bool& terminateFlag) = 0;
   
   virtual void resetTermination() = 0;

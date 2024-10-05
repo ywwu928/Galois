@@ -24,6 +24,7 @@
 #include "galois/DReducible.h"
 #include "galois/DTerminationDetector.h"
 #include "galois/runtime/Tracer.h"
+#include "galois/runtime/Profile.h"
 
 #include <algorithm>
 #include <iostream>
@@ -267,31 +268,26 @@ struct PageRank {
         galois::substrate::getThreadPool().runDedicated(func);
         //galois::gPrint("Host ", net.ID, " point 2\n");
         
-        std::string send_str("SendTimer_" + std::to_string(_num_iterations));
-        galois::StatTimer StatTimer_send(send_str.c_str(), REGION_NAME);
-        StatTimer_send.start();
-        
         // launch all other threads to compute
-        galois::do_all(
-            galois::iterate(masterNodes), PageRank{&_graph, dga},
-            galois::no_stats(), galois::steal(),
-            galois::loopname(
-                syncSubstrate->get_run_identifier("PageRank").c_str()));
+        /*std::string doAllString = "doAll_" + std::to_string(_num_iterations);
+        std::function<void(void)> doAllFunc = [&]() {
+                galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
+                               galois::no_stats(), galois::steal(),
+                               galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
+        };
+        galois::runtime::profilePapi(doAllFunc, doAllString.c_str());*/
+        galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
+                       galois::no_stats(), galois::steal(),
+                       galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
         /*for (auto& src: masterNodes) {
             PageRank{&_graph, dga}(src);
         }*/
-        StatTimer_send.stop();
         //galois::gPrint("Host ", net.ID, " point 3\n");
         
         // inform all other hosts that this host has finished sending messages
         // force all messages to be processed before continuing
         syncSubstrate->net_flush();
         //galois::gPrint("Host ", net.ID, " point 4\n");
-
-
-        std::string recv_str("RecvTimer_" + std::to_string(_num_iterations));
-        galois::StatTimer StatTimer_recv(recv_str.c_str(), REGION_NAME);
-        StatTimer_recv.start();
 
         // launch all other threads to poll for messages
         galois::on_each(
@@ -303,7 +299,6 @@ struct PageRank {
         //galois::gPrint("Host ", net.ID, " point 5\n");
         syncSubstrate->reset_termination();
         galois::substrate::getThreadPool().waitDedicated();
-        StatTimer_recv.stop();
         //galois::gPrint("Host ", net.ID, " point 6\n");
       }
 

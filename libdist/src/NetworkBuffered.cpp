@@ -28,6 +28,7 @@
 
 #include "galois/runtime/Network.h"
 #include "galois/runtime/Tracer.h"
+#include "galois/runtime/ThreadTimer.h"
 #include "galois/Threads.h"
 #include "galois/concurrentqueue.h"
 
@@ -44,6 +45,8 @@
 
 using namespace galois::runtime;
 using namespace galois::substrate;
+
+constexpr static const char* const NETWORK_NAME = "Network";
 
 namespace {
 
@@ -131,12 +134,21 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     SimpleLock rlock;
     // tag of head of queue
     std::atomic<uint32_t> dataPresent = ~0;
+    
+    std::string pop_str;
+    galois::StatTimer StatTimer_pop;
+    std::string add_str;
+    galois::StatTimer StatTimer_add;
 
   public:
+    recvBuffer() : pop_str("RecvDataTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvDataTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+    
     std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs, uint32_t& src) {
-      if (data.empty() || data.front().tag != tag)
+      if (data.empty() || data.front().tag != tag) {
         return std::optional<RecvBuffer>();
+      }
 
+      StatTimer_pop.start();
       src = data.front().host;
       vTy vec(std::move(data.front().data));
 
@@ -148,22 +160,35 @@ class NetworkInterfaceBuffered : public NetworkInterface {
         dataPresent = ~0;
       }
 
-      return std::optional<RecvBuffer>(RecvBuffer(std::move(vec), sizeof(uint32_t)));
+      StatTimer_pop.stop();
+      return std::optional<RecvBuffer>(RecvBuffer(std::move(vec)));
     }
 
     // Worker thread interface
-    void add(message m) {
+    void add(uint32_t host, uint32_t tag, vTy vec) {
+      StatTimer_add.start();
       std::lock_guard<SimpleLock> lg(rlock);
       if (data.empty()) {
-        galois::runtime::trace("ADD LATEST ", m.tag);
-        dataPresent = m.tag;
+        dataPresent = tag;
       }
 
-      data.push_back(std::move(m));
+      data.emplace_back(host, tag, std::move(vec));
 
-      assert(data.back().data.size() !=
-             (unsigned int)std::count(data.back().data.begin(),
-                                      data.back().data.end(), 0));
+      StatTimer_add.stop();
+    }
+    
+    void addBulk(uint32_t host, uint32_t tag, std::vector<vTy>& vec) {
+      StatTimer_add.start();
+      std::lock_guard<SimpleLock> lg(rlock);
+      if (data.empty()) {
+        dataPresent = tag;
+      }
+
+      for (size_t i=0; i<vec.size(); i++) {
+          data.emplace_back(host, tag, std::move(vec[i]));
+      }
+      
+      StatTimer_add.stop();
     }
 
     bool hasData(uint32_t tag) { return dataPresent == tag; }
@@ -184,32 +209,48 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class concurrentRecvBuffer {
     // single producer multiple consumer
-    moodycamel::ConcurrentQueue<message> data;
+    moodycamel::ConcurrentQueue<vTy> data;
     unsigned int numT;
     moodycamel::ProducerToken ptok;
+      
+    std::string pop_str;
+    galois::runtime::PerThreadTimer<true> StatTimer_pop;
+    std::string add_str;
+    galois::StatTimer StatTimer_add;
 
   public:
-    concurrentRecvBuffer () : ptok(data) {
+    concurrentRecvBuffer() : ptok(data), pop_str("RecvWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {
+    //concurrentRecvBuffer() : ptok(data) {
         numT = galois::getActiveThreads();
     }
 
-    std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs, uint32_t& src) {
-      message m;
+    std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs) {
+      vTy vec;
 
-      if (data.try_dequeue_from_producer(ptok, m)) {
-          src = m.host;
-          vTy vec(std::move(m.data));
+      StatTimer_pop.start();
+      if (data.try_dequeue_from_producer(ptok, vec)) {
           --inflightRecvs;
-
-          return std::optional<RecvBuffer>(RecvBuffer(std::move(vec), sizeof(uint32_t)));
+          StatTimer_pop.stop();
+          return std::optional<RecvBuffer>(RecvBuffer(std::move(vec)));
       }
 
       return std::optional<RecvBuffer>();
     }
 
     // Worker thread interface
-    void add(message m) {
-      data.enqueue(ptok, std::move(m));
+    void add(vTy vec) {
+      StatTimer_add.start();
+      data.enqueue(ptok, std::move(vec));
+      StatTimer_add.stop();
+    }
+    
+    void addBulk(std::vector<vTy>& vec) {
+      StatTimer_add.start();
+      //data.enqueue_bulk(ptok, std::make_move_iterator(vec.begin()), vec.size());
+      for (size_t i=0; i<vec.size(); i++) {
+          data.enqueue(ptok, std::move(vec[i]));
+      }
+      StatTimer_add.stop();
     }
 
     size_t size() { return data.size_approx(); }
@@ -236,7 +277,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       std::atomic<size_t> numBytes;
 
   public:
-      sendBuffer () : flush(false), numBytes(0) {
+      sendBuffer() : flush(false), numBytes(0) {
           numT = galois::getActiveThreads();
       }
 
@@ -261,11 +302,18 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class sendBufferData : public sendBuffer {
       moodycamel::ProducerToken ptok;
+      
+      std::string assemble_str;
+      galois::StatTimer StatTimer_assemble;
+      std::string add_str;
+      galois::StatTimer StatTimer_add;
 
   public:
-      sendBufferData () : sendBuffer(), ptok(messages) {}
+      sendBufferData() : sendBuffer(), ptok(messages), assemble_str("SendDataTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendDataTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+      //sendBufferData() : sendBuffer(), ptok(messages) {}
     
       virtual void assemble(std::vector<std::pair<uint32_t, vTy>>& payloads, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
+          StatTimer_assemble.start();
           std::unordered_map<uint32_t, std::tuple<uint32_t, int, vTy>> tagMap;
 
           msg m;
@@ -335,17 +383,19 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                         return a.first < b.first;
                     }
           );
+          
+          StatTimer_assemble.stop();
       }
 
       virtual void add(uint32_t tag, vTy& b) {
-          unsigned oldNumBytes = numBytes;
+          StatTimer_add.start();
           numBytes += b.size();
-          galois::runtime::trace("BufferedAdd", oldNumBytes, numBytes, tag, galois::runtime::printVec(b));
           messages.enqueue(ptok, msg(tag, b));
 
           if (numBytes >= COMM_MIN) {
               flush = true;
           }
+          StatTimer_add.stop();
       }
   };
 
@@ -357,20 +407,28 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   class sendBufferRemoteWork : public sendBuffer {
       std::vector<moodycamel::ProducerToken> ptok;
       moodycamel::ConsumerToken ctok;
+      
+      std::string assemble_str;
+      galois::StatTimer StatTimer_assemble;
+      std::string add_str;
+      galois::runtime::PerThreadTimer<true> StatTimer_add;
 
   public:
-      sendBufferRemoteWork () : sendBuffer(), ctok(messages) {
+      sendBufferRemoteWork() : sendBuffer(), ctok(messages), assemble_str("SendWorkTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {
+      //sendBufferRemoteWork() : sendBuffer(), ctok(messages) {
           for (unsigned int t=0; t<numT; t++) {
               ptok.emplace_back(messages);
           }
       }
     
       virtual void assemble(std::vector<std::pair<uint32_t, vTy>>& payloads, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
+          StatTimer_assemble.start();
           uint32_t tag = galois::runtime::remoteWorkTag;
           msg m;
 
           uint32_t len = 0;
-          int num = 0;
+          bool encodeSize = false;
+          uint32_t msgSize = 0;
           vTy vec;
           union {
               uint32_t a;
@@ -378,33 +436,35 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           } foo;
 
           while (messages.try_dequeue(ctok, m)) {
+              if (!encodeSize) {
+                  msgSize = m.data.size();
+                  len = sizeof(uint32_t);
+                  foo.a = msgSize;
+                  vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
+                  encodeSize = true;
+              }
+
+              len += msgSize;
               // do not let it go over the integer limit because MPI_Isend cannot deal with it
-              if ((len + num + m.data.size() + sizeof(uint32_t)) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+              if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
                   // first put onto payloads
                   payloads.push_back(std::make_pair(tag, std::move(vec)));
                   ++inflightSends;
                   // then reset values
-                  len = m.data.size();
-                  num = sizeof(uint32_t);
+                  len = sizeof(uint32_t);
                   vTy vec_temp;
                 
-                  foo.a = m.data.size();
                   vec_temp.insert(vec_temp.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
                   vec_temp.insert(vec_temp.end(), m.data.begin(), m.data.end());
 
                   vec = std::move(vec_temp);
               }
               else {
-                  len += m.data.size();
-                  num += sizeof(uint32_t);
-
-                  foo.a = m.data.size();
-                  vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
                   vec.insert(vec.end(), m.data.begin(), m.data.end());
               }
             
               --inflightSends;
-              numBytes -= m.data.size();
+              numBytes -= msgSize;
           }
 
           flush = false;
@@ -414,18 +474,20 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               payloads.push_back(std::make_pair(tag, std::move(vec)));
               ++inflightSends;
           }
+          
+          StatTimer_assemble.stop();
       }
 
       void add(uint32_t tag, vTy& b) {
-          unsigned oldNumBytes = numBytes;
+          auto tid = galois::substrate::ThreadPool::getTID();
+          StatTimer_add.start();
           numBytes += b.size();
-          galois::runtime::trace("BufferedAdd", oldNumBytes, numBytes, tag, galois::runtime::printVec(b));
-          unsigned tid = galois::substrate::ThreadPool::getTID();
           messages.enqueue(ptok[tid], msg(tag, b));
 
           if (numBytes >= COMM_MIN) {
               flush = true;
           }
+          StatTimer_add.stop();
       }
   };
 
@@ -461,47 +523,24 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
   }
 
+  std::string MPISend_str;
+  galois::StatTimer StatTimer_MPISend;
+
   void send(message m) {
+      StatTimer_MPISend.start();
       sendInflight.emplace_back(m.host, m.tag, std::move(m.data));
       auto& f = sendInflight.back();
-      galois::runtime::trace("MPI SEND", f.host, f.tag, f.data.size(), galois::runtime::printVec(f.data));
       int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
       handleError(rv);
+      StatTimer_MPISend.stop();
   }
   
   std::deque<mpiMessage> recvInflight;
-
-  uint32_t getSubMessageLen(vTy& data_array, size_t offset) {
-      if ((data_array.size() - offset) > sizeof(uint32_t)) {
-          union {
-              uint8_t a[sizeof(uint32_t)];
-              uint32_t b;
-          } c;
-
-          for (size_t i=0; i<sizeof(uint32_t); i++) {
-              c.a[i] = data_array[offset + i];
-          }
-
-          return c.b;
-      } else {
-          return ~0;
-      }
-  }
-
-  std::optional<vTy> getSubMessage(vTy& data_array, size_t& offset, uint32_t len) {
-      if ((data_array.size() - offset) > len) {
-          vTy vec;
-
-          vec.insert(vec.end(), data_array.begin() + offset, data_array.begin() + offset + sizeof(uint32_t));
-          offset += sizeof(uint32_t);
-          vec.insert(vec.end(), data_array.begin() + offset, data_array.begin() + offset + len);
-          offset += len;
-
-          return std::optional<vTy>(std::move(vec));
-      } else {
-          return std::optional<vTy>();
-      }
-  }
+  
+  std::string MPIRecv_str;
+  galois::StatTimer StatTimer_MPIRecv;
+  std::string disaggregate_str;
+  galois::StatTimer StatTimer_disaggregate;
 
     // FIXME: Does synchronous recieves overly halt forward progress?
   void recvProbe() {
@@ -515,6 +554,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           assert(status.MPI_TAG <= 32767);
           if (status.MPI_TAG != 32767) {
 #endif
+              StatTimer_MPIRecv.start();
               int nbytes;
               rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
               handleError(rv);
@@ -523,7 +563,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               memUsageTracker.incrementMemUsage(m.data.size());
               rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
               handleError(rv);
-              galois::runtime::trace("MPI IRECV", status.MPI_SOURCE, status.MPI_TAG, m.data.size());
+              StatTimer_MPIRecv.stop();
 #ifdef GALOIS_USE_BARE_MPI
           }
 #endif
@@ -536,123 +576,101 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
           handleError(rv);
           if (flag) {
+              StatTimer_disaggregate.start();
               if (m.tag == galois::runtime::terminationTag) {
                   hostTermination[m.host] = true;
                   //galois::gPrint("Host ", ID, " : received termination from Host ", m.host, "\n");
               }
-              else {
+              else if (m.tag == galois::runtime::remoteWorkTag) {
                   //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
-                  assert(m.data.size() != (unsigned int)std::count(m.data.begin(), m.data.end(), 0));
-                  galois::runtime::trace("BufferedRecieving", m.host, m.tag, galois::runtime::printVec(m.data));
+
+                  // Read the length of each message
+                  uint32_t len;
+                  if (m.data.size() > sizeof(uint32_t)) {
+                      union {
+                          uint8_t a[sizeof(uint32_t)];
+                          uint32_t b;
+                      } c;
+
+                      for (size_t i=0; i<sizeof(uint32_t); i++) {
+                          c.a[i] = m.data[i];
+                      }
+
+                      len = c.b;
+                  }
+                  else {
+                      galois::gError("Cannot read the length of the received message!\n");
+                      len = 0;
+                  }
 
                   // Disassemble the aggregated message
-                  size_t offset = 0;
+                  std::vector<vTy> messages;
+                  size_t offset = sizeof(uint32_t);
                   while (offset < m.data.size()) {
-                      // Read the length of the next message
-                      uint32_t len = getSubMessageLen(m.data, offset);
-                      if (len == ~0U || len == 0) {
-                          galois::gError("Cannot read the length of the received message!\n");
-                          break; // Not enough data to read the message size
-                      }
-
-                      message sub_msg;
-                      sub_msg.host = m.host;
-                      sub_msg.tag = m.tag;
-                      
                       // Read the message data
-                      auto vec = getSubMessage(m.data, offset, len);
-                      if (vec.has_value()) {
-                          sub_msg.data = std::move(vec.value());
-                      }
-                      else {
+                      if ((m.data.size() - offset) >= len) {
+                          vTy vec;
+                          vec.insert(vec.end(), m.data.begin() + offset, m.data.begin() + offset + len);
+                          messages.push_back(std::move(vec));
+                          offset += len;
+                      } else {
                           galois::gError("Cannot read the entire received message (length mismatch)!\n");
-                          break; // Not enough data for the complete message
-                      }
-
-                      // Add the disassembled message to the receive buffer
-                      if (sub_msg.tag == galois::runtime::remoteWorkTag) {
-                          recvRemoteWork.add(std::move(sub_msg));
-                      }
-                      else {
-                          recvData.add(std::move(sub_msg));
                       }
                       
                       ++inflightRecvs;
                   }
+
+                  // Add the disassembled message to the receive buffer
+                  recvRemoteWork.addBulk(messages);
+              }
+              else {
+                  //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
+
+                  // Disassemble the aggregated message
+                  std::vector<vTy> messages;
+                  size_t offset = 0;
+                  while (offset < m.data.size()) {
+                      // Read the length of the next message
+                      uint32_t len;
+                      if ((m.data.size() - offset) > sizeof(uint32_t)) {
+                          union {
+                              uint8_t a[sizeof(uint32_t)];
+                              uint32_t b;
+                          } c;
+
+                          for (size_t i=0; i<sizeof(uint32_t); i++) {
+                              c.a[i] = m.data[offset + i];
+                          }
+
+                          len = c.b;
+                          offset += sizeof(uint32_t);
+                      }
+                      else {
+                          galois::gError("Cannot read the length of the received message!\n");
+                          break;
+                      }
+
+                      // Read the message data
+                      if ((m.data.size() - offset) >= len) {
+                          vTy vec;
+                          vec.insert(vec.end(), m.data.begin() + offset, m.data.begin() + offset + len);
+                          messages.push_back(std::move(vec));
+                          offset += len;
+                      } else {
+                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
+                          break; // Not enough data for the complete message
+                      }
+
+                      ++inflightRecvs;
+                  }
+
+                  // Add the disassembled message to the receive buffer
+                  recvData.addBulk(m.host, m.tag, messages);
               }
                 
               recvInflight.pop_front();
+              StatTimer_disaggregate.stop();
           }
-      }
-  }
-  
-  void recvProbeBlocking() {
-      int flag = 0;
-      MPI_Status status;
-      // check for new messages
-      int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
-      handleError(rv);
-      if (flag) {
-#ifdef GALOIS_USE_BARE_MPI
-          assert(status.MPI_TAG <= 32767);
-          if (status.MPI_TAG != 32767) {
-#endif
-              int nbytes;
-              rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
-              handleError(rv);
-              message m(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-              memUsageTracker.incrementMemUsage(nbytes);
-              rv = MPI_Recv(m.data.data(), nbytes, MPI_BYTE, m.host, m.tag, MPI_COMM_WORLD, &status);
-              handleError(rv);
-              galois::runtime::trace("MPI RECV", status.MPI_SOURCE, status.MPI_TAG, m.data.size());
-
-              if (m.tag == galois::runtime::terminationTag) {
-                  hostTermination[m.host] = true;
-                  //galois::gPrint("Host ", ID, " : received termination from Host ", m.host, "\n");
-              }
-              else {
-                  //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
-                  assert(m.data.size() != (unsigned int)std::count(m.data.begin(), m.data.end(), 0));
-                  galois::runtime::trace("BufferedRecieving", m.host, m.tag, galois::runtime::printVec(m.data));
-
-                  // Disassemble the aggregated message
-                  size_t offset = 0;
-                  while (offset < m.data.size()) {
-                      // Read the length of the next message
-                      uint32_t len = getSubMessageLen(m.data, offset);
-                      if (len == ~0U || len == 0) {
-                          galois::gError("Cannot read the length of the received message!\n");
-                          break; // Not enough data to read the message size
-                      }
-
-                      message sub_msg;
-                      sub_msg.host = m.host;
-                      sub_msg.tag = m.tag;
-                      
-                      // Read the message data
-                      auto vec = getSubMessage(m.data, offset, len);
-                      if (vec.has_value()) {
-                          sub_msg.data = std::move(vec.value());
-                      }
-                      else {
-                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
-                          break; // Not enough data for the complete message
-                      }
-
-                      // Add the disassembled message to the receive buffer
-                      if (sub_msg.tag == galois::runtime::remoteWorkTag) {
-                          recvRemoteWork.add(std::move(sub_msg));
-                      }
-                      else {
-                          recvData.add(std::move(sub_msg));
-                      }
-                      
-                      ++inflightRecvs;
-                  }
-              }
-#ifdef GALOIS_USE_BARE_MPI
-          }
-#endif
       }
   }
   
@@ -701,7 +719,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                           msg.data = std::move(payloads[k].second);
 
                           if (msg.tag != ~0U) {
-                              galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
                               memUsageTracker.incrementMemUsage(msg.data.size());
                               send(std::move(msg));
                               //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
@@ -735,7 +752,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                           msg.data = std::move(payloads[k].second);
 
                           if (msg.tag != ~0U) {
-                              galois::runtime::trace("BufferedSending", msg.host, msg.tag, galois::runtime::printVec(msg.data));
                               memUsageTracker.incrementMemUsage(msg.data.size());
                               send(std::move(msg));
                               //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
@@ -776,7 +792,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   }
 
 public:
-  NetworkInterfaceBuffered() {
+  NetworkInterfaceBuffered() : MPISend_str("MPISendTimer"), StatTimer_MPISend(MPISend_str.c_str(), NETWORK_NAME), MPIRecv_str("MPIRecvTimer"), StatTimer_MPIRecv(MPIRecv_str.c_str(), NETWORK_NAME), disaggregate_str("DisaggregateTimer"), StatTimer_disaggregate(disaggregate_str.c_str(), NETWORK_NAME) {
+  //NetworkInterfaceBuffered() {
     inflightSends       = 0;
     inflightRecvs       = 0;
     ready               = 0;
@@ -813,8 +830,6 @@ public:
     tag += phase;
     statSendNum += 1;
     statSendBytes += buf.size();
-    galois::runtime::trace("sendTagged", dest, tag,
-                           galois::runtime::printVec(buf.getVec()));
     
     auto& sd = sendData[dest];
     sd.add(tag, buf.getVec());
@@ -824,7 +839,6 @@ public:
     ++inflightSends;
     statSendNum += 1;
     statSendBytes += buf.size();
-    galois::runtime::trace("sendRemoteWork", dest, galois::runtime::printVec(buf.getVec()));
     
     auto& sd = sendRemoteWork[dest];
     sd.add(galois::runtime::remoteWorkTag, buf.getVec());
@@ -843,40 +857,32 @@ public:
                   ++statRecvNum;
                   statRecvBytes += buf->size();
                   memUsageTracker.decrementMemUsage(buf->size());
-                  galois::runtime::trace("recvTagged", src, tag, galois::runtime::printVec(buf->getVec()));
                   anyReceivedMessages = true;
                   return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
               }
           }
       }
 
-      galois::runtime::trace("recvTagged BLOCKED this by that", tag, recvData.getPresentTag());
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
   
-  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  virtual std::optional<RecvBuffer>
   receiveRemoteWork(bool& terminateFlag) {
       terminateFlag = false;
 
-      uint32_t src;
-      auto buf = recvRemoteWork.tryPopMsg(inflightRecvs, src);
+      auto buf = recvRemoteWork.tryPopMsg(inflightRecvs);
       if (buf) {
           ++statRecvNum;
           statRecvBytes += buf->size();
           memUsageTracker.decrementMemUsage(buf->size());
-          galois::runtime::trace("recvRemoteWork", src, galois::runtime::printVec(buf->getVec()));
           anyReceivedMessages = true;
-          return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
+          return std::optional<RecvBuffer>(std::move(*buf));
       }
       else {
           if (checkTermination()) {
               terminateFlag = true;
-              return std::optional<std::pair<uint32_t, RecvBuffer>>();
           }
-          else {
-              galois::runtime::trace("recvRemoteWork queue empty but not termination");
-              return std::optional<std::pair<uint32_t, RecvBuffer>>();
-          }
+          return std::optional<RecvBuffer>();
       }
   }
   

@@ -3580,7 +3580,7 @@ public:
             if (p) { // received message
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                galois::runtime::gDeserialize(p->second, gid, val);
+                galois::runtime::gDeserialize(p.value(), gid, val);
                 uint32_t lid = userGraph.getLID(gid);
                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
             }

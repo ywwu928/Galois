@@ -43,7 +43,7 @@ class PerThreadTimer : private ThreadTimers {
   const char* const region_;
   const char* const category_;
 
-  void reportTimes() { reportTimes(category_, region_); }
+  void reportTimes() { ThreadTimers::reportTimes(category_, region_); }
 
 public:
   PerThreadTimer(const char* const region, const char* const category)
