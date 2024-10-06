@@ -210,19 +210,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   class concurrentRecvBuffer {
     // single producer multiple consumer
     moodycamel::ConcurrentQueue<vTy> data;
-    unsigned int numT;
     moodycamel::ProducerToken ptok;
       
     std::string pop_str;
-    galois::runtime::PerThreadTimer<true> StatTimer_pop;
+    galois::StatTimer StatTimer_pop;
     std::string add_str;
     galois::StatTimer StatTimer_add;
 
   public:
-    concurrentRecvBuffer() : ptok(data), pop_str("RecvWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {
-    //concurrentRecvBuffer() : ptok(data) {
-        numT = galois::getActiveThreads();
-    }
+    concurrentRecvBuffer() : ptok(data), pop_str("RecvWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+    //concurrentRecvBuffer() : ptok(data) {}
 
     std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs) {
       vTy vec;
@@ -241,15 +238,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
     void add(vTy vec) {
       StatTimer_add.start();
       data.enqueue(ptok, std::move(vec));
-      StatTimer_add.stop();
-    }
-    
-    void addBulk(std::vector<vTy>& vec) {
-      StatTimer_add.start();
-      //data.enqueue_bulk(ptok, std::make_move_iterator(vec.begin()), vec.size());
-      for (size_t i=0; i<vec.size(); i++) {
-          data.enqueue(ptok, std::move(vec[i]));
-      }
       StatTimer_add.stop();
     }
 
