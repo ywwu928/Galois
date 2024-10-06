@@ -3550,12 +3550,50 @@ public:
   }
 
 /* For Polling */
+private:
+    bool stopDedicated = false;
+
 public:
     void reset_termination() {
+        stopDedicated = false;
         auto& net = galois::runtime::getSystemNetworkInterface();
         net.resetTermination();
     }
 
+    template<typename FnTy>
+    void poll_for_msg_dedicated() {
+        auto& net = galois::runtime::getSystemNetworkInterface();
+
+        decltype(net.receiveRemoteWork()) p;
+        while (!stopDedicated) {
+            do {
+                p = net.receiveRemoteWork();
+                if (stopDedicated) {
+                    break;
+                }
+                if (!p) {
+                    galois::substrate::asmPause();
+                }
+            } while (!p);
+            
+            if (stopDedicated) {
+                break;
+            }
+
+            if (p) { // received message
+                galois::runtime::RecvBuffer buf(std::move(p.value()));
+                uint64_t gid;
+                typename FnTy::ValTy val;
+                uint32_t lid;
+                while (!buf.extractDone()) {
+                    galois::runtime::gDeserialize(buf, gid, val);
+                    lid = userGraph.getLID(gid);
+                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                }
+            }
+        }
+    }
+    
     template<typename FnTy>
     void poll_for_msg() {
         auto& net = galois::runtime::getSystemNetworkInterface();
@@ -3578,11 +3616,40 @@ public:
             }
 
             if (p) { // received message
+                galois::runtime::RecvBuffer buf(std::move(p.value()));
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                galois::runtime::gDeserialize(p.value(), gid, val);
-                uint32_t lid = userGraph.getLID(gid);
-                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                uint32_t lid;
+                std::vector<std::pair<uint32_t, typename FnTy::ValTy>> work;
+                while (!buf.extractDone()) {
+                    galois::runtime::gDeserialize(buf, gid, val);
+                    lid = userGraph.getLID(gid);
+                    work.push_back(std::make_pair(lid, val));
+                }
+
+                galois::on_each(
+                    [&](unsigned tid, unsigned numT) {
+                        size_t numWork = work.size();
+                        unsigned quotient = numWork / numT;
+                        unsigned remainder = numWork % numT;
+                        unsigned range_start, size, range_end;
+                        if (tid < remainder) {
+                            range_start = tid * quotient + tid;
+                            size = quotient + 1;
+                        }
+                        else {
+                            range_start = tid * quotient + remainder;
+                            size = quotient;
+                        }
+                        range_end = range_start + size;
+
+                        for (unsigned i=range_start; i<range_end; i++) {
+                            uint32_t lid = work[i].first;
+                            typename FnTy::ValTy val = work[i].second;
+                            FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                        }
+                    }
+                );
             }
         }
     }
@@ -3591,6 +3658,7 @@ public:
         auto& net = galois::runtime::getSystemNetworkInterface();
         net.flushRemoteWork();
         net.broadcastTermination();
+        stopDedicated = true;
     }
 
     template <typename FnTy>

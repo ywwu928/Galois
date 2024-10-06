@@ -139,6 +139,9 @@ public:
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
   virtual std::optional<RecvBuffer>
+  receiveRemoteWork() = 0;
+  
+  virtual std::optional<RecvBuffer>
   receiveRemoteWork(bool& terminateFlag) = 0;
   
   virtual void resetTermination() = 0;

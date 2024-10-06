@@ -241,6 +241,8 @@ public:
     }
   }
 
+  bool extractDone() { return (unsigned)offset == bufdata.size(); }
+
   //! Get the underlying vector storing the data of the deserialize
   //! buffer
   vTy& getVec() { return bufdata; }

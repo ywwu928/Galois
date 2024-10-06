@@ -427,24 +427,10 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           msg m;
 
           uint32_t len = 0;
-          bool encodeSize = false;
-          uint32_t msgSize = 0;
           vTy vec;
-          union {
-              uint32_t a;
-              uint8_t b[sizeof(uint32_t)];
-          } foo;
 
           while (messages.try_dequeue(ctok, m)) {
-              if (!encodeSize) {
-                  msgSize = m.data.size();
-                  len = sizeof(uint32_t);
-                  foo.a = msgSize;
-                  vec.insert(vec.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
-                  encodeSize = true;
-              }
-
-              len += msgSize;
+              len += m.data.size();
               // do not let it go over the integer limit because MPI_Isend cannot deal with it
               if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
                   // first put onto payloads
@@ -454,7 +440,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   len = sizeof(uint32_t);
                   vTy vec_temp;
                 
-                  vec_temp.insert(vec_temp.end(), &foo.b[0], &foo.b[sizeof(uint32_t)]);
                   vec_temp.insert(vec_temp.end(), m.data.begin(), m.data.end());
 
                   vec = std::move(vec_temp);
@@ -464,7 +449,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               }
             
               --inflightSends;
-              numBytes -= msgSize;
+              numBytes -= m.data.size();
           }
 
           flush = false;
@@ -583,45 +568,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               }
               else if (m.tag == galois::runtime::remoteWorkTag) {
                   //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
-
-                  // Read the length of each message
-                  uint32_t len;
-                  if (m.data.size() > sizeof(uint32_t)) {
-                      union {
-                          uint8_t a[sizeof(uint32_t)];
-                          uint32_t b;
-                      } c;
-
-                      for (size_t i=0; i<sizeof(uint32_t); i++) {
-                          c.a[i] = m.data[i];
-                      }
-
-                      len = c.b;
-                  }
-                  else {
-                      galois::gError("Cannot read the length of the received message!\n");
-                      len = 0;
-                  }
-
-                  // Disassemble the aggregated message
-                  std::vector<vTy> messages;
-                  size_t offset = sizeof(uint32_t);
-                  while (offset < m.data.size()) {
-                      // Read the message data
-                      if ((m.data.size() - offset) >= len) {
-                          vTy vec;
-                          vec.insert(vec.end(), m.data.begin() + offset, m.data.begin() + offset + len);
-                          messages.push_back(std::move(vec));
-                          offset += len;
-                      } else {
-                          galois::gError("Cannot read the entire received message (length mismatch)!\n");
-                      }
-                      
-                      ++inflightRecvs;
-                  }
-
-                  // Add the disassembled message to the receive buffer
-                  recvRemoteWork.addBulk(messages);
+                  size_t offset = 0;
+                  vTy vec;
+                  vec.insert(vec.end(), m.data.begin() + offset, m.data.end());
+                  ++inflightRecvs;
+                  recvRemoteWork.add(std::move(vec));
               }
               else {
                   //galois::gPrint("Host ", ID, " : MPI_recv from Host ", m.host, "\n");
@@ -866,6 +817,21 @@ public:
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
   
+  virtual std::optional<RecvBuffer>
+  receiveRemoteWork() {
+      auto buf = recvRemoteWork.tryPopMsg(inflightRecvs);
+      if (buf) {
+          ++statRecvNum;
+          statRecvBytes += buf->size();
+          memUsageTracker.decrementMemUsage(buf->size());
+          anyReceivedMessages = true;
+          return std::optional<RecvBuffer>(std::move(*buf));
+      }
+      else {
+          return std::optional<RecvBuffer>();
+      }
+  }
+
   virtual std::optional<RecvBuffer>
   receiveRemoteWork(bool& terminateFlag) {
       terminateFlag = false;
