@@ -234,7 +234,7 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-    const auto& masterNodes = _graph.masterNodesRange();
+    const auto& masterNodes = _graph.masterNodesRangeReserved();
     DGTerminatorDetector dga;
     
     //auto& net = galois::runtime::getSystemNetworkInterface();
