@@ -43,6 +43,8 @@
 #include <sched.h>
 #include <unistd.h>
 
+//#define PER_THREAD_SEND_BUFFER 1
+
 using namespace galois::runtime;
 using namespace galois::substrate;
 
@@ -69,7 +71,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   unsigned long statRecvBytes;
   bool anyReceivedMessages;
 
-  unsigned int numT;
+  unsigned numT;
 
   // using vTy = std::vector<uint8_t>;
   using vTy = galois::PODResizeableArray<uint8_t>;
@@ -189,7 +191,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    * Receive buffers for the buffered network interface
    */
   class concurrentRecvBuffer {
-    // single producer multiple consumer
+    // single producer single consumer
     moodycamel::ConcurrentQueue<vTy> data;
     moodycamel::ProducerToken ptok;
       
@@ -297,15 +299,18 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
   std::vector<sendBufferData> sendData;
 
-  /**
-   * multiple producer single consumer with single tag
+  /**   
+   * single producer single / multiple consumer with single tag
    */
   class sendBufferRemoteWork {
-      unsigned numT;
-
       moodycamel::ConcurrentQueue<vTy> messages;
+#ifdef PER_THREAD_SEND_BUFFER
+      moodycamel::ProducerToken ptok;
+#else
+      unsigned numT;
       std::vector<moodycamel::ProducerToken> ptok;
       moodycamel::ConsumerToken ctok;
+#endif
       
       std::atomic<bool> flush;
       std::atomic<size_t> numBytes;
@@ -316,16 +321,23 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       std::string assemble_str;
       galois::StatTimer StatTimer_assemble;
       std::string add_str;
+#ifdef PER_THREAD_SEND_BUFFER
+      galois::StatTimer StatTimer_add;
+#else
       galois::runtime::PerThreadTimer<true> StatTimer_add;
+#endif
 
   public:
+#ifdef PER_THREAD_SEND_BUFFER
+      sendBufferRemoteWork() : ptok(messages), flush(0), numBytes(0), next_valid(false), assemble_str("SendWorkTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+#else
       sendBufferRemoteWork() : ctok(messages), flush(0), numBytes(0), next_valid(false), assemble_str("SendWorkTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {
-      //sendBufferRemoteWork() : sendBuffer(), ctok(messages) {
           numT = galois::getActiveThreads();
-          for (unsigned int t=0; t<numT; t++) {
+          for (unsigned t=0; t<numT; t++) {
               ptok.emplace_back(messages);
           }
       }
+#endif
       
       void setFlush() {
           flush = true;
@@ -352,7 +364,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           
           while (true) {
               vTy m;
+#ifdef PER_THREAD_SEND_BUFFER
+              bool success = messages.try_dequeue_from_producer(ptok, m);
+#else
               bool success = messages.try_dequeue(ctok, m);
+#endif
               if (!success) { // queue is empty
                   next_valid = false;
                   vTy vec_temp;
@@ -392,10 +408,14 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
 
       void add(vTy& b) {
-          auto tid = galois::substrate::ThreadPool::getTID();
           StatTimer_add.start();
           numBytes += b.size();
+#ifdef PER_THREAD_SEND_BUFFER
+          messages.enqueue(ptok, std::move(b));
+#else
+          unsigned tid = galois::substrate::ThreadPool::getTID();
           messages.enqueue(ptok[tid], std::move(b));
+#endif
 
           if (numBytes >= COMM_MIN) {
               flush = true;
@@ -404,7 +424,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
   };
 
+#ifdef PER_THREAD_SEND_BUFFER
+  std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
+#else
   std::vector<sendBufferRemoteWork> sendRemoteWork;
+#endif
 
   /**
    * Message type to send/recv in this network IO layer.
@@ -549,22 +573,34 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               if (i != ID) {
                   // handle send queue
                   // 1. remote work
-                  auto& srw = sendRemoteWork[i];
-                  if (srw.checkFlush()) {
-                      auto payload = srw.assemble(inflightSends);
-                      //galois::gPrint("Host ", ID, " : flush work to Host ", i, "\n");
-                      
-                      if (payload.has_value()) {
-                          sendMessage msg;
-                          msg.tag = galois::runtime::remoteWorkTag;
-                          msg.data = std::move(payload.value());
+                  bool hostEmpty = true;
+#ifdef PER_THREAD_SEND_BUFFER
+                  for (unsigned t=0; t<numT; t++) {
+                      auto& srw = sendRemoteWork[i][t];
+#else
+                      auto& srw = sendRemoteWork[i];
+#endif
+                      if (srw.checkFlush()) {
+                          auto payload = srw.assemble(inflightSends);
+                          //galois::gPrint("Host ", ID, " : flush work to Host ", i, "\n");
+                          
+                          if (payload.has_value()) {
+                              sendMessage msg;
+                              msg.tag = galois::runtime::remoteWorkTag;
+                              msg.data = std::move(payload.value());
 
-                          memUsageTracker.incrementMemUsage(msg.data.size());
-                          send(i, std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
+                              memUsageTracker.incrementMemUsage(msg.data.size());
+                              send(i, std::move(msg));
+                              //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
+
+                              hostEmpty = false;
+                          }
                       }
+#ifdef PER_THREAD_SEND_BUFFER
                   }
-                  else { // wait until all works are sent
+#endif
+
+                  if(hostEmpty) { // wait until all works are sent
                       // 2. termination
                       if (sendTermination[i]) {
                           ++inflightSends;
@@ -639,7 +675,15 @@ public:
     
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
+#ifdef PER_THREAD_SEND_BUFFER
+    sendRemoteWork.resize(Num);
+    for (auto& hostSendRemoteWork : sendRemoteWork) {
+        std::vector<sendBufferRemoteWork> temp(numT);
+        hostSendRemoteWork = std::move(temp);
+    }
+#else
     sendRemoteWork = decltype(sendRemoteWork)(Num);
+#endif
     sendTermination = decltype(sendTermination)(Num);
     hostTermination = decltype(hostTermination)(Num);
     resetTermination();
@@ -676,7 +720,12 @@ public:
     statSendNum += 1;
     statSendBytes += buf.size();
     
+#ifdef PER_THREAD_SEND_BUFFER
+    unsigned tid = galois::substrate::ThreadPool::getTID();
+    auto& sd = sendRemoteWork[dest][tid];
+#else
     auto& sd = sendRemoteWork[dest];
+#endif
     sd.add(buf.getVec());
   }
 
@@ -755,8 +804,14 @@ public:
   }
   
   virtual void flushRemoteWork() {
-    for (auto& sd : sendRemoteWork) {
-        sd.setFlush();
+    for (auto& hostSendRemoteWork : sendRemoteWork) {
+#ifdef PER_THREAD_SEND_BUFFER
+        for (auto& threadSendRemoteWork : hostSendRemoteWork) {
+            threadSendRemoteWork.setFlush();
+        }
+#else
+        hostSendRemoteWork.setFlush();
+#endif
     }
   }
 
