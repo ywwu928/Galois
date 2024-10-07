@@ -43,8 +43,6 @@
 #include <sched.h>
 #include <unistd.h>
 
-//#define PER_THREAD_SEND_BUFFER 1
-
 using namespace galois::runtime;
 using namespace galois::substrate;
 
@@ -300,135 +298,92 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::vector<sendBufferData> sendData;
 
   /**   
-   * single producer single / multiple consumer with single tag
+   * single producer single consumer with single tag
    */
   class sendBufferRemoteWork {
       moodycamel::ConcurrentQueue<vTy> messages;
-#ifdef PER_THREAD_SEND_BUFFER
       moodycamel::ProducerToken ptok;
-#else
-      unsigned numT;
-      std::vector<moodycamel::ProducerToken> ptok;
-      moodycamel::ConsumerToken ctok;
-#endif
+
+      uint32_t len;
+      vTy vec;
       
-      std::atomic<bool> flush;
-      std::atomic<size_t> numBytes;
+      std::atomic<size_t> flush;
       
-      bool next_valid;
-      vTy next_vec;
-      
-      std::string assemble_str;
-      galois::StatTimer StatTimer_assemble;
+      std::string pop_str;
+      galois::StatTimer StatTimer_pop;
       std::string add_str;
-#ifdef PER_THREAD_SEND_BUFFER
       galois::StatTimer StatTimer_add;
-#else
-      galois::runtime::PerThreadTimer<true> StatTimer_add;
-#endif
 
   public:
-#ifdef PER_THREAD_SEND_BUFFER
-      sendBufferRemoteWork() : ptok(messages), flush(0), numBytes(0), next_valid(false), assemble_str("SendWorkTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
-#else
-      sendBufferRemoteWork() : ctok(messages), flush(0), numBytes(0), next_valid(false), assemble_str("SendWorkTimer_Assemble"), StatTimer_assemble(assemble_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {
-          numT = galois::getActiveThreads();
-          for (unsigned t=0; t<numT; t++) {
-              ptok.emplace_back(messages);
-          }
-      }
-#endif
+      sendBufferRemoteWork() : ptok(messages), len(0), vec(), flush(0), pop_str("SendWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("SendWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
       
-      void setFlush() {
-          flush = true;
+      void setFlush(std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
+          if (len != 0) {
+            messages.enqueue(ptok, std::move(vec));
+            
+            len = 0;
+            vTy vec_temp;
+            vec = std::move(vec_temp);
+            
+            ++inflightSends;
+            flush += 1;
+          }
       }
     
       bool checkFlush() {
-          return flush;
+          return flush > 0;
       }
     
-      std::optional<vTy> assemble(std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
-          StatTimer_assemble.start();
-
-          uint32_t len = 0;
-          vTy vec;
-
-          if (next_valid) {
-              len = next_vec.size();
-
-              vec.insert(vec.end(), next_vec.begin(), next_vec.end());
-
-              --inflightSends;
-              numBytes -= next_vec.size();
-          }
+      std::optional<vTy> pop() {
+          StatTimer_pop.start();
           
-          while (true) {
-              vTy m;
-#ifdef PER_THREAD_SEND_BUFFER
-              bool success = messages.try_dequeue_from_producer(ptok, m);
-#else
-              bool success = messages.try_dequeue(ctok, m);
-#endif
-              if (!success) { // queue is empty
-                  next_valid = false;
-                  vTy vec_temp;
-                  next_vec = std::move(vec_temp);
-                  break;
-              }
-
-              len += m.size();
-              // do not let it go over the integer limit because MPI_Isend cannot deal with it
-              if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
-                  next_valid = true;
-                  next_vec = std::move(m);
-                  break;
-              }
-              else {
-                  vec.insert(vec.end(), m.begin(), m.end());
-
-                  --inflightSends;
-                  numBytes -= m.size();
-              }
-          }
-
-          if (numBytes == 0) {
-              flush = false;
-          }
-
-          if (vec.size() != 0) { // there is message to send out
-              ++inflightSends;
-
-            StatTimer_assemble.stop();
-            return std::optional<vTy>(std::move(vec));
+          vTy m;
+          bool success = messages.try_dequeue_from_producer(ptok, m);
+          if (success) {
+              flush -= 1;
+              StatTimer_pop.stop();
+              return std::optional<vTy>(std::move(m));
           }
           else {
-            StatTimer_assemble.stop();
-            return std::optional<vTy>();
+              StatTimer_pop.stop();
+              return std::optional<vTy>();
           }
       }
 
-      void add(vTy& b) {
+      void add(vTy b, std::atomic<size_t>& GALOIS_UNUSED(inflightSends)) {
           StatTimer_add.start();
-          numBytes += b.size();
-#ifdef PER_THREAD_SEND_BUFFER
-          messages.enqueue(ptok, std::move(b));
-#else
-          unsigned tid = galois::substrate::ThreadPool::getTID();
-          messages.enqueue(ptok[tid], std::move(b));
-#endif
+          
+          len += b.size();
+          if (len > COMM_MIN) {
+              if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                  messages.enqueue(ptok, std::move(vec));
 
-          if (numBytes >= COMM_MIN) {
-              flush = true;
+                  len = b.size();
+                  vTy vec_temp;
+                  vec_temp.insert(vec_temp.end(), b.begin(), b.end());
+                  vec = std::move(vec_temp);
+              }
+              else {
+                  vec.insert(vec.end(), b.begin(), b.end());
+                  messages.enqueue(ptok, std::move(vec));
+
+                  len = 0;
+                  vTy vec_temp;
+                  vec = std::move(vec_temp);
+              }
+
+              ++inflightSends;
+              flush += 1;
           }
+          else {
+              vec.insert(vec.end(), b.begin(), b.end());
+          }
+
           StatTimer_add.stop();
       }
   };
-
-#ifdef PER_THREAD_SEND_BUFFER
+  
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
-#else
-  std::vector<sendBufferRemoteWork> sendRemoteWork;
-#endif
 
   /**
    * Message type to send/recv in this network IO layer.
@@ -574,14 +529,10 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   // handle send queue
                   // 1. remote work
                   bool hostEmpty = true;
-#ifdef PER_THREAD_SEND_BUFFER
                   for (unsigned t=0; t<numT; t++) {
                       auto& srw = sendRemoteWork[i][t];
-#else
-                      auto& srw = sendRemoteWork[i];
-#endif
                       if (srw.checkFlush()) {
-                          auto payload = srw.assemble(inflightSends);
+                          auto payload = srw.pop();
                           //galois::gPrint("Host ", ID, " : flush work to Host ", i, "\n");
                           
                           if (payload.has_value()) {
@@ -596,9 +547,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                               hostEmpty = false;
                           }
                       }
-#ifdef PER_THREAD_SEND_BUFFER
                   }
-#endif
 
                   if(hostEmpty) { // wait until all works are sent
                       // 2. termination
@@ -675,15 +624,11 @@ public:
     
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
-#ifdef PER_THREAD_SEND_BUFFER
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         std::vector<sendBufferRemoteWork> temp(numT);
         hostSendRemoteWork = std::move(temp);
     }
-#else
-    sendRemoteWork = decltype(sendRemoteWork)(Num);
-#endif
     sendTermination = decltype(sendTermination)(Num);
     hostTermination = decltype(hostTermination)(Num);
     resetTermination();
@@ -716,17 +661,12 @@ public:
   }
   
   virtual void sendWork(uint32_t dest, SendBuffer& buf) {
-    ++inflightSends;
     statSendNum += 1;
     statSendBytes += buf.size();
     
-#ifdef PER_THREAD_SEND_BUFFER
     unsigned tid = galois::substrate::ThreadPool::getTID();
     auto& sd = sendRemoteWork[dest][tid];
-#else
-    auto& sd = sendRemoteWork[dest];
-#endif
-    sd.add(buf.getVec());
+    sd.add(std::move(buf.getVec()), inflightSends);
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
@@ -805,13 +745,9 @@ public:
   
   virtual void flushRemoteWork() {
     for (auto& hostSendRemoteWork : sendRemoteWork) {
-#ifdef PER_THREAD_SEND_BUFFER
         for (auto& threadSendRemoteWork : hostSendRemoteWork) {
-            threadSendRemoteWork.setFlush();
+            threadSendRemoteWork.setFlush(inflightSends);
         }
-#else
-        hostSendRemoteWork.setFlush();
-#endif
     }
   }
 
