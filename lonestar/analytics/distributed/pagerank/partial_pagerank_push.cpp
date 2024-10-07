@@ -279,9 +279,6 @@ struct PageRank {
         galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                        galois::no_stats(), galois::steal(),
                        galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
-        /*for (auto& src: masterNodes) {
-            PageRank{&_graph, dga}(src);
-        }*/
         //galois::gPrint("Host ", net.ID, " point 3\n");
         
         // inform all other hosts that this host has finished sending messages
@@ -292,11 +289,6 @@ struct PageRank {
         //galois::gPrint("Host ", net.ID, " point 5\n");
 
         // launch all other threads to poll for messages
-        /*galois::on_each(
-            [&](unsigned int, unsigned int) {
-                syncSubstrate->poll_for_msg<Reduce_add_residual>();
-            }
-        );*/
         syncSubstrate->poll_for_msg<Reduce_add_residual>();
         //galois::gPrint("Host ", net.ID, " point 6\n");
         syncSubstrate->reset_termination();
