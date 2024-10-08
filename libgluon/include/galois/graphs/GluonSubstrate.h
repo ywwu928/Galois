@@ -130,6 +130,8 @@ private:
   //! Master nodes of ghosts on different hosts. For broadcast;
   size_t maxSharedSize;
 
+  uint32_t dataSizeRatio;
+
 #ifdef GALOIS_USE_BARE_MPI
   std::vector<MPI_Group> mpi_identity_groups;
 #endif
@@ -310,7 +312,7 @@ private:
   void reportProxyStats(uint64_t global_total_mirror_nodes, uint64_t global_total_ghost_nodes) {
     float replication_factor = (float)global_total_mirror_nodes / (float)userGraph.globalSize();
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor", replication_factor);
-    float memory_overhead = (float)(userGraph.globalSize() + userGraph.globalSizeEdges() + global_total_mirror_nodes) / (float)(userGraph.globalSize() + userGraph.globalSizeEdges());
+    float memory_overhead = (float)(dataSizeRatio * userGraph.globalSize() + userGraph.globalSizeEdges() + dataSizeRatio * global_total_mirror_nodes) / (float)(dataSizeRatio * userGraph.globalSize() + userGraph.globalSizeEdges());
     galois::runtime::reportStat_Single(RNAME, "AggregatedMemoryOverhead", memory_overhead);
 
     galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, "TotalMasterNodes", userGraph.globalSize());
@@ -432,6 +434,7 @@ public:
    */
   GluonSubstrate(
       GraphTy& _userGraph, unsigned host, unsigned numHosts, bool _transposed,
+      uint32_t dataSizeRatio = 1,
       std::pair<unsigned, unsigned> _cartesianGrid = std::make_pair(0u, 0u),
       bool _partitionAgnostic                      = false,
       DataCommMode _enforcedDataMode               = DataCommMode::noData)
@@ -441,7 +444,8 @@ public:
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
         num_round(0), currentBVFlag(nullptr),
         mirrorNodes(userGraph.getMirrorNodes()),
-        ghostNodes(userGraph.getGhostNodes()) {
+        ghostNodes(userGraph.getGhostNodes()),
+        dataSizeRatio(dataSizeRatio) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
                     "Cartesian split doesn't equal number of hosts");

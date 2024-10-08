@@ -116,6 +116,9 @@ extern cll::opt<std::string> mastersFile;
 //! incoming degree threshold for creating mirrors
 extern cll::opt<int> mirrorThreshold;
 
+//! size ratio of node data to edge data
+extern cll::opt<uint32_t> dataSizeRatio;
+
 // @todo command line argument for read balancing across hosts
 
 /*******************************************************************************

@@ -83,5 +83,9 @@ cll::opt<std::string> mastersFile("mastersFile",
                                   cll::init(""), cll::Hidden);
 
 cll::opt<int> mirrorThreshold("mirrorThreshold",
-                                  cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (-1 means full mirroring)"),
-                                  cll::init(-1));
+                                  cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (0 means full mirroring & -1 means no mirroring)"),
+                                  cll::init(0));
+
+cll::opt<uint32_t> dataSizeRatio("dataSizeRatio",
+                                  cll::desc("The ratio of the node data size to the edge data size"),
+                                  cll::init(1));
