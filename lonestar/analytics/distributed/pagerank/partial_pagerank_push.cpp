@@ -541,6 +541,8 @@ int main(int argc, char** argv) {
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
 #endif
 
+  hg->sortEdgesByDestination();
+
   bitset_residual.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
