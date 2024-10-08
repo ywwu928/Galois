@@ -525,15 +525,15 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       };
       while (ready != 3) {
           for (unsigned i = 0; i < Num; ++i) {
-              // push progress forward on the network IO
-              sendComplete();
-              recvProbe();
-          
               if (i != ID) {
                   // handle send queue
                   // 1. remote work
                   bool hostEmpty = true;
                   for (unsigned t=0; t<numT; t++) {
+                      // push progress forward on the network IO
+                      sendComplete();
+                      recvProbe();
+          
                       auto& srw = sendRemoteWork[i][t];
                       if (srw.checkFlush()) {
                           auto payload = srw.pop();
