@@ -124,105 +124,108 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   /**
    * Receive buffers for the buffered network interface
    */
-  class recvBuffer {
-    std::deque<recvMessage> data;
-    SimpleLock rlock;
-    // tag of head of queue
-    std::atomic<uint32_t> dataPresent = ~0;
-    
-    std::string pop_str;
-    galois::StatTimer StatTimer_pop;
-    std::string add_str;
-    galois::StatTimer StatTimer_add;
+  class recvBufferData {
+      // single producer single consumer
+      moodycamel::ConcurrentQueue<recvMessage> data;
+      moodycamel::ProducerToken ptok;
+
+      std::atomic<uint32_t> frontTag;
+      recvMessage frontMsg;
+      
+      std::string pop_str;
+      galois::StatTimer StatTimer_pop;
+      std::string add_str;
+      galois::StatTimer StatTimer_add;
 
   public:
-    recvBuffer() : pop_str("RecvDataTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvDataTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
-    
-    std::optional<RecvBuffer> popMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs, uint32_t& src) {
-      if (data.empty() || data.front().tag != tag) {
-        return std::optional<RecvBuffer>();
+      recvBufferData() : ptok(data), frontTag(~0U), pop_str("RecvDataTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvDataTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+
+      std::optional<RecvBuffer> tryPopMsg(uint32_t tag, std::atomic<size_t>& inflightRecvs, uint32_t& src) {
+          StatTimer_pop.start();
+      
+          if (frontTag == ~0U) { // no messages available
+              StatTimer_pop.stop();
+              return std::optional<RecvBuffer>();
+          }
+          else {
+              if (frontTag != tag) {
+                  StatTimer_pop.stop();
+                  return std::optional<RecvBuffer>();
+              }
+              else {
+                  src = frontMsg.host;
+                  frontTag = ~0U;
+                  
+                  --inflightRecvs;
+                  StatTimer_pop.stop();
+                  return std::optional<RecvBuffer>(RecvBuffer(std::move(frontMsg.data)));
+              }
+          }
       }
 
-      StatTimer_pop.start();
-      src = data.front().host;
-      vTy vec(std::move(data.front().data));
-
-      data.pop_front();
-      --inflightRecvs;
-      if (!data.empty()) {
-        dataPresent = data.front().tag;
-      } else {
-        dataPresent = ~0;
+      // Worker thread interface
+      void add(uint32_t host, uint32_t tag, vTy vec) {
+          StatTimer_add.start();
+          data.enqueue(ptok, recvMessage(host, tag, std::move(vec)));
+          StatTimer_add.stop();
       }
-
-      StatTimer_pop.stop();
-      return std::optional<RecvBuffer>(RecvBuffer(std::move(vec)));
-    }
-
-    // Worker thread interface
-    void add(uint32_t host, uint32_t tag, vTy vec) {
-      StatTimer_add.start();
-      std::lock_guard<SimpleLock> lg(rlock);
-      if (data.empty()) {
-        dataPresent = tag;
+      
+      bool hasData(uint32_t tag) {
+          if (frontTag == ~0U) {
+              if (data.size_approx() != 0) {
+                  bool success = data.try_dequeue_from_producer(ptok, frontMsg);
+                  if (success) {
+                      frontTag = frontMsg.tag;
+                  }
+              }
+          }
+          
+          return frontTag == tag;
       }
-
-      data.emplace_back(host, tag, std::move(vec));
-
-      StatTimer_add.stop();
-    }
-
-    bool hasData(uint32_t tag) { return dataPresent == tag; }
-
-    size_t size() { return data.size(); }
-
-    uint32_t getPresentTag() { return dataPresent; }
-
-    bool try_lock() { return rlock.try_lock();}
-
-    void unlock() { return rlock.unlock();}
   }; // end recv buffer class
-  
-  std::vector<recvBuffer> recvData;
+
+  std::vector<recvBufferData> recvData;
 
   /**
    * Receive buffers for the buffered network interface
    */
-  class concurrentRecvBuffer {
-    // single producer single consumer
-    moodycamel::ConcurrentQueue<vTy> data;
-    moodycamel::ProducerToken ptok;
+  class recvBufferRemoteWork {
+      // single producer single consumer
+      moodycamel::ConcurrentQueue<vTy> data;
+      moodycamel::ProducerToken ptok;
       
-    std::string pop_str;
-    galois::StatTimer StatTimer_pop;
-    std::string add_str;
-    galois::StatTimer StatTimer_add;
+      std::string pop_str;
+      galois::StatTimer StatTimer_pop;
+      std::string add_str;
+      galois::StatTimer StatTimer_add;
 
   public:
-    concurrentRecvBuffer() : ptok(data), pop_str("RecvWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
+      recvBufferRemoteWork() : ptok(data), pop_str("RecvWorkTimer_Pop"), StatTimer_pop(pop_str.c_str(), NETWORK_NAME), add_str("RecvWorkTimer_Add"), StatTimer_add(add_str.c_str(), NETWORK_NAME) {}
 
-    std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs) {
-      StatTimer_pop.start();
+      std::optional<RecvBuffer> tryPopMsg(std::atomic<size_t>& inflightRecvs) {
+          StatTimer_pop.start();
       
-      vTy vec;
-      if (data.try_dequeue_from_producer(ptok, vec)) {
-          --inflightRecvs;
-          StatTimer_pop.stop();
-          return std::optional<RecvBuffer>(RecvBuffer(std::move(vec)));
+          vTy vec;
+          bool success = data.try_dequeue_from_producer(ptok, vec);
+          if (success) {
+              --inflightRecvs;
+              StatTimer_pop.stop();
+              return std::optional<RecvBuffer>(RecvBuffer(std::move(vec)));
+          }
+          else {
+              return std::optional<RecvBuffer>();
+          }
       }
 
-      return std::optional<RecvBuffer>();
-    }
-
-    // Worker thread interface
-    void add(vTy vec) {
-      StatTimer_add.start();
-      data.enqueue(ptok, std::move(vec));
-      StatTimer_add.stop();
-    }
+      // Worker thread interface
+      void add(vTy vec) {
+          StatTimer_add.start();
+          data.enqueue(ptok, std::move(vec));
+          StatTimer_add.stop();
+      }
   }; // end recv buffer class
 
-  concurrentRecvBuffer recvRemoteWork;
+  recvBufferRemoteWork recvRemoteWork;
 
   struct sendMessage {
       uint32_t tag;  //!< tag on message indicating distinct communication phases
@@ -602,7 +605,6 @@ public:
     }
     sendTermination = decltype(sendTermination)(Num);
     hostTermination = decltype(hostTermination)(Num);
-    resetTermination();
     for (unsigned i=0; i<Num; i++) {
         sendTermination[i] = false;
         if (i == ID) {
@@ -651,17 +653,14 @@ public:
 
           auto& rq = recvData[h];
           if (rq.hasData(tag)) {
-              if (rq.try_lock()) {
-                  uint32_t src;
-                  auto buf = rq.popMsg(tag, inflightRecvs, src);
-                  rq.unlock();
-                  if (buf) {
-                      ++statRecvNum;
-                      statRecvBytes += buf->size();
-                      memUsageTracker.decrementMemUsage(buf->size());
-                      anyReceivedMessages = true;
-                      return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
-                  }
+              uint32_t src;
+              auto buf = rq.tryPopMsg(tag, inflightRecvs, src);
+              if (buf) {
+                  ++statRecvNum;
+                  statRecvBytes += buf->size();
+                  memUsageTracker.decrementMemUsage(buf->size());
+                  anyReceivedMessages = true;
+                  return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(*buf)));
               }
           }
       }
