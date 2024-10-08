@@ -111,7 +111,7 @@ void decodePapiEvents(const V1& eventNames, V2& papiEvents) {
 
 template <typename V1, typename V2, typename V3>
 void papiStart(V1& eventSets, V2& papiResults, V3& papiEvents) {
-  galois::on_each([&](const unsigned tid, const unsigned numT) {
+  galois::on_each([&](const unsigned, const unsigned) {
     if (PAPI_register_thread() != PAPI_OK) {
       GALOIS_DIE("failed to register thread with PAPI");
     }
@@ -138,7 +138,7 @@ void papiStart(V1& eventSets, V2& papiResults, V3& papiEvents) {
 template <typename V1, typename V2, typename V3>
 void papiStop(V1& eventSets, V2& papiResults, V3& eventNames,
               const char* region) {
-  galois::on_each([&](const unsigned tid, const unsigned numT) {
+  galois::on_each([&](const unsigned, const unsigned) {
     int& eventSet = *eventSets.getLocal();
 
     if (PAPI_stop(eventSet, papiResults.getLocal()->data()) != PAPI_OK) {
