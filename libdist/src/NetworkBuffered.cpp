@@ -166,7 +166,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
 
       // Worker thread interface
-      void add(uint32_t host, uint32_t tag, vTy vec) {
+      void add(uint32_t host, uint32_t tag, vTy&& vec) {
           StatTimer_add.start();
           data.enqueue(ptok, recvMessage(host, tag, std::move(vec)));
           StatTimer_add.stop();
@@ -222,7 +222,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
 
       // Worker thread interface
-      void add(vTy vec) {
+      void add(vTy&& vec) {
           StatTimer_add.start();
           data.enqueue(ptok, std::move(vec));
           StatTimer_add.stop();
@@ -286,7 +286,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
       }
 
-      void push(uint32_t tag, vTy b) {
+      void push(uint32_t tag, vTy&& b) {
           StatTimer_add.start();
           messages.enqueue(ptok, sendMessage(tag, std::move(b)));
           ++inflightSends;
@@ -351,7 +351,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
       }
 
-      void add(vTy b) {
+      void add(vTy&& b) {
           StatTimer_add.start();
           
           len += b.size();
