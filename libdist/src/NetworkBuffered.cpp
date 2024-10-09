@@ -61,7 +61,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-  static const int COMM_MIN = 1400; //! bytes (sligtly smaller than an ethernet packet)
+  static const uint32_t COMM_MIN = 2 << 16; //! bytes (sligtly smaller than an ethernet packet)
 
   unsigned long statSendNum;
   unsigned long statSendBytes;
