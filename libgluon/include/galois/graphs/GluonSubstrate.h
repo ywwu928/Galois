@@ -26,7 +26,6 @@
 #ifndef _GALOIS_GLUONSUB_H_
 #define _GALOIS_GLUONSUB_H_
 
-#include <unordered_map>
 #include <fstream>
 #include <atomic>
 #include <cstdint>
@@ -108,6 +107,7 @@ private:
   uint32_t num_run; //!< Keep track of number of runs.
   uint32_t num_round; //!< Keep track of number of rounds.
   bool isCartCut;     //!< True if graph is a cartesian cut
+  unsigned numT;
 
   // bitvector status hasn't been maintained
   //! Typedef used so galois::runtime::BITVECTOR_STATUS doesn't have to be
@@ -471,6 +471,17 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
+
+    numT = galois::getActiveThreads();
+    sendWorkBuffer.resize(numT, nullptr);
+  }
+
+  ~GluonSubstrate() {
+      for (unsigned t=0; t<numT; t++) {
+          if (sendWorkBuffer[t] != nullptr) {
+              free(sendWorkBuffer[t]);
+          }
+      }
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -3556,6 +3567,7 @@ public:
 /* For Polling */
 private:
     bool stopDedicated = false;
+    std::vector<uint8_t*> sendWorkBuffer;
 
 public:
     void reset_termination() {
@@ -3575,25 +3587,34 @@ public:
                 if (stopDedicated) {
                     break;
                 }
-                if (!p) {
+                if (!p.has_value()) {
                     galois::substrate::asmPause();
                 }
-            } while (!p);
+            } while (!p.has_value());
             
             if (stopDedicated) {
                 break;
             }
 
-            if (p) { // received message
-                galois::runtime::RecvBuffer buf(std::move(p.value()));
+            if (p.has_value()) { // received message
+                uint8_t* buf = p.value().first;
+                size_t bufLen = p.value().second;
+                size_t offset = 0;
+
                 uint64_t gid;
                 typename FnTy::ValTy val;
                 uint32_t lid;
-                while (!buf.extractDone()) {
-                    galois::runtime::gDeserialize(buf, gid, val);
+
+                while (offset != bufLen) {
+                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
+                    offset += sizeof(uint64_t);
+                    std::memcpy(&val, buf + offset, sizeof(val));
+                    offset += sizeof(val);
                     lid = userGraph.getLID(gid);
                     FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                 }
+
+                net.deallocateRecvBuffer(buf);
             }
         }
     }
@@ -3610,26 +3631,35 @@ public:
                 if (terminateFlag) {
                     break;
                 }
-                if (!p) {
+                if (!p.has_value()) {
                     galois::substrate::asmPause();
                 }
-            } while (!p);
+            } while (!p.has_value());
             
             if (terminateFlag) {
                 break;
             }
 
-            if (p) { // received message
-                galois::runtime::RecvBuffer buf(std::move(p.value()));
+            if (p.has_value()) { // received message
+                uint8_t* buf = p.value().first;
+                size_t bufLen = p.value().second;
+                size_t offset = 0;
+
                 uint64_t gid;
                 typename FnTy::ValTy val;
                 uint32_t lid;
                 std::vector<std::pair<uint32_t, typename FnTy::ValTy>> work;
-                while (!buf.extractDone()) {
-                    galois::runtime::gDeserialize(buf, gid, val);
+
+                while (offset != bufLen) {
+                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
+                    offset += sizeof(uint64_t);
+                    std::memcpy(&val, buf + offset, sizeof(val));
+                    offset += sizeof(val);
                     lid = userGraph.getLID(gid);
                     work.push_back(std::make_pair(lid, val));
                 }
+
+                net.deallocateRecvBuffer(buf);
 
                 galois::on_each(
                     [&](unsigned tid, unsigned numT) {
@@ -3667,10 +3697,25 @@ public:
 
     template <typename FnTy>
     void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
+        unsigned tid = galois::substrate::ThreadPool::getTID();
+        if (sendWorkBuffer[tid] == nullptr) {
+            void* ptr = malloc(sizeof(gid) + sizeof(val));
+            if (ptr == nullptr) {
+                galois::gError("Failed to allocate memory for the thread send work buffer\n");
+            }
+            sendWorkBuffer[tid] = static_cast<uint8_t*>(ptr);
+        }
+
+        // serialize
+        uint8_t* bufferPtr = sendWorkBuffer[tid];
+        size_t offset = 0;
+        std::memcpy(bufferPtr, &gid, sizeof(gid));
+        offset += sizeof(gid);
+        std::memcpy(bufferPtr + offset, &val, sizeof(val));
+        offset += sizeof(val);
+
         auto& net = galois::runtime::getSystemNetworkInterface();
-        galois::runtime::SendBuffer b;
-        gSerialize(b, gid, val);
-        net.sendWork(dst, b);
+        net.sendWork(dst, bufferPtr, offset);
     }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -87,6 +87,8 @@ public:
    * Destructor destroys MPI (if it exists).
    */
   virtual ~NetworkInterface();
+  
+  virtual void deallocateRecvBuffer(uint8_t* buf) = 0;
 
   //! Send a message to a given (dest) host.  A message is simply a
   //! landing pad (recv, funciton pointer) and some data (buf)
@@ -108,7 +110,7 @@ public:
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0) = 0;
   
-  virtual void sendWork(uint32_t dest, SendBuffer& buf) = 0;
+  virtual void sendWork(uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
 
   //! Send a message to all hosts.  A message is simply a
   //! landing pad (recv) and some data (buf)
@@ -134,10 +136,10 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
-  virtual std::optional<RecvBuffer>
+  virtual std::optional<std::pair<uint8_t*, size_t>>
   receiveRemoteWork() = 0;
   
-  virtual std::optional<RecvBuffer>
+  virtual std::optional<std::pair<uint8_t*, size_t>>
   receiveRemoteWork(bool& terminateFlag) = 0;
   
   virtual void resetTermination() = 0;

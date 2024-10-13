@@ -27,6 +27,8 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <vector>
+#include <stack>
 
 #include <boost/utility.hpp>
 
@@ -1043,6 +1045,96 @@ public:
   };
 
   SerialNumaAllocator() : Super(&heap) {}
+};
+
+template<size_t BufferSize, size_t BufferCount>
+class FixedSizeBufferPool {
+    const size_t hugePageSize = 2 * 1024 * 1024;
+    std::vector<void*> regions;
+    std::stack<uint8_t*> buffers;
+    
+    substrate::SimpleLock lock;
+
+public:
+    FixedSizeBufferPool() {
+        allocateRegions();
+    }
+
+    ~FixedSizeBufferPool() {
+        freeRegions();
+    }
+
+    inline uint8_t* allocate() {
+        std::lock_guard<substrate::SimpleLock> lg(lock);
+
+        if (!buffers.empty()) {
+            uint8_t* buffer = buffers.top();
+            buffers.pop();
+            return buffer;
+        }
+
+        // no buffers available
+        galois::gPrint("No buffers available in FixedSizeBufferPool\n");
+        return nullptr;
+    }
+
+    inline void deallocate(uint8_t* buffer) {
+        std::lock_guard<substrate::SimpleLock> lg(lock);
+        buffers.push(buffer);
+    }
+
+private:
+    inline void allocateRegions() {
+        // allocate new regions
+        size_t pageCount = (BufferCount * BufferSize + hugePageSize - 1) / hugePageSize;
+
+        for (size_t i=0; i<pageCount; i++) {
+            void* region = mmap(NULL, hugePageSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
+            if (region == MAP_FAILED) {
+                GALOIS_SYS_DIE("Out of Memory");
+            }
+            regions.push_back(region);
+
+            // add all buffers in the new page to the free buffer stack
+            for (size_t j=0; j<hugePageSize; j+=BufferSize) {
+                buffers.push(static_cast<uint8_t*>(region) + j);
+            }
+        }
+    }
+    
+    inline void freeRegions() {
+        // free the regions
+        for (auto region : regions) {
+            if (munmap(region, hugePageSize) == -1) {
+                GALOIS_SYS_DIE("Error unmapping region and freeing memory");
+            }
+        }
+    }
+};
+
+template<size_t BufferSize, size_t BufferCount>
+class FixedSizeBufferAllocator {
+    FixedSizeBufferPool<BufferSize, BufferCount> pool;
+
+public:
+    FixedSizeBufferAllocator() {}
+    ~FixedSizeBufferAllocator() {}
+
+    uint8_t* allocate(size_t n = 1) {
+        if (n != 1) {
+            throw std::bad_alloc(); // simple handling
+        }
+
+        return pool.allocate();
+    }
+
+    void deallocate(uint8_t* ptr, size_t n = 1) {
+        if (n != 1) {
+            throw std::invalid_argument("only single deallocation is supported");
+        }
+
+        pool.deallocate(ptr);
+    }
 };
 
 } // end namespace runtime

@@ -1746,8 +1746,7 @@ private:
     base_DistGraph::globalToLocalMap.reserve(base_DistGraph::numNodes);
     for (unsigned i = 0; i < base_DistGraph::numNodes; i++) {
       // global to local map construction
-      base_DistGraph::globalToLocalMap[base_DistGraph::localToGlobalVector[i]] =
-          i;
+      base_DistGraph::globalToLocalMap[base_DistGraph::localToGlobalVector[i]] = i;
     }
     assert(base_DistGraph::globalToLocalMap.size() == base_DistGraph::numNodes);
 
