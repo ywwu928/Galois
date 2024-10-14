@@ -125,7 +125,7 @@ private:
   //! Mirror nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& mirrorNodes;
-  //! Mirror nodes on different hosts. For reduce; comes from the user graph
+  //! Ghost nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& ghostNodes;
   //! Master nodes of ghosts on different hosts. For broadcast;
@@ -242,6 +242,89 @@ private:
 #endif
           galois::no_stats());
     }
+    
+    // send off the ghost nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, ghostNodes[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, b);
+    }
+
+    // force all messages to be processed before continuing
+    net.flush();
+
+    // receive the ghost master nodes
+    std::vector<std::vector<size_t>> ghostMasterNodes;
+    ghostMasterNodes.resize(numHosts);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.receiveTagged(galois::runtime::evilPhase);
+      } while (!p);
+
+      galois::runtime::gDeserialize(p->second, ghostMasterNodes[p->first]);
+    }
+    
+    // convert the global ids stored in the ghost (master) nodes arrays to local ids
+    for (uint32_t h = 0; h < ghostMasterNodes.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, ghostMasterNodes[h].size()),
+          [&](size_t n) {
+            ghostMasterNodes[h][n] = userGraph.getLID(ghostMasterNodes[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("GhostMasterNodes").c_str()),
+#endif
+          galois::no_stats());
+    }
+    
+    for (uint32_t h = 0; h < ghostNodes.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, ghostNodes[h].size()),
+          [&](size_t n) {
+            ghostNodes[h][n] = userGraph.getLID(ghostNodes[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("GhostNodes").c_str()),
+#endif
+          galois::no_stats());
+    }
+    
+    // send off the ghost master nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, ghostMasterNodes[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, b);
+    }
+
+    // force all messages to be processed before continuing
+    net.flush();
+    
+    // receive the ghost remote nodes
+    std::vector<std::vector<size_t>> ghostRemoteNodes;
+    ghostRemoteNodes.resize(numHosts);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.receiveTagged(galois::runtime::evilPhase);
+      } while (!p);
+
+      galois::runtime::gDeserialize(p->second, ghostRemoteNodes[p->first]);
+    }
+
+    userGraph.constructGhostLocalToRemoteVector(ghostRemoteNodes);
     
     incrementEvilPhase();
   }
@@ -3592,16 +3675,14 @@ public:
                 bufLen -= sizeof(uint32_t);
                 size_t offset = 0;
 
-                uint64_t gid;
-                typename FnTy::ValTy val;
                 uint32_t lid;
+                typename FnTy::ValTy val;
 
                 while (offset != bufLen) {
-                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                    offset += sizeof(uint64_t);
+                    std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                    offset += sizeof(uint32_t);
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
-                    lid = userGraph.getLID(gid);
                     FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                 }
 
@@ -3648,18 +3729,16 @@ public:
                             start = tid * quotient + remainder;
                             size = quotient;
                         }
-                        size_t offset = start * (sizeof(uint64_t) + sizeof(typename FnTy::ValTy));
+                        size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
                         
-                        uint64_t gid;
-                        typename FnTy::ValTy val;
                         uint32_t lid;
+                        typename FnTy::ValTy val;
 
                         for (unsigned i=0; i<size; i++) {
-                            std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                            offset += sizeof(uint64_t);
+                            std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                            offset += sizeof(uint32_t);
                             std::memcpy(&val, buf + offset, sizeof(val));
                             offset += sizeof(val);
-                            lid = userGraph.getLID(gid);
                             FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                         }
                     }
@@ -3690,14 +3769,14 @@ public:
     }
 
     template <typename FnTy>
-    void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
+    void send_data_to_remote(unsigned dst, uint32_t lid, typename FnTy::ValTy val) {
         unsigned tid = galois::substrate::ThreadPool::getTID();
         
         // serialize
         uint8_t* bufferPtr = sendWorkBuffer[tid];
         size_t offset = 0;
-        std::memcpy(bufferPtr, &gid, sizeof(gid));
-        offset += sizeof(gid);
+        std::memcpy(bufferPtr, &lid, sizeof(lid));
+        offset += sizeof(lid);
         std::memcpy(bufferPtr + offset, &val, sizeof(val));
         offset += sizeof(val);
 

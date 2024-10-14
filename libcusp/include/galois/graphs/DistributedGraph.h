@@ -137,6 +137,8 @@ protected:
   
   //! Host ID = localHostVector[LID]
   std::vector<uint32_t> localHostVector;
+  //! Remote LID = ghostLocalToRemote[LID]
+  std::vector<uint64_t> ghostLocalToRemoteVector;
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -615,6 +617,20 @@ public:
    * @returns local node id corresponding to the global one
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
+
+  inline void constructGhostLocalToRemoteVector(std::vector<std::vector<size_t>>& ghostRemoteNodes) {
+      ghostLocalToRemoteVector.resize(numNodes - numActualNodes);
+
+      for (uint32_t i=0; i<numHosts; i++) {
+          for (size_t j=0; j<ghostRemoteNodes[i].size(); j++) {
+              ghostLocalToRemoteVector[ghostNodes[i][j] - numActualNodes] = ghostRemoteNodes[i][j];
+          }
+      }
+  }
+  
+  inline uint32_t getGhostRemoteLID(const uint32_t ghostLID) const {
+      return ghostLocalToRemoteVector[ghostLID - numActualNodes];
+  }
 
   /**
    * Get data of a node.
