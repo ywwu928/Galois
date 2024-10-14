@@ -58,7 +58,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-  static const size_t AGG_MSG_SIZE = 2 << 16;
+  static const size_t AGG_MSG_SIZE = 2 << 14;
   static const size_t SEND_BUF_COUNT = 2 << 10;
   static const size_t RECV_BUF_COUNT = 2 << 15;
 

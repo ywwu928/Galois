@@ -1072,7 +1072,7 @@ public:
         }
 
         // no buffers available
-        galois::gError("No buffers available in FixedSizeBufferPool : adjust BufferCount and rerun to vaoid waiting\n");
+        galois::gError("No buffers available in FixedSizeBufferPool : adjust BufferCount and rerun to avoid waiting\n");
         return nullptr;
     }
 
