@@ -68,10 +68,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::vector<FixedSizeBufferAllocator<AGG_MSG_SIZE, SEND_BUF_COUNT>> sendAllocators;
   FixedSizeBufferAllocator<AGG_MSG_SIZE, RECV_BUF_COUNT> recvAllocator;
 
-  unsigned long statSendNum;
-  unsigned long statSendBytes;
-  unsigned long statRecvNum;
-  unsigned long statRecvBytes;
   bool anyReceivedMessages;
 
   unsigned numT;
@@ -450,13 +446,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       --inflightTermination;
                   }
                   else if (f.tag == galois::runtime::remoteWorkTag) {
-                    memUsageTracker.decrementMemUsage(f.bufLen);
                     --sendRemoteWork[f.host][t].inflightSends;
                     // return buffer back to pool
                     sendAllocators[t].deallocate(f.buf);
                   }
                   else {
-                    memUsageTracker.decrementMemUsage(f.data.size());
                     --sendData[f.host].inflightSends;
                   }
 
@@ -526,14 +520,12 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
                   recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
                   auto& m = recvInflight.back();
-                  memUsageTracker.incrementMemUsage(nbytes);
                   rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
                   handleError(rv);
               }
               else {
                   recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
                   auto& m = recvInflight.back();
-                  memUsageTracker.incrementMemUsage(nbytes);
                   rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
                   handleError(rv);
               }
@@ -616,7 +608,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                           auto payload = srw.pop();
                           
                           if (payload.has_value()) {
-                              memUsageTracker.incrementMemUsage(payload.value().second);
                               send(t, i, sendMessage(galois::runtime::remoteWorkTag, payload.value().first, payload.value().second));
                               //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
 
@@ -643,7 +634,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       sendMessage msg = sd.pop();
                       
                       if (msg.tag != ~0U) {
-                          memUsageTracker.incrementMemUsage(msg.data.size());
                           // put it on the first thread
                           send(0, i, std::move(msg));
                           //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
@@ -727,17 +717,12 @@ public:
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int phase) {
     tag += phase;
-    statSendNum += 1;
-    statSendBytes += buf.size();
     
     auto& sd = sendData[dest];
     sd.push(tag, std::move(buf.getVec()));
   }
   
   virtual void sendWork(uint32_t dest, uint8_t* bufPtr, size_t len) {
-    statSendNum += 1;
-    statSendBytes += len;
-    
     unsigned tid = galois::substrate::ThreadPool::getTID();
     auto& sd = sendRemoteWork[dest][tid];
     sd.add(*this, bufPtr, len);
@@ -757,9 +742,6 @@ public:
               uint32_t src;
               auto buf = rq.tryPopMsg(tag, src);
               if (buf.has_value()) {
-                  ++statRecvNum;
-                  statRecvBytes += buf->size();
-                  memUsageTracker.decrementMemUsage(buf->size());
                   anyReceivedMessages = true;
                   return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(src, std::move(buf.value())));
               }
@@ -773,9 +755,6 @@ public:
   receiveRemoteWork() {
       auto buf = recvRemoteWork.tryPopMsg();
       if (buf.has_value()) {
-          ++statRecvNum;
-          statRecvBytes += buf.value().second;
-          memUsageTracker.decrementMemUsage(buf.value().second);
           anyReceivedMessages = true;
           return buf;
       }
@@ -790,9 +769,6 @@ public:
 
       auto buf = recvRemoteWork.tryPopMsg();
       if (buf.has_value()) {
-          ++statRecvNum;
-          statRecvBytes += buf.value().second;
-          memUsageTracker.decrementMemUsage(buf.value().second);
           anyReceivedMessages = true;
           return buf;
       }
@@ -868,22 +844,6 @@ public:
     }
 
     return false;
-  }
-
-  virtual unsigned long reportSendBytes() const { return statSendBytes; }
-  virtual unsigned long reportSendMsgs() const { return statSendNum; }
-  virtual unsigned long reportRecvBytes() const { return statRecvBytes; }
-  virtual unsigned long reportRecvMsgs() const { return statRecvNum; }
-
-  virtual std::vector<unsigned long> reportExtra() const {
-    std::vector<unsigned long> retval(2);
-    return retval;
-  }
-
-  virtual std::vector<std::pair<std::string, unsigned long>>
-  reportExtraNamed() const {
-    std::vector<std::pair<std::string, unsigned long>> retval(2);
-    return retval;
   }
 };
 

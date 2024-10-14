@@ -158,27 +158,6 @@ public:
 
   //! @returns true if any receive is in progress or is pending to be dequeued
   virtual bool anyPendingReceives() = 0;
-
-  //! Get how many bytes were sent
-  //! @returns num bytes sent
-  virtual unsigned long reportSendBytes() const = 0;
-  //! Get how many messages were sent
-  //! @returns num messages sent
-  virtual unsigned long reportSendMsgs() const = 0;
-  //! Get how many bytes were received
-  //! @returns num bytes received
-  virtual unsigned long reportRecvBytes() const = 0;
-  //! Get how many messages were received
-  //! @returns num messages received
-  virtual unsigned long reportRecvMsgs() const = 0;
-  //! Get any other extra statistics that might need to be reported; varies
-  //! depending on implementation
-  //! @returns vector of extra things to be reported
-  virtual std::vector<unsigned long> reportExtra() const = 0;
-  //! Get the names of the extra things that are returned by reportExtra
-  //! @returns vector of the names of the reported extra things
-  virtual std::vector<std::pair<std::string, unsigned long>>
-  reportExtraNamed() const = 0;
 };
 
 //! Variable that keeps track of which network send/recv phase a program is
