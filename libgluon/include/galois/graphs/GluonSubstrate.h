@@ -3634,16 +3634,14 @@ public:
 
                 uint64_t gid;
                 typename FnTy::ValTy val;
-                uint32_t lid;
-                std::vector<std::pair<uint32_t, typename FnTy::ValTy>> work;
+                std::vector<std::pair<uint64_t, typename FnTy::ValTy>> work;
 
                 while (offset != bufLen) {
                     std::memcpy(&gid, buf + offset, sizeof(uint64_t));
                     offset += sizeof(uint64_t);
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
-                    lid = userGraph.getLID(gid);
-                    work.push_back(std::make_pair(lid, val));
+                    work.push_back(std::make_pair(gid, val));
                 }
 
                 net.deallocateRecvBuffer(buf);
@@ -3665,7 +3663,7 @@ public:
                         range_end = range_start + size;
 
                         for (unsigned i=range_start; i<range_end; i++) {
-                            uint32_t lid = work[i].first;
+                            uint32_t lid = userGraph.getLID(work[i].first);
                             typename FnTy::ValTy val = work[i].second;
                             FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                         }
