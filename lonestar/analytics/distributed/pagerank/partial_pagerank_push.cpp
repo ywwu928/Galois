@@ -545,6 +545,8 @@ int main(int argc, char** argv) {
 
   bitset_residual.resize(hg->size());
 
+  syncSubstrate->allocate_send_work_buffer<Reduce_add_residual>();
+
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
   InitializeGraph::go((*hg));

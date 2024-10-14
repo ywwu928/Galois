@@ -690,7 +690,7 @@ public:
     anyReceivedMessages = false;
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
     numT = galois::getActiveThreads();
-    sendAllocators.resize(numT);
+    sendAllocators = decltype(sendAllocators)(numT);
     sendInflight = decltype(sendInflight)(numT);
     while (ready != 1) {};
     

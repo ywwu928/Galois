@@ -3694,18 +3694,24 @@ public:
         net.broadcastTermination();
         stopDedicated = true;
     }
+    
+    template <typename FnTy>
+    void allocate_send_work_buffer() {
+        for (unsigned t=0; t<numT; t++) {
+            if (sendWorkBuffer[t] == nullptr) {
+                void* ptr = malloc(sizeof(uint64_t) + sizeof(typename FnTy::ValTy));
+                if (ptr == nullptr) {
+                    galois::gError("Failed to allocate memory for the thread send work buffer\n");
+                }
+                sendWorkBuffer[t] = static_cast<uint8_t*>(ptr);
+            }
+        }
+    }
 
     template <typename FnTy>
     void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
         unsigned tid = galois::substrate::ThreadPool::getTID();
-        if (sendWorkBuffer[tid] == nullptr) {
-            void* ptr = malloc(sizeof(gid) + sizeof(val));
-            if (ptr == nullptr) {
-                galois::gError("Failed to allocate memory for the thread send work buffer\n");
-            }
-            sendWorkBuffer[tid] = static_cast<uint8_t*>(ptr);
-        }
-
+        
         // serialize
         uint8_t* bufferPtr = sendWorkBuffer[tid];
         size_t offset = 0;
