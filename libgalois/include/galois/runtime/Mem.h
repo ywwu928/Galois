@@ -31,6 +31,7 @@
 #include <stack>
 
 #include <boost/utility.hpp>
+#include <boost/lockfree/stack.hpp>
 
 #include "galois/config.h"
 #include "galois/gIO.h"
@@ -1051,12 +1052,12 @@ template<size_t BufferSize, size_t BufferCount>
 class FixedSizeBufferPool {
     const size_t hugePageSize = 2 * 1024 * 1024;
     std::vector<void*> regions;
-    std::stack<uint8_t*> buffers;
-    
-    substrate::SimpleLock lock;
+    const size_t stackSize = 2 << 15;
+    boost::lockfree::stack<uint8_t*> buffers;
 
 public:
     FixedSizeBufferPool() {
+        buffers.reserve(BufferCount);
         allocateRegions();
     }
 
@@ -1065,11 +1066,9 @@ public:
     }
 
     inline uint8_t* allocate() {
-        std::lock_guard<substrate::SimpleLock> lg(lock);
-
         if (!buffers.empty()) {
-            uint8_t* buffer = buffers.top();
-            buffers.pop();
+            uint8_t* buffer = nullptr;
+            buffers.pop(buffer);
             return buffer;
         }
 
@@ -1079,7 +1078,6 @@ public:
     }
 
     inline void deallocate(uint8_t* buffer) {
-        std::lock_guard<substrate::SimpleLock> lg(lock);
         buffers.push(buffer);
     }
 
