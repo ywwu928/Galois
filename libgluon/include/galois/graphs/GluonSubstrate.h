@@ -96,6 +96,7 @@ private:
 
   //! The graph to handle communication for
   GraphTy& userGraph;
+  galois::runtime::NetworkInterface& net;
   const unsigned id; //!< Copy of net.ID, which is the ID of the machine.
   bool transposed;   //!< Marks if passed in graph is transposed or not.
   bool isVertexCut;  //!< Marks if passed in graph's partitioning is vertex cut.
@@ -189,8 +190,6 @@ private:
    */
 
   void exchangeProxyInfo() {
-    auto& net = galois::runtime::getSystemNetworkInterface();
-
     // send off the mirror nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -263,8 +262,6 @@ private:
     std::string ghost_nodes_str = "GhostNodes_Host_" + std::to_string(id);
     galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, ghost_nodes_str, host_ghost_nodes);
         
-    auto& net = galois::runtime::getSystemNetworkInterface();
-
     if (net.ID == 0) {
         uint64_t global_total_mirror_nodes = host_mirror_nodes;
         uint64_t global_total_ghost_nodes = host_ghost_nodes;
@@ -360,7 +357,6 @@ private:
     sendInfoToHost();
 
     // do not track memory usage of partitioning
-    auto& net = galois::runtime::getSystemNetworkInterface();
     net.resetMemUsage();
   }
 
@@ -438,7 +434,7 @@ public:
       std::pair<unsigned, unsigned> _cartesianGrid = std::make_pair(0u, 0u),
       bool _partitionAgnostic                      = false,
       DataCommMode _enforcedDataMode               = DataCommMode::noData)
-      : galois::runtime::GlobalObject(this), userGraph(_userGraph), id(host),
+      : galois::runtime::GlobalObject(this), userGraph(_userGraph), net(galois::runtime::getSystemNetworkInterface()), id(host),
         transposed(_transposed), isVertexCut(userGraph.is_vertex_cut()),
         cartesianGrid(_cartesianGrid), partitionAgnostic(_partitionAgnostic),
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
@@ -2122,7 +2118,6 @@ private:
               size[x], MPI_BYTE, window[id]);
     }
 
-    auto& net = galois::runtime::getSystemNetworkInterface();
     net.incrementMemUsage(send_buffers_size);
 
     MPI_Win_complete(window[id]);
@@ -2154,7 +2149,6 @@ private:
         b; // although a static variable, allocation not reused
            // due to std::move in net.sendTagged()
 
-    auto& net               = galois::runtime::getSystemNetworkInterface();
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statNumMessages_str(syncTypeStr + "NumMessages_" +
                                     get_run_identifier(loopName));
@@ -2514,7 +2508,6 @@ private:
             SyncType syncType, typename SyncFnTy, typename BitsetFnTy,
             typename VecTy, bool async>
   void syncNetRecv(std::string loopName) {
-    auto& net = galois::runtime::getSystemNetworkInterface();
     std::string wait_timer_str("Wait_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> Twait(wait_timer_str.c_str(),
                                                    RNAME);
@@ -2678,7 +2671,6 @@ private:
 
         MPI_Info_free(&info);
       }
-      auto& net = galois::runtime::getSystemNetworkInterface();
       net.incrementMemUsage(recv_buffers_size);
 
       for (unsigned h = 1; h < numHosts; ++h) {
@@ -3572,14 +3564,11 @@ private:
 public:
     void reset_termination() {
         stopDedicated = false;
-        auto& net = galois::runtime::getSystemNetworkInterface();
         net.resetTermination();
     }
 
     template<typename FnTy>
     void poll_for_msg_dedicated() {
-        auto& net = galois::runtime::getSystemNetworkInterface();
-
         decltype(net.receiveRemoteWork()) p;
         while (!stopDedicated) {
             do {
@@ -3621,8 +3610,6 @@ public:
     
     template<typename FnTy>
     void poll_for_msg() {
-        auto& net = galois::runtime::getSystemNetworkInterface();
-
         bool terminateFlag;
         decltype(net.receiveRemoteWork(terminateFlag)) p;
         while (true) {
@@ -3689,7 +3676,6 @@ public:
     }
 
     void net_flush() {
-        auto& net = galois::runtime::getSystemNetworkInterface();
         net.flushRemoteWork();
         net.broadcastTermination();
         stopDedicated = true;
@@ -3720,7 +3706,6 @@ public:
         std::memcpy(bufferPtr + offset, &val, sizeof(val));
         offset += sizeof(val);
 
-        auto& net = galois::runtime::getSystemNetworkInterface();
         net.sendWork(dst, bufferPtr, offset);
     }
 
