@@ -3588,6 +3588,8 @@ public:
             if (p.has_value()) { // received message
                 uint8_t* buf = p.value().first;
                 size_t bufLen = p.value().second;
+                // dedicated thread does not care about the number of aggregated message count
+                bufLen -= sizeof(uint32_t);
                 size_t offset = 0;
 
                 uint64_t gid;
@@ -3630,45 +3632,40 @@ public:
             if (p.has_value()) { // received message
                 uint8_t* buf = p.value().first;
                 size_t bufLen = p.value().second;
-                size_t offset = 0;
-
-                uint64_t gid;
-                typename FnTy::ValTy val;
-                std::vector<std::pair<uint64_t, typename FnTy::ValTy>> work;
-
-                while (offset != bufLen) {
-                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                    offset += sizeof(uint64_t);
-                    std::memcpy(&val, buf + offset, sizeof(val));
-                    offset += sizeof(val);
-                    work.push_back(std::make_pair(gid, val));
-                }
-
-                net.deallocateRecvBuffer(buf);
+                uint32_t msgCount;
+                std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
 
                 galois::on_each(
                     [&](unsigned tid, unsigned numT) {
-                        size_t numWork = work.size();
-                        unsigned quotient = numWork / numT;
-                        unsigned remainder = numWork % numT;
-                        unsigned range_start, size, range_end;
+                        unsigned quotient = msgCount / numT;
+                        unsigned remainder = msgCount % numT;
+                        unsigned start, size;
                         if (tid < remainder) {
-                            range_start = tid * quotient + tid;
+                            start = tid * quotient + tid;
                             size = quotient + 1;
                         }
                         else {
-                            range_start = tid * quotient + remainder;
+                            start = tid * quotient + remainder;
                             size = quotient;
                         }
-                        range_end = range_start + size;
+                        size_t offset = start * (sizeof(uint64_t) + sizeof(typename FnTy::ValTy));
+                        
+                        uint64_t gid;
+                        typename FnTy::ValTy val;
+                        uint32_t lid;
 
-                        for (unsigned i=range_start; i<range_end; i++) {
-                            uint32_t lid = userGraph.getLID(work[i].first);
-                            typename FnTy::ValTy val = work[i].second;
+                        for (unsigned i=0; i<size; i++) {
+                            std::memcpy(&gid, buf + offset, sizeof(uint64_t));
+                            offset += sizeof(uint64_t);
+                            std::memcpy(&val, buf + offset, sizeof(val));
+                            offset += sizeof(val);
+                            lid = userGraph.getLID(gid);
                             FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                         }
                     }
                 );
+
+                net.deallocateRecvBuffer(buf);
             }
         }
     }

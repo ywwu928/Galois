@@ -275,33 +275,48 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    * single producer single consumer with single tag
    */
   class sendBufferRemoteWork {
+      NetworkInterfaceBuffered* net;
+      unsigned tid;
+
       moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> messages;
       moodycamel::ProducerToken ptok;
 
       uint8_t* buf;
       size_t bufLen;
+      uint32_t msgCount;
       
       std::atomic<size_t> flush;
 
   public:
       std::atomic<size_t> inflightSends = 0;
 
-      sendBufferRemoteWork() : ptok(messages), buf(nullptr), bufLen(0), flush(0) {}
+      sendBufferRemoteWork() : net(nullptr), tid(0), ptok(messages), buf(nullptr), bufLen(0), msgCount(0), flush(0) {}
+
+      void setNet(NetworkInterfaceBuffered* _net) {
+          net = _net;
+      }
       
-      void setFlush(NetworkInterfaceBuffered& net) {
-          if (bufLen != 0) {
+      void setTID(unsigned _tid) {
+          tid = _tid;
+      }
+      
+      void setFlush() {
+          if (msgCount != 0) {
+            // put number of message count at the very last
+            std::memcpy(buf + bufLen, &msgCount, sizeof(uint32_t));
+            bufLen += sizeof(uint32_t);
             messages.enqueue(ptok, std::make_pair(buf, bufLen));
             
-            unsigned tid = galois::substrate::ThreadPool::getTID();
             // allocate new buffer
             do {
-                buf = net.sendAllocators[tid].allocate();
+                buf = net->sendAllocators[tid].allocate();
                 
                 if (buf == nullptr) {
                     galois::substrate::asmPause();
                 }
             } while (buf == nullptr);
             bufLen = 0;
+            msgCount = 0;
             
             ++inflightSends;
             flush += 1;
@@ -324,11 +339,11 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
       }
 
-      void add(NetworkInterfaceBuffered& net, unsigned tid, uint8_t* work, size_t workLen) {
+      void add(uint8_t* work, size_t workLen) {
           if (buf == nullptr) {
               // allocate new buffer
               do {
-                  buf = net.sendAllocators[tid].allocate();
+                  buf = net->sendAllocators[tid].allocate();
                   
                   if (buf == nullptr) {
                       galois::substrate::asmPause();
@@ -336,12 +351,15 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               } while (buf == nullptr);
           }
           
-          if (bufLen + workLen > AGG_MSG_SIZE) {
+          if (bufLen + workLen + sizeof(uint32_t) > AGG_MSG_SIZE) {
+              // put number of message count at the very last
+              std::memcpy(buf + bufLen, &msgCount, sizeof(uint32_t));
+              bufLen += sizeof(uint32_t);
               messages.enqueue(ptok, std::make_pair(buf, bufLen));
 
               // allocate new buffer
               do {
-                  buf = net.sendAllocators[tid].allocate();
+                  buf = net->sendAllocators[tid].allocate();
                   
                   if (buf == nullptr) {
                       galois::substrate::asmPause();
@@ -349,6 +367,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               } while (buf == nullptr);
               std::memcpy(buf, work, workLen);
               bufLen = workLen;
+              msgCount = 1;
 
               ++inflightSends;
               flush += 1;
@@ -357,6 +376,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               // aggregate message
               std::memcpy(buf + bufLen, work, workLen);
               bufLen += workLen;
+              msgCount += 1;
           }
       }
   };
@@ -622,6 +642,12 @@ public:
         std::vector<sendBufferRemoteWork> temp(numT);
         hostSendRemoteWork = std::move(temp);
     }
+    for (unsigned i=0; i<Num; i++) {
+        for (unsigned t=0; t<numT; t++) {
+            sendRemoteWork[i][t].setNet(this);
+            sendRemoteWork[i][t].setTID(t);
+        }
+    }
     sendTermination = decltype(sendTermination)(Num);
     hostTermination = decltype(hostTermination)(Num);
     for (unsigned i=0; i<Num; i++) {
@@ -654,8 +680,7 @@ public:
   }
   
   virtual void sendWork(unsigned tid, uint32_t dest, uint8_t* bufPtr, size_t len) {
-    auto& sd = sendRemoteWork[dest][tid];
-    sd.add(*this, tid, bufPtr, len);
+    sendRemoteWork[dest][tid].add(bufPtr, len);
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
@@ -723,7 +748,7 @@ public:
   virtual void flushRemoteWork() {
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         for (auto& threadSendRemoteWork : hostSendRemoteWork) {
-            threadSendRemoteWork.setFlush(*this);
+            threadSendRemoteWork.setFlush();
         }
     }
   }
