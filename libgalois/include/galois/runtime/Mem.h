@@ -1052,7 +1052,6 @@ template<size_t BufferSize, size_t BufferCount>
 class FixedSizeBufferPool {
     const size_t hugePageSize = 2 * 1024 * 1024;
     std::vector<void*> regions;
-    const size_t stackSize = 2 << 15;
     boost::lockfree::stack<uint8_t*> buffers;
 
 public:
@@ -1073,7 +1072,7 @@ public:
         }
 
         // no buffers available
-        galois::gPrint("No buffers available in FixedSizeBufferPool\n");
+        galois::gError("No buffers available in FixedSizeBufferPool : adjust BufferCount and rerun to vaoid waiting\n");
         return nullptr;
     }
 

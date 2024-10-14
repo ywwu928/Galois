@@ -237,8 +237,6 @@ struct PageRank {
     const auto& masterNodes = _graph.masterNodesRangeReserved();
     DGTerminatorDetector dga;
     
-    //auto& net = galois::runtime::getSystemNetworkInterface();
-
     do {
       syncSubstrate->set_num_round(_num_iterations);
       PageRank_delta::go(_graph);
@@ -260,44 +258,29 @@ struct PageRank {
         abort();
 #endif
       } else if (personality == CPU) {
-        //galois::gPrint("Host ", net.ID, " point 1\n");
         // dedicate a thread to poll for remote messages
         std::function<void(void)> func = [&]() {
                 syncSubstrate->poll_for_msg_dedicated<Reduce_add_residual>();
         };
         galois::substrate::getThreadPool().runDedicated(func);
-        //galois::gPrint("Host ", net.ID, " point 2\n");
         
         // launch all other threads to compute
-        /*std::string doAllString = "doAll_" + std::to_string(_num_iterations);
-        std::function<void(void)> doAllFunc = [&]() {
-                galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
-                               galois::no_stats(), galois::steal(),
-                               galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
-        };
-        galois::runtime::profilePapi(doAllFunc, doAllString.c_str());*/
         galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                        galois::no_stats(), galois::steal(),
                        galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
-        //galois::gPrint("Host ", net.ID, " point 3\n");
         
         // inform all other hosts that this host has finished sending messages
         // force all messages to be processed before continuing
         syncSubstrate->net_flush();
-        //galois::gPrint("Host ", net.ID, " point 4\n");
         galois::substrate::getThreadPool().waitDedicated();
-        //galois::gPrint("Host ", net.ID, " point 5\n");
 
-        // launch all other threads to poll for messages
+        // launch one thread to poll for messages and distribute remote work
         syncSubstrate->poll_for_msg<Reduce_add_residual>();
-        //galois::gPrint("Host ", net.ID, " point 6\n");
         syncSubstrate->reset_termination();
-        //galois::gPrint("Host ", net.ID, " point 7\n");
       }
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
-      //galois::gPrint("Host ", net.ID, " point 8\n");
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),

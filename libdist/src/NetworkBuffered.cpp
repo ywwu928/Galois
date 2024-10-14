@@ -499,17 +499,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           handleError(rv);
           if (flag) {
               if (m.tag == galois::runtime::terminationTag) {
-                  //galois::gPrint("Host ", ID, " : received termination from Host ", m.host, "\n");
                   hostTermination[m.host] = true;
               }
               else if (m.tag == galois::runtime::remoteWorkTag) {
-                  //galois::gPrint("Host ", ID, " : MPI_recv work from Host ", m.host, "\n");
                   ++recvRemoteWork.inflightRecvs;
                   recvRemoteWork.add(m.buf, m.bufLen);
               }
               else {
-                  //galois::gPrint("Host ", ID, " : MPI_recv data from Host ", m.host, "\n");
-
                   ++recvData[m.host].inflightRecvs;
                   recvData[m.host].add(m.host, m.tag, std::move(m.data));
               }
@@ -560,8 +556,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                           
                           if (payload.has_value()) {
                               send(t, i, sendMessage(galois::runtime::remoteWorkTag, payload.value().first, payload.value().second));
-                              //galois::gPrint("Host ", ID, " : MPI_Send work to Host ", i, "\n");
-
                               hostEmpty = false;
                           }
                       }
@@ -573,21 +567,17 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                           ++inflightTermination;
                           // put it on the last thread to make sure it is sent last after all the work are sent
                           send(numT - 1, i, sendMessage(galois::runtime::terminationTag));
-                          //galois::gPrint("Host ", ID, " : MPI_Send termination to Host ", i, "\n");
-
                           sendTermination[i] = false;
                       }
                   }
                   // 3. data
                   auto& sd = sendData[i];
                   if (sd.checkFlush()) {
-                      //galois::gPrint("Host ", ID, " : flush data to Host ", i, "\n");
                       sendMessage msg = sd.pop();
                       
                       if (msg.tag != ~0U) {
                           // put it on the first thread
                           send(0, i, std::move(msg));
-                          //galois::gPrint("Host ", ID, " : MPI_Send data to Host ", i, "\n");
                       }
                   }
               }
