@@ -134,6 +134,9 @@ protected:
   std::vector<uint64_t> localToGlobalVector;
   //! LID = globalToLocalMap[GID]
   std::unordered_map<uint64_t, uint32_t> globalToLocalMap;
+  
+  //! Host ID = localHostVector[LID]
+  std::vector<uint32_t> localHostVector;
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -565,6 +568,11 @@ public:
   //! Determines which host has the master for a particular node
   //! @returns Host id of node in question
   inline unsigned getHostID(uint64_t gid) const { return getHostIDImpl(gid); }
+  //! Determines which host has the master for a particular local node
+  //! @returns Host id of local node in question
+  inline unsigned getHostIDForLocal(uint32_t lid) const {
+      return localHostVector[lid];
+  }
   //! Determine if a node has a master on this host.
   //! @returns True if passed in global id has a master on this host
   inline bool isOwned(uint64_t gid) const { return isOwnedImpl(gid); }

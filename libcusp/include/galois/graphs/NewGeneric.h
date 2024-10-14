@@ -1577,8 +1577,8 @@ private:
     }
     uint32_t ghostCount = fullMirrorCount - partialMirrorCount;
 
-    base_DistGraph::localToGlobalVector.resize(
-        base_DistGraph::localToGlobalVector.size() + fullMirrorCount);
+    base_DistGraph::localToGlobalVector.resize(base_DistGraph::localToGlobalVector.size() + fullMirrorCount);
+    base_DistGraph::localHostVector.resize(base_DistGraph::localToGlobalVector.size() + fullMirrorCount, base_DistGraph::id);
     if (base_DistGraph::numOwned > 0) {
       // fill prefix sum with last number (incomings have no edges)
       prefixSumOfEdges.resize(prefixSumOfEdges.size() + fullMirrorCount,
@@ -1629,6 +1629,9 @@ private:
                 base_DistGraph::localToGlobalVector[startingNodeIndex +
                                                     threadStartLocation +
                                                     handledNodes] = i;
+                base_DistGraph::localHostVector[startingNodeIndex +
+                                                threadStartLocation +
+                                                handledNodes] = graphPartitioner->retrieveMaster(i);
                 handledNodes++;
               }
             }
@@ -1688,6 +1691,9 @@ private:
                       base_DistGraph::localToGlobalVector[startingNodeIndex +
                                                           threadStartLocation +
                                                           handledNodes] = i;
+                      base_DistGraph::localHostVector[startingNodeIndex +
+                                                      threadStartLocation +
+                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
                       handledNodes++;
                     }
                 }
@@ -1716,6 +1722,9 @@ private:
                       base_DistGraph::localToGlobalVector[startingNodeIndex +
                                                           threadStartLocation +
                                                           handledNodes] = i;
+                      base_DistGraph::localHostVector[startingNodeIndex +
+                                                      threadStartLocation +
+                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
                       handledNodes++;
                     }
                 }

@@ -327,8 +327,7 @@ struct PageRank {
         GNode dst       = graph->getEdgeDst(nbr);
       
         if (graph->isGhost(dst)) {
-            uint64_t dst_GID = graph->getGID(dst);
-            syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostID(dst_GID), dst_GID, _delta);
+            syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(dst), graph->getGID(dst), _delta);
         }
         else {
             NodeData& ddata = graph->getData(dst);
