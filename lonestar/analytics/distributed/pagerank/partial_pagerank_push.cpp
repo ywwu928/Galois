@@ -234,7 +234,7 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-    const auto& masterNodes = _graph.masterNodesRangeReserved();
+    const auto& masterNodes = _graph.masterNodesRange();
     DGTerminatorDetector dga;
     
     do {
@@ -258,17 +258,19 @@ struct PageRank {
         abort();
 #endif
       } else if (personality == CPU) {
+#ifndef GALOIS_FULL_MIRRORING     
         // dedicate a thread to poll for remote messages
         std::function<void(void)> func = [&]() {
                 syncSubstrate->poll_for_msg_dedicated<Reduce_add_residual>();
         };
         galois::substrate::getThreadPool().runDedicated(func);
-        
+#endif
         // launch all other threads to compute
         galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                        galois::no_stats(), galois::steal(),
                        galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
         
+#ifndef GALOIS_FULL_MIRRORING     
         // inform all other hosts that this host has finished sending messages
         // force all messages to be processed before continuing
         syncSubstrate->net_flush();
@@ -277,6 +279,7 @@ struct PageRank {
         // launch one thread to poll for messages and distribute remote work
         syncSubstrate->poll_for_msg<Reduce_add_residual>();
         syncSubstrate->reset_termination();
+#endif
       }
 
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
@@ -308,17 +311,20 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-      
+#ifndef GALOIS_FULL_MIRRORING     
         if (graph->isGhost(dst)) {
             syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), _delta);
         }
         else {
+#endif
             NodeData& ddata = graph->getData(dst);
 
             galois::atomicAdd(ddata.residual, _delta);
 
             bitset_residual.set(dst);
+#ifndef GALOIS_FULL_MIRRORING     
         }
+#endif
       }
     }
   }

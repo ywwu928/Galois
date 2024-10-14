@@ -7,6 +7,10 @@ target_include_directories(galois_cusp INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+    
+if(GALOIS_FULL_MIRRORING)
+    target_compile_definitions(galois_cusp INTERFACE GALOIS_FULL_MIRRORING=1)
+endif()
 
 target_link_libraries(galois_cusp INTERFACE galois_dist_async)
 

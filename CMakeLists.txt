@@ -25,6 +25,7 @@ endif()
 set(GALOIS_ENABLE_DIST OFF CACHE BOOL "Enable distributed features")
 set(GALOIS_INSTRUMENT OFF CACHE BOOL "Enable instrumentation for stat collection")
 set(GALOIS_MIRROR_AMOUNT OFF CACHE BOOL "Enable amount of mirrors as the cache level indicator")
+set(GALOIS_FULL_MIRRORING 1 CACHE BOOL "Use full mirroring")
 set(GALOIS_CUDA_CAPABILITY "" CACHE STRING "Semi-colon list of CUDA compute capability version numbers to enable GPU features") # e.g., "3.7;6.1"
 set(GALOIS_COMM_STATS OFF CACHE BOOL "Report more detailed statistics of communication")
 ###### General features ######

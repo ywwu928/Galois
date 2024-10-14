@@ -364,18 +364,19 @@ public:
                                                           GRNAME);
 
     Tthread_ranges.start();
+#ifdef GALOIS_FULL_MIRRORING
     base_DistGraph::determineThreadRanges();
     base_DistGraph::determineThreadRangesPresent();
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesMirror();
     base_DistGraph::determineThreadRangesGhost();
-    
+#else
     base_DistGraph::determineThreadRangesReserved(1);
     base_DistGraph::determineThreadRangesPresentReserved(1);
     base_DistGraph::determineThreadRangesMasterReserved(1);
     base_DistGraph::determineThreadRangesMirrorReserved(1);
     base_DistGraph::determineThreadRangesGhostReserved(1);
-
+#endif
     base_DistGraph::initializeSpecificRanges();
     Tthread_ranges.stop();
 

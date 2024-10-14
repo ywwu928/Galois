@@ -113,8 +113,12 @@ extern cll::opt<bool> saveLocalGraph;
 //! file specifying blocking of masters
 extern cll::opt<std::string> mastersFile;
 
+#ifdef GALOIS_FULL_MIRRORING
+extern int mirrorThreshold;
+#else
 //! incoming degree threshold for creating mirrors
 extern cll::opt<int> mirrorThreshold;
+#endif
 
 //! size ratio of node data to edge data
 extern cll::opt<uint32_t> dataSizeRatio;
