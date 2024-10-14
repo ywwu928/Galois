@@ -19,8 +19,6 @@
 
 #include "galois/Timer.h"
 #include "galois/runtime/Statistics.h"
-#include <iostream>
-#include <sstream>
 
 using namespace galois;
 
@@ -78,10 +76,7 @@ StatTimer::~StatTimer() {
 
   // only report non-zero stat
   if (TimeAccumulator::get()) {
-    std::stringstream ss;
-    ss << "StatTimer : " << region_ << ", " << name_ << ", " << TimeAccumulator::get() << std::endl;
-    std::cout << ss.str();
-    //galois::runtime::reportStat_Tmax(region_, name_, TimeAccumulator::get());
+    galois::runtime::reportStat_Tmax(region_, name_, TimeAccumulator::get());
   }
 }
 
