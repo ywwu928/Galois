@@ -133,7 +133,7 @@ endif()
 ###### Configure features ######
 
 if(GALOIS_ENABLE_VTUNE)
-  set(VTune_ROOT /opt/intel/vtune_amplifier)
+  set(VTune_ROOT "/opt/intel/oneapi/vtune/2024.0/")
   find_package(VTune REQUIRED)
   include_directories(${VTune_INCLUDE_DIRS})
   add_definitions(-DGALOIS_ENABLE_VTUNE)
