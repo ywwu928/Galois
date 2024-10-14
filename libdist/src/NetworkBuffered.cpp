@@ -369,10 +369,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
       }
 
-      void add(NetworkInterfaceBuffered& net, uint8_t* work, size_t workLen) {
+      void add(NetworkInterfaceBuffered& net, unsigned tid, uint8_t* work, size_t workLen) {
           StatTimer_add.start();
           
-          unsigned tid = galois::substrate::ThreadPool::getTID();
           if (buf == nullptr) {
               // allocate new buffer
               do {
@@ -722,10 +721,9 @@ public:
     sd.push(tag, std::move(buf.getVec()));
   }
   
-  virtual void sendWork(uint32_t dest, uint8_t* bufPtr, size_t len) {
-    unsigned tid = galois::substrate::ThreadPool::getTID();
+  virtual void sendWork(unsigned tid, uint32_t dest, uint8_t* bufPtr, size_t len) {
     auto& sd = sendRemoteWork[dest][tid];
-    sd.add(*this, bufPtr, len);
+    sd.add(*this, tid, bufPtr, len);
   }
 
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>

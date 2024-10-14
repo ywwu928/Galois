@@ -3706,7 +3706,7 @@ public:
         std::memcpy(bufferPtr + offset, &val, sizeof(val));
         offset += sizeof(val);
 
-        net.sendWork(dst, bufferPtr, offset);
+        net.sendWork(tid, dst, bufferPtr, offset);
     }
 
 ////////////////////////////////////////////////////////////////////////////////
