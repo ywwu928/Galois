@@ -245,6 +245,11 @@ distGraphInitialization() {
   return std::make_pair(std::move(g), std::move(s));
 }
 
+template <typename NodeData, typename EdgeData, bool iterateOutEdges = true>
+void distGraphMemOverheadSweep() {
+  graphMemOverheadSweep<NodeData, EdgeData, iterateOutEdges>();
+}
+
 /**
  * Loads a symmetric graph into memory, setting up heterogeneous execution if
  * necessary. Unlike the dGraph load functions above, this is meant

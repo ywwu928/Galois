@@ -30,10 +30,12 @@
 #include "galois/graphs/DistributedGraph.h"
 #include "galois/DReducible.h"
 #include "galois/substrate/SimpleLock.h"
+
 #include <optional>
 #include <sstream>
 #include <vector>
 #include <unordered_map>
+#include <algorithm>
 
 #define CUSP_PT_TIMER 0
 
@@ -3171,6 +3173,125 @@ private:
 template <typename NodeTy, typename EdgeTy, typename Partitioner>
 constexpr const char* const
     galois::graphs::NewDistGraphGeneric<NodeTy, EdgeTy, Partitioner>::GRNAME;
+
+template <typename NodeTy, typename EdgeTy, typename Partitioner>
+class NewDistGraphMemOverheadSweep : public DistGraph<NodeTy, EdgeTy> {
+
+public:
+    //! typedef for base DistGraph class
+    using base_DistGraph = DistGraph<NodeTy, EdgeTy>;
+
+private:
+    virtual unsigned getHostIDImpl(uint64_t gid) const {
+        (void) gid;
+        return 0;
+    }
+
+    virtual bool isOwnedImpl(uint64_t gid) const {
+        (void) gid;
+        return true;
+    }
+
+    virtual bool isLocalImpl(uint64_t gid) const {
+        (void) gid;
+        return true;
+    }
+  
+    virtual bool isPresentImpl(uint32_t lid) const {
+        (void) lid;
+        return true;
+    }
+  
+    virtual bool isGhostImpl(uint32_t lid) const {
+        (void) lid;
+        return true;
+    }
+
+    virtual bool isVertexCutImpl() const { return true; }
+
+    virtual std::pair<unsigned, unsigned> cartesianGridImpl() const { return std::make_pair(0, 0); }
+
+public:
+    NewDistGraphMemOverheadSweep(
+        const std::string& filename, unsigned host, unsigned _numHosts, uint32_t dataSizeRatio,
+        galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
+        uint32_t nodeWeight = 0, uint32_t edgeWeight = 0)
+        : base_DistGraph(host, _numHosts) {
+        
+        galois::graphs::OfflineGraph g(filename);
+        base_DistGraph::numGlobalNodes = g.size();
+        base_DistGraph::numGlobalEdges = g.sizeEdges();
+        std::vector<unsigned> dummy;
+        
+        base_DistGraph::computeMasters(md, g, dummy, nodeWeight, edgeWeight);
+        std::unique_ptr<Partitioner> graphPartitioner;
+        graphPartitioner = std::make_unique<Partitioner>(host, _numHosts, base_DistGraph::numGlobalNodes, base_DistGraph::numGlobalEdges);
+        graphPartitioner->saveGIDToHost(base_DistGraph::gid2host);
+        
+        uint64_t nodeBegin = base_DistGraph::gid2host[base_DistGraph::id].first;
+        typename galois::graphs::OfflineGraph::edge_iterator edgeBegin = g.edge_begin(nodeBegin);
+        uint64_t nodeEnd = base_DistGraph::gid2host[base_DistGraph::id].second;
+        typename galois::graphs::OfflineGraph::edge_iterator edgeEnd = g.edge_begin(nodeEnd);
+        
+        // phase 0
+        galois::gPrint("[", base_DistGraph::id, "] Starting graph reading.\n");
+        galois::graphs::BufferedGraph<EdgeTy> bufGraph;
+        bufGraph.resetReadCounters();
+        bufGraph.loadPartialGraph(filename, nodeBegin, nodeEnd, *edgeBegin,
+                                  *edgeEnd, base_DistGraph::numGlobalNodes,
+                                  base_DistGraph::numGlobalEdges);
+        galois::gPrint("[", base_DistGraph::id, "] Reading graph complete.\n");
+        bufGraph.resetReadCounters();
+        
+        std::vector<int> incomingDegree;
+        std::vector<substrate::SimpleLock> incomingDegreeLock;
+        incomingDegree.resize(base_DistGraph::numGlobalNodes);
+        incomingDegreeLock.resize(base_DistGraph::numGlobalNodes);
+        for (uint64_t i=0; i<incomingDegree.size(); i++) {
+            incomingDegree[i] = 0;
+        }
+        uint32_t myID = base_DistGraph::id;
+        galois::do_all(
+            galois::iterate(base_DistGraph::gid2host[base_DistGraph::id].first,
+                            base_DistGraph::gid2host[base_DistGraph::id].second),
+            [&](size_t n) {
+              auto ii = bufGraph.edgeBegin(n);
+              auto ee = bufGraph.edgeEnd(n);
+              for (; ii < ee; ++ii) {
+                uint32_t dst = bufGraph.edgeDestination(*ii);
+                if (graphPartitioner->retrieveMaster(dst) != myID) {
+                  incomingDegreeLock[dst].lock();
+                  incomingDegree[dst] += 1;
+                  incomingDegreeLock[dst].unlock();
+                }
+              }
+            },
+            galois::steal(), galois::no_stats());
+        incomingDegreeLock.clear();
+        galois::gPrint("[", base_DistGraph::id, "] Edge inspection done\n");
+        
+        std::sort(incomingDegree.begin(), incomingDegree.end());
+        int maxMirrorThreshold = incomingDegree.back();
+        galois::DGAccumulator<uint32_t> totalPartialMirrorCount;
+        for (int mirrorThreshold=0; mirrorThreshold<maxMirrorThreshold; mirrorThreshold++) {
+            auto it = std::upper_bound(incomingDegree.begin(), incomingDegree.end(), mirrorThreshold);
+            uint32_t partialMirrorCount = incomingDegree.end() - it;
+            totalPartialMirrorCount.reset();
+            totalPartialMirrorCount += partialMirrorCount;
+            totalPartialMirrorCount.reduce();
+            float replication_factor = (float)totalPartialMirrorCount.read() / (float)base_DistGraph::numGlobalNodes;
+            float memory_overhead = (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges + dataSizeRatio * totalPartialMirrorCount.read()) / (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges);
+            if (myID == 0) {
+                galois::gPrint("Incoming Degree Threshold = ", mirrorThreshold, " : Replication Factor = ", replication_factor, ", Aggregated Memory Overhead = ", memory_overhead, "\n");
+            }
+            if (memory_overhead < 1.01) {
+                break;
+            }
+        }
+        
+        incomingDegree.clear();
+    }
+};
 
 } // end namespace graphs
 } // end namespace galois
