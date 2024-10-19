@@ -88,6 +88,8 @@ public:
    */
   virtual ~NetworkInterface();
   
+  virtual void allocateRecvCommBuffer(size_t alloc_size) = 0;
+  
   virtual void deallocateRecvBuffer(uint8_t* buf) = 0;
 
   //! Send a message to a given (dest) host.  A message is simply a
@@ -111,6 +113,8 @@ public:
                           int type = 0) = 0;
   
   virtual void sendWork(unsigned tid, uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
+  
+  virtual void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
 
   //! Send a message to all hosts.  A message is simply a
   //! landing pad (recv) and some data (buf)
@@ -142,6 +146,9 @@ public:
   virtual std::optional<std::pair<uint8_t*, size_t>>
   receiveRemoteWork(bool& terminateFlag) = 0;
   
+  virtual std::optional<std::tuple<uint32_t, uint8_t*, size_t>>
+  receiveComm() = 0;
+  
   virtual void resetTermination() = 0;
   
   //! move send buffers out to network
@@ -150,6 +157,8 @@ public:
   virtual void flushData() = 0;
   
   virtual void flushRemoteWork() = 0;
+  
+  virtual void flushComm() = 0;
   
   virtual void broadcastTermination() = 0;
 
@@ -168,6 +177,8 @@ extern uint32_t evilPhase;
 extern uint32_t remoteWorkTag;
 //! Reserved tag for remote termination message
 extern uint32_t terminationTag;
+//! Reserved tag for communication
+extern uint32_t communicationTag;
 
 //! Get the network interface
 //! @returns network interface

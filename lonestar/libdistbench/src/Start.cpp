@@ -48,7 +48,6 @@ cll::opt<DataCommMode> commMetadata(
                 clEnumValN(bitsetData, "bitset", "Use bitset metadata always"),
                 clEnumValN(offsetsData, "offsets",
                            "Use offsets metadata always"),
-                clEnumValN(gidsData, "gids", "Use global IDs metadata always"),
                 clEnumValN(onlyData, "none",
                            "Do not use any metadata (sends "
                            "non-updated values)")),

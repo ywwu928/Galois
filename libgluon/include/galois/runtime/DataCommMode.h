@@ -34,10 +34,7 @@ enum DataCommMode {
   noData, //!< send no data
   bitsetData,
   offsetsData,
-  gidsData,
-  onlyData,
-  dataSplitFirst, // NOT USED
-  dataSplit       // NOT USED
+  onlyData
 };
 
 //! If some mode is to be enforced, set this variable

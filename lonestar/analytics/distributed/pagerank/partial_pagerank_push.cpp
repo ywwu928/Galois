@@ -75,7 +75,6 @@ struct NodeData {
 };
 
 galois::DynamicBitSet bitset_residual;
-galois::DynamicBitSet bitset_nout;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
@@ -236,7 +235,7 @@ struct PageRank {
     unsigned _num_iterations   = 0;
     const auto& masterNodes = _graph.masterNodesRange();
     DGTerminatorDetector dga;
-    
+  
     do {
       syncSubstrate->set_num_round(_num_iterations);
       PageRank_delta::go(_graph);
@@ -534,6 +533,7 @@ int main(int argc, char** argv) {
   bitset_residual.resize(hg->size());
 
   syncSubstrate->allocate_send_work_buffer<Reduce_add_residual>();
+  syncSubstrate->allocate_comm_buffer<Reduce_add_residual>();
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
