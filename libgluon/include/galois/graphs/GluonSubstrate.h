@@ -905,6 +905,7 @@ private:
     } else if (data_mode == offsetsData) {
         std::memcpy(&syncOffsetsLen, bufPtr + recvCommBufferOffset, sizeof(syncOffsetsLen));
         recvCommBufferOffset += sizeof(syncOffsetsLen);
+        bit_set_count = syncOffsetsLen;
         std::memcpy(syncOffsets, bufPtr + recvCommBufferOffset, syncOffsetsLen * sizeof(uint32_t));
         recvCommBufferOffset += syncOffsetsLen * sizeof(uint32_t);
     }

@@ -67,7 +67,6 @@ private:
   constexpr static const char* const GRNAME = "dGraph";
 
   using GraphTy = galois::graphs::LC_CSR_Graph<NodeTy, EdgeTy, true>;
-#ifdef GALOIS_FULL_MIRRORING
   // vector for determining range objects for master nodes + nodes
   // with edges (which includes masters)
   //! represents split of all nodes among threads to balance edges
@@ -80,7 +79,7 @@ private:
   std::vector<uint32_t> mirrorRanges;
   //! represents split of ghost nodes among threads
   std::vector<uint32_t> ghostRanges;
-#else
+#ifndef GALOIS_FULL_MIRRORING
   std::vector<uint32_t> allNodesRangesReserved;
   std::vector<uint32_t> presentNodesRangesReserved;
   std::vector<uint32_t> masterRangesReserved;
@@ -90,7 +89,7 @@ private:
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
 
-  //! Vector of ranges that stores the 5 different range objects that a user is
+  //! Vector of ranges that stores the different range objects that a user is
   //! able to access
   std::vector<NodeRangeType> specificRanges;
   //! Like specificRanges, but for in edges
@@ -766,7 +765,6 @@ public:
    * @returns A range object that contains all the nodes in this graph
    */
   inline const NodeRangeType& allNodesRange() const {
-    assert(specificRanges.size() == 5);
     return specificRanges[0];
   }
 
@@ -777,7 +775,6 @@ public:
    * @returns A range object that contains both the master and mirror nodes in this graph
    */
   inline const NodeRangeType& presentNodesRange() const {
-    assert(specificRanges.size() == 5);
     return specificRanges[1];
   }
   
@@ -788,7 +785,6 @@ public:
    * @returns A range object that contains the master nodes in this graph
    */
   inline const NodeRangeType& masterNodesRange() const {
-    assert(specificRanges.size() == 5);
     return specificRanges[2];
   }
   
@@ -799,7 +795,6 @@ public:
    * @returns A range object that contains the mirror nodes in this graph
    */
   inline const NodeRangeType& mirrorNodesRange() const {
-    assert(specificRanges.size() == 5);
     return specificRanges[3];
   }
   
@@ -810,9 +805,54 @@ public:
    * @returns A range object that contains the ghost nodes in this graph
    */
   inline const NodeRangeType& ghostNodesRange() const {
-    assert(specificRanges.size() == 5);
     return specificRanges[4];
   }
+  
+#ifndef GALOIS_FULL_MIRRORING
+  inline const NodeRangeType& allNodesRangeReserved() const {
+    return specificRanges[5];
+  }
+
+  /**
+   * Returns a range object that encapsulates both master and mirror nodes in this
+   * graph.
+   *
+   * @returns A range object that contains both the master and mirror nodes in this graph
+   */
+  inline const NodeRangeType& presentNodesRangeReserved() const {
+    return specificRanges[6];
+  }
+  
+  /**
+   * Returns a range object that encapsulates only master nodes in this
+   * graph.
+   *
+   * @returns A range object that contains the master nodes in this graph
+   */
+  inline const NodeRangeType& masterNodesRangeReserved() const {
+    return specificRanges[7];
+  }
+  
+  /**
+   * Returns a range object that encapsulates only mirror nodes in this
+   * graph.
+   *
+   * @returns A range object that contains the mirror nodes in this graph
+   */
+  inline const NodeRangeType& mirrorNodesRangeReserved() const {
+    return specificRanges[8];
+  }
+  
+  /**
+   * Returns a range object that encapsulates only ghost nodes in this
+   * graph.
+   *
+   * @returns A range object that contains the ghost nodes in this graph
+   */
+  inline const NodeRangeType& ghostNodesRangeReserved() const {
+    return specificRanges[9];
+  }
+#endif
   
   /**
    * Returns a vector object that contains the global IDs (in order) of
@@ -833,7 +873,6 @@ public:
   }
 
 protected:
-#ifdef GALOIS_FULL_MIRRORING
   /**
    * Uses a pre-computed prefix sum to determine division of nodes among
    * threads.
@@ -898,7 +937,7 @@ protected:
     ghostRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numActualNodes, numNodes, 0);
   }
 
-#else  
+#ifndef GALOIS_FULL_MIRRORING
   inline void determineThreadRangesReserved(uint32_t reserved) {
     assert(allNodesRangesReserved.size() != 0);
     allNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum());
@@ -931,7 +970,6 @@ protected:
    */
   void initializeSpecificRanges() {
     assert(specificRanges.size() == 0);
-#ifdef GALOIS_FULL_MIRRORING
     // TODO/FIXME assertion likely not safe if a host gets no nodes
     // make sure the thread ranges have already been calculated
     // for the 5 ranges
@@ -969,37 +1007,37 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
         mirrorRanges.data()));
-#else    
+#ifndef GALOIS_FULL_MIRRORING
     assert(allNodesRangesReserved.size() != 0);
     assert(presentNodesRangesReserved.size() != 0);
     assert(masterRangesReserved.size() != 0);
     assert(mirrorRangesReserved.size() != 0);
     assert(ghostRangesReserved.size() != 0);
     
-    // 0 is all nodes reserved
+    // 5 is all nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(0),
         boost::counting_iterator<size_t>(size()), allNodesRangesReserved.data()));
 
-    // 1 is master nodes reserved
+    // 6 is master nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(beginMaster),
         boost::counting_iterator<size_t>(beginMaster + numActualNodes),
         presentNodesRangesReserved.data()));
 
-    // 2 is master nodes reserved
+    // 7 is master nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(beginMaster),
         boost::counting_iterator<size_t>(beginMaster + numOwned),
         masterRangesReserved.data()));
 
-	// 3 is mirror nodes reserved
+	// 8 is mirror nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numOwned),
         boost::counting_iterator<size_t>(numActualNodes),
         mirrorRangesReserved.data()));
 	
-    // 4 is ghost nodes reserved
+    // 9 is ghost nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),

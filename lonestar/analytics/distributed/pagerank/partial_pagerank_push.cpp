@@ -138,7 +138,7 @@ struct InitializeGraph {
     // at start)
     ResetGraph::go(_graph);
 
-    const auto& masterNodes = _graph.masterNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
 
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
@@ -146,7 +146,7 @@ struct InitializeGraph {
                            (syncSubstrate->get_run_identifier()));
       galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
       StatTimer_cuda.start();
-      InitializeGraph_masterNodes_cuda(alpha, cuda_ctx);
+      InitializeGraph_presentNodes_cuda(alpha, cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
@@ -155,7 +155,7 @@ struct InitializeGraph {
       // regular do all without stealing; just initialization of nodes with
       // outgoing edges
       galois::do_all(
-          galois::iterate(masterNodes.begin(), masterNodes.end()),
+          galois::iterate(presentNodes.begin(), presentNodes.end()),
           InitializeGraph{alpha, &_graph}, galois::steal(), galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
@@ -182,21 +182,21 @@ struct PageRank_delta {
         graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& masterNodes = _graph.masterNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
 
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("PageRank_" + (syncSubstrate->get_run_identifier()));
       galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
       StatTimer_cuda.start();
-      PageRank_delta_masterNodes_cuda(alpha, tolerance, cuda_ctx);
+      PageRank_delta_presentNodes_cuda(alpha, tolerance, cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
 #endif
     } else if (personality == CPU) {
       galois::do_all(
-          galois::iterate(masterNodes.begin(), masterNodes.end()),
+          galois::iterate(presentNodes.begin(), presentNodes.end()),
           PageRank_delta{alpha, tolerance, &_graph}, galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("PageRank_delta").c_str()));
@@ -233,7 +233,11 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
+#ifndef GALOIS_FULL_MIRRORING     
+    const auto& masterNodes = _graph.masterNodesRangeReserved();
+#else
     const auto& masterNodes = _graph.masterNodesRange();
+#endif
     DGTerminatorDetector dga;
   
     do {

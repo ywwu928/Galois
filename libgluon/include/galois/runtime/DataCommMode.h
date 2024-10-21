@@ -65,16 +65,10 @@ DataCommMode get_data_mode(size_t num_selected, size_t num_total) {
     } else if (num_selected == num_total) {
       data_mode = onlyData;
     } else {
-      size_t bitset_alloc_size =
-          ((num_total + 63) / 64) * sizeof(uint64_t) + (2 * sizeof(size_t));
-
-      size_t bitsetDataSize = (num_selected * sizeof(DataType)) +
-                              bitset_alloc_size + sizeof(num_selected);
-      size_t offsetsDataSize = (num_selected * sizeof(DataType)) +
-                               (num_selected * sizeof(unsigned int)) +
-                               sizeof(size_t) + sizeof(num_selected);
+      size_t bitsetSize = num_total * sizeof(uint8_t);
+      size_t offsetsSize = sizeof(size_t) + num_selected * sizeof(uint32_t);
       // find the minimum size one
-      if (bitsetDataSize < offsetsDataSize) {
+      if (bitsetSize < offsetsSize) {
         data_mode = bitsetData;
       } else {
         data_mode = offsetsData;
