@@ -146,7 +146,7 @@ public:
   virtual std::optional<std::pair<uint8_t*, size_t>>
   receiveRemoteWork(bool& terminateFlag) = 0;
   
-  virtual std::optional<std::tuple<uint32_t, uint8_t*, size_t>>
+  virtual std::optional<std::pair<uint32_t, uint8_t*>>
   receiveComm() = 0;
   
   virtual void resetTermination() = 0;

@@ -1510,7 +1510,7 @@ private:
 
         if (p) {
           recvCommBufferOffset = 0;
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(std::get<0>(p.value()), std::get<1>(p.value()), loopName);
+          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p.value().first, p.value().second, loopName);
         }
       } while (p);
     } else {
@@ -1531,7 +1531,7 @@ private:
         Twait.stop();
 
         recvCommBufferOffset = 0;
-        syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(std::get<0>(p.value()), std::get<1>(p.value()), loopName);
+        syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p.value().first, p.value().second, loopName);
       }
       incrementEvilPhase();
     }

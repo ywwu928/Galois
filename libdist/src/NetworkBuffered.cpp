@@ -178,7 +178,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
    */
   class recvBufferCommunication {
       // single producer single consumer
-      moodycamel::ConcurrentQueue<std::tuple<uint32_t, uint8_t*, size_t>> messages;
+      moodycamel::ConcurrentQueue<std::pair<uint32_t, uint8_t*>> messages;
       moodycamel::ProducerToken ptok;
 
   public:
@@ -186,21 +186,21 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       recvBufferCommunication() : ptok(messages) {}
 
-      std::optional<std::tuple<uint32_t, uint8_t*, size_t>> tryPopMsg() {
-          std::tuple<uint32_t, uint8_t*, size_t> message;
+      std::optional<std::pair<uint32_t, uint8_t*>> tryPopMsg() {
+          std::pair<uint32_t, uint8_t*> message;
           bool success = messages.try_dequeue_from_producer(ptok, message);
           if (success) {
               --inflightRecvs;
-              return std::optional<std::tuple<uint32_t, uint8_t*, size_t>>(message);
+              return std::optional<std::pair<uint32_t, uint8_t*>>(message);
           }
           else {
-              return std::optional<std::tuple<uint32_t, uint8_t*, size_t>>();
+              return std::optional<std::pair<uint32_t, uint8_t*>>();
           }
       }
 
       // Worker thread interface
-      void add(uint32_t host, uint8_t* work, size_t workLen) {
-          messages.enqueue(ptok, std::make_tuple(host, work, workLen));
+      void add(uint32_t host, uint8_t* work) {
+          messages.enqueue(ptok, std::make_pair(host, work));
       }
   }; // end recv buffer class
 
@@ -577,7 +577,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               }
               else if (m.tag == galois::runtime::communicationTag) {
                   ++recvCommunication.inflightRecvs;
-                  recvCommunication.add(m.host, m.buf, m.bufLen);
+                  recvCommunication.add(m.host, m.buf);
               }
               else {
                   ++recvData[m.host].inflightRecvs;
@@ -829,7 +829,7 @@ public:
       }
   }
   
-  virtual std::optional<std::tuple<uint32_t, uint8_t*, size_t>>
+  virtual std::optional<std::pair<uint32_t, uint8_t*>>
   receiveComm() {
       auto buf = recvCommunication.tryPopMsg();
       if (buf.has_value()) {
@@ -837,7 +837,7 @@ public:
           return buf;
       }
       else {
-          return std::optional<std::tuple<uint32_t, uint8_t*, size_t>>();
+          return std::optional<std::pair<uint32_t, uint8_t*>>();
       }
   }
   
