@@ -225,6 +225,8 @@ private:
       galois::runtime::gDeserialize(p->second, masterNodes[p->first]);
     }
     
+    incrementEvilPhase();
+    
     // convert the global ids stored in the master/mirror nodes arrays to local
     // ids
     // TODO: use 32-bit distinct vectors for masters and mirrors from here on
@@ -252,6 +254,7 @@ private:
           galois::no_stats());
     }
     
+#ifndef GALOIS_FULL_MIRRORING     
     // send off the ghost nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -279,6 +282,8 @@ private:
 
       galois::runtime::gDeserialize(p->second, ghostMasterNodes[p->first]);
     }
+    
+    incrementEvilPhase();
     
     // convert the global ids stored in the ghost (master) nodes arrays to local ids
     for (uint32_t h = 0; h < ghostMasterNodes.size(); ++h) {
@@ -332,10 +337,11 @@ private:
 
       galois::runtime::gDeserialize(p->second, ghostRemoteNodes[p->first]);
     }
-
-    userGraph.constructGhostLocalToRemoteVector(ghostRemoteNodes);
     
     incrementEvilPhase();
+
+    userGraph.constructGhostLocalToRemoteVector(ghostRemoteNodes);
+#endif
   }
 
   /**

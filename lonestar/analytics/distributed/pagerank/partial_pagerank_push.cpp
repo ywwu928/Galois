@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include <limits>
 #include <vector>
 
@@ -239,7 +240,7 @@ struct PageRank {
     const auto& masterNodes = _graph.masterNodesRange();
 #endif
     DGTerminatorDetector dga;
-  
+
     do {
       syncSubstrate->set_num_round(_num_iterations);
       PageRank_delta::go(_graph);
@@ -272,7 +273,7 @@ struct PageRank {
         galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                        galois::no_stats(), galois::steal(),
                        galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
-        
+
 #ifndef GALOIS_FULL_MIRRORING     
         // inform all other hosts that this host has finished sending messages
         // force all messages to be processed before continuing
