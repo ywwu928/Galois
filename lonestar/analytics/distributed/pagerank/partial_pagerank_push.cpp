@@ -247,6 +247,7 @@ struct PageRank {
       dga.reset();
       // reset residual on mirrors
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      syncSubstrate->reset_termination();
 
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
@@ -265,7 +266,7 @@ struct PageRank {
 #ifndef GALOIS_FULL_MIRRORING     
         // dedicate a thread to poll for remote messages
         std::function<void(void)> func = [&]() {
-                syncSubstrate->poll_for_msg_dedicated<Reduce_add_residual>();
+                syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>();
         };
         galois::substrate::getThreadPool().runDedicated(func);
 #endif
@@ -279,10 +280,6 @@ struct PageRank {
         // force all messages to be processed before continuing
         syncSubstrate->net_flush();
         galois::substrate::getThreadPool().waitDedicated();
-
-        // launch one thread to poll for messages and distribute remote work
-        syncSubstrate->poll_for_msg<Reduce_add_residual>();
-        syncSubstrate->reset_termination();
 #endif
       }
 

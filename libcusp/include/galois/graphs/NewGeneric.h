@@ -2747,9 +2747,6 @@ private:
     for (uint32_t i = base_DistGraph::numActualNodes; i < base_DistGraph::numNodes;
          i++) {
       uint32_t globalID = base_DistGraph::localToGlobalVector[i];
-      if (globalID == 122434266) {
-          galois::gPrint("Host ", base_DistGraph::id, " : thinks gid = 122434266 belongs to host ", graphPartitioner->retrieveMaster(globalID), "\n");
-      }
       base_DistGraph::ghostNodes[graphPartitioner->retrieveMaster(globalID)]
           .push_back(globalID);
     }

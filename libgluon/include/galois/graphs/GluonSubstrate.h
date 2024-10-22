@@ -1523,6 +1523,9 @@ private:
         Twait.start();
         decltype(net.receiveComm()) p;
         do {
+#ifndef GALOIS_FULL_MIRRORING     
+          check_remote_work<SyncFnTy>();
+#endif
           p = net.receiveComm();
         } while (!p);
         Twait.stop();
@@ -1584,6 +1587,10 @@ private:
       syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
 
     TsyncReduce.stop();
+
+#ifndef GALOIS_FULL_MIRRORING     
+    poll_for_remote_work<ReduceFnTy>();
+#endif
   }
 
   /**
@@ -2346,16 +2353,18 @@ public:
 /* For Polling */
 private:
     bool stopDedicated = false;
+    bool terminateFlag = false;
     std::vector<uint8_t*> sendWorkBuffer;
 
 public:
     void reset_termination() {
         stopDedicated = false;
+        terminateFlag = false;
         net.resetTermination();
     }
 
     template<typename FnTy>
-    void poll_for_msg_dedicated() {
+    void poll_for_remote_work_dedicated() {
         decltype(net.receiveRemoteWork()) p;
         while (!stopDedicated) {
             do {
@@ -2396,60 +2405,108 @@ public:
     }
     
     template<typename FnTy>
-    void poll_for_msg() {
-        bool terminateFlag;
-        decltype(net.receiveRemoteWork(terminateFlag)) p;
-        while (true) {
-            do {
-                p = net.receiveRemoteWork(terminateFlag);
+    void poll_for_remote_work() {
+        if (!terminateFlag) {
+            decltype(net.receiveRemoteWork(terminateFlag)) p;
+            while (true) {
+                do {
+                    p = net.receiveRemoteWork(terminateFlag);
+                    if (terminateFlag) {
+                        break;
+                    }
+                    if (!p.has_value()) {
+                        galois::substrate::asmPause();
+                    }
+                } while (!p.has_value());
+                
                 if (terminateFlag) {
                     break;
                 }
-                if (!p.has_value()) {
-                    galois::substrate::asmPause();
+
+                if (p.has_value()) { // received message
+                    uint8_t* buf = p.value().first;
+                    size_t bufLen = p.value().second;
+                    uint32_t msgCount;
+                    std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
+
+                    galois::on_each(
+                        [&](unsigned tid, unsigned numT) {
+                            unsigned quotient = msgCount / numT;
+                            unsigned remainder = msgCount % numT;
+                            unsigned start, size;
+                            if (tid < remainder) {
+                                start = tid * quotient + tid;
+                                size = quotient + 1;
+                            }
+                            else {
+                                start = tid * quotient + remainder;
+                                size = quotient;
+                            }
+                            size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
+                            
+                            uint32_t lid;
+                            typename FnTy::ValTy val;
+
+                            for (unsigned i=0; i<size; i++) {
+                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                                offset += sizeof(uint32_t);
+                                std::memcpy(&val, buf + offset, sizeof(val));
+                                offset += sizeof(val);
+                                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                            }
+                        }
+                    );
+
+                    net.deallocateRecvBuffer(buf);
                 }
-            } while (!p.has_value());
-            
-            if (terminateFlag) {
-                break;
             }
+        }
+    }
+    
+    template<typename FnTy>
+    void check_remote_work() {
+        if (!terminateFlag) {
+            decltype(net.receiveRemoteWork(terminateFlag)) p;
+            do {
+                p = net.receiveRemoteWork(terminateFlag);
+                
+                if (p.has_value()) { // received message
+                    uint8_t* buf = p.value().first;
+                    size_t bufLen = p.value().second;
+                    uint32_t msgCount;
+                    std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
 
-            if (p.has_value()) { // received message
-                uint8_t* buf = p.value().first;
-                size_t bufLen = p.value().second;
-                uint32_t msgCount;
-                std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
+                    galois::on_each(
+                        [&](unsigned tid, unsigned numT) {
+                            unsigned quotient = msgCount / numT;
+                            unsigned remainder = msgCount % numT;
+                            unsigned start, size;
+                            if (tid < remainder) {
+                                start = tid * quotient + tid;
+                                size = quotient + 1;
+                            }
+                            else {
+                                start = tid * quotient + remainder;
+                                size = quotient;
+                            }
+                            size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
+                            
+                            uint32_t lid;
+                            typename FnTy::ValTy val;
 
-                galois::on_each(
-                    [&](unsigned tid, unsigned numT) {
-                        unsigned quotient = msgCount / numT;
-                        unsigned remainder = msgCount % numT;
-                        unsigned start, size;
-                        if (tid < remainder) {
-                            start = tid * quotient + tid;
-                            size = quotient + 1;
+                            for (unsigned i=0; i<size; i++) {
+                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                                offset += sizeof(uint32_t);
+                                std::memcpy(&val, buf + offset, sizeof(val));
+                                offset += sizeof(val);
+                                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                            }
                         }
-                        else {
-                            start = tid * quotient + remainder;
-                            size = quotient;
-                        }
-                        size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
-                        
-                        uint32_t lid;
-                        typename FnTy::ValTy val;
+                    );
 
-                        for (unsigned i=0; i<size; i++) {
-                            std::memcpy(&lid, buf + offset, sizeof(uint32_t));
-                            offset += sizeof(uint32_t);
-                            std::memcpy(&val, buf + offset, sizeof(val));
-                            offset += sizeof(val);
-                            FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
-                        }
-                    }
-                );
-
-                net.deallocateRecvBuffer(buf);
-            }
+                    net.deallocateRecvBuffer(buf);
+                }
+            } while (p.has_value());
         }
     }
 
