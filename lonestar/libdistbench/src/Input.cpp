@@ -84,6 +84,8 @@ cll::opt<std::string> mastersFile("mastersFile",
 
 #ifdef GALOIS_FULL_MIRRORING
 int mirrorThreshold = 0;
+#elif defined(GALOIS_NO_MIRRORING)
+int mirrorThreshold = -1;
 #else
 cll::opt<int> mirrorThreshold("mirrorThreshold",
                                   cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (0 means full mirroring & -1 means no mirroring)"),

@@ -1583,8 +1583,8 @@ private:
 
     TsyncReduce.start();
 
-      syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
-      syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
+    syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
+    syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
 
     TsyncReduce.stop();
 

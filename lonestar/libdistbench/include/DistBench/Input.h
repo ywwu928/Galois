@@ -115,6 +115,8 @@ extern cll::opt<std::string> mastersFile;
 
 #ifdef GALOIS_FULL_MIRRORING
 extern int mirrorThreshold;
+#elif defined(GALOIS_NO_MIRRORING)
+extern int mirrorThreshold;
 #else
 //! incoming degree threshold for creating mirrors
 extern cll::opt<int> mirrorThreshold;
