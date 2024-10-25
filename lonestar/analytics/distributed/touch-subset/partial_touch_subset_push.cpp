@@ -94,7 +94,7 @@ struct InitializeGraph {
 
   void operator()(GNode src) const {
     NodeData& sdata = graph->getData(src);
-    sdata.value     = 0;
+    sdata.value     = 1;
   }
 };
 
@@ -152,13 +152,13 @@ struct TouchSubset {
                           Bitset_value, async>("TouchSubset");
 #else
       syncSubstrate->poll_for_remote_work<Reduce_add_value>();
-      galois::runtime::getHostBarrier().wait();
 #endif
       StatTimer_comm.stop();
       
       syncSubstrate->reset_termination();
 
       ++_num_iterations;
+      galois::runtime::getHostBarrier().wait();
     } while (_num_iterations < maxIterations);
 
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
@@ -170,6 +170,8 @@ struct TouchSubset {
   }
 
   void operator()(WorkItem src) const {
+      NodeData& sdata = graph->getData(src);
+      uint32_t temp = sdata.value.load();
       if (src % factor == 0) { // filter out nodes
           for (auto nbr : graph->edges(src)) {
               GNode dst       = graph->getEdgeDst(nbr);
@@ -180,7 +182,7 @@ struct TouchSubset {
               else {
 #endif
                   NodeData& ddata = graph->getData(dst);
-                  galois::atomicAdd(ddata.value, (uint32_t)1);
+                  galois::atomicAdd(ddata.value, temp);
                   bitset_value.set(dst);
 #ifndef GALOIS_FULL_MIRRORING     
               }

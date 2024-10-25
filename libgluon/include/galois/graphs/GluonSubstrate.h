@@ -38,19 +38,9 @@
 #include "galois/runtime/DataCommMode.h"
 #include "galois/DynamicBitset.h"
 
-#ifdef GALOIS_ENABLE_GPU
-#include "galois/cuda/HostDecls.h"
-#endif
-
-#include "galois/runtime/BareMPI.h"
-
 // TODO find a better way to do this without globals
 //! Specifies what format to send metadata in
 extern DataCommMode enforcedDataMode;
-
-#ifdef GALOIS_USE_BARE_MPI
-extern BareMPI bare_mpi;
-#endif
 
 //! Enumeration for specifiying write location for sync calls
 enum WriteLocation {
@@ -138,9 +128,6 @@ private:
 
   uint32_t dataSizeRatio;
 
-#ifdef GALOIS_USE_BARE_MPI
-  std::vector<MPI_Group> mpi_identity_groups;
-#endif
   // Used for efficient comms
   DataCommMode data_mode;
   size_t bit_set_count;
@@ -458,55 +445,6 @@ private:
     net.resetMemUsage();
   }
 
-  ////////////////////////////////////////////////////////////////////////////////
-  // Initializers
-  ////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Initalize MPI related things. The MPI layer itself should have been
-   * initialized when the network interface was initiailized.
-   */
-  void initBareMPI() {
-#ifdef GALOIS_USE_BARE_MPI
-    if (bare_mpi == noBareMPI)
-      return;
-
-#ifdef GALOIS_USE_LCI
-    // sanity check of ranks
-    int taskRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &taskRank);
-    if ((unsigned)taskRank != id)
-      GALOIS_DIE("mismatch in MPI rank");
-    int numTasks;
-    MPI_Comm_size(MPI_COMM_WORLD, &numTasks);
-    if ((unsigned)numTasks != numHosts)
-      GALOIS_DIE("mismatch in MPI rank");
-#endif
-    // group setup
-    MPI_Group world_group;
-    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    mpi_identity_groups.resize(numHosts);
-
-    for (unsigned x = 0; x < numHosts; ++x) {
-      const int g[1] = {(int)x};
-      MPI_Group_incl(world_group, 1, g, &mpi_identity_groups[x]);
-    }
-
-    if (id == 0) {
-      switch (bare_mpi) {
-      case nonBlockingBareMPI:
-        galois::gPrint("Using non-blocking bare MPI\n");
-        break;
-      case oneSidedBareMPI:
-        galois::gPrint("Using one-sided bare MPI\n");
-        break;
-      case noBareMPI:
-      default:
-        GALOIS_DIE("unsupported bare MPI");
-      }
-    }
-#endif
-  }
-
 public:
   /**
    * Delete default constructor: this class NEEDS to have a graph passed into
@@ -557,7 +495,6 @@ public:
     // set this global value for use on GPUs mostly
     enforcedDataMode = _enforcedDataMode;
 
-    initBareMPI();
     // master setup from mirrors done by setupCommunication call
     masterNodes.resize(numHosts);
     // setup proxy communication
@@ -2087,125 +2024,6 @@ private:
   };
 
   ////////////////////////////////////////////////////////////////////////////////
-  // GPU marshaling
-  ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef GALOIS_ENABLE_GPU
-private:
-  using GraphNode     = typename GraphTy::GraphNode;
-  using edge_iterator = typename GraphTy::edge_iterator;
-  using EdgeTy        = typename GraphTy::EdgeType;
-
-  // Code that handles getting the graph onto the GPU
-  template <bool isVoidType,
-            typename std::enable_if<isVoidType>::type* = nullptr>
-  inline void setMarshalEdge(MarshalGraph& GALOIS_UNUSED(m),
-                             const size_t GALOIS_UNUSED(index),
-                             const edge_iterator& GALOIS_UNUSED(e)) {
-    // do nothing
-  }
-
-  template <bool isVoidType,
-            typename std::enable_if<!isVoidType>::type* = nullptr>
-  inline void setMarshalEdge(MarshalGraph& m, const size_t index,
-                             const edge_iterator& e) {
-    m.edge_data[index] = userGraph.getEdgeData(e);
-  }
-
-public:
-  void getMarshalGraph(MarshalGraph& m) {
-    m.nnodes   = userGraph.size();
-    m.nedges   = userGraph.sizeEdges();
-    m.numOwned = userGraph.numMasters();
-    // Assumption: master occurs at beginning in contiguous range
-    m.beginMaster       = 0;
-    m.numNodesWithEdges = userGraph.getNumNodesWithEdges();
-    m.id                = id;
-    m.numHosts          = numHosts;
-    m.row_start         = (index_type*)calloc(m.nnodes + 1, sizeof(index_type));
-    m.edge_dst          = (index_type*)calloc(m.nedges, sizeof(index_type));
-    m.node_data         = (index_type*)calloc(m.nnodes, sizeof(node_data_type));
-
-    // TODO deal with edgety
-    if (std::is_void<EdgeTy>::value) {
-      m.edge_data = NULL;
-    } else {
-      if (!std::is_same<EdgeTy, edge_data_type>::value) {
-        galois::gWarn("Edge data type mismatch between CPU and GPU\n");
-      }
-      m.edge_data = (edge_data_type*)calloc(m.nedges, sizeof(edge_data_type));
-    }
-
-    galois::do_all(
-        // TODO not using thread ranges, can be optimized if I can iterate
-        // directly over userGraph
-        galois::iterate(userGraph.allNodesRange()),
-        [&](const GraphNode& nodeID) {
-          // initialize node_data with localID-to-globalID mapping
-          m.node_data[nodeID] = userGraph.getGID(nodeID);
-          m.row_start[nodeID] = *(userGraph.edge_begin(nodeID));
-          for (auto e = userGraph.edge_begin(nodeID);
-               e != userGraph.edge_end(nodeID); e++) {
-            auto edgeID = *e;
-            setMarshalEdge<std::is_void<EdgeTy>::value>(m, edgeID, e);
-            m.edge_dst[edgeID] = userGraph.getEdgeDst(e);
-          }
-        },
-        galois::steal());
-
-    m.row_start[m.nnodes] = m.nedges;
-
-    ////// TODO
-
-    // copy memoization meta-data
-    m.num_master_nodes =
-        (unsigned int*)calloc(masterNodes.size(), sizeof(unsigned int));
-    ;
-    m.master_nodes =
-        (unsigned int**)calloc(masterNodes.size(), sizeof(unsigned int*));
-    ;
-
-    for (uint32_t h = 0; h < masterNodes.size(); ++h) {
-      m.num_master_nodes[h] = masterNodes[h].size();
-
-      if (masterNodes[h].size() > 0) {
-        m.master_nodes[h] =
-            (unsigned int*)calloc(masterNodes[h].size(), sizeof(unsigned int));
-        ;
-        std::copy(masterNodes[h].begin(), masterNodes[h].end(),
-                  m.master_nodes[h]);
-      } else {
-        m.master_nodes[h] = NULL;
-      }
-    }
-
-    m.num_mirror_nodes =
-        (unsigned int*)calloc(mirrorNodes.size(), sizeof(unsigned int));
-    ;
-    m.mirror_nodes =
-        (unsigned int**)calloc(mirrorNodes.size(), sizeof(unsigned int*));
-    ;
-    for (uint32_t h = 0; h < mirrorNodes.size(); ++h) {
-      m.num_mirror_nodes[h] = mirrorNodes[h].size();
-
-      if (mirrorNodes[h].size() > 0) {
-        m.mirror_nodes[h] =
-            (unsigned int*)calloc(mirrorNodes[h].size(), sizeof(unsigned int));
-        ;
-        std::copy(mirrorNodes[h].begin(), mirrorNodes[h].end(),
-                  m.mirror_nodes[h]);
-      } else {
-        m.mirror_nodes[h] = NULL;
-      }
-    }
-
-    // user needs to provide method of freeing up graph (it can do nothing
-    // if they wish)
-    userGraph.deallocate();
-  }
-#endif // het galois def
-
-  ////////////////////////////////////////////////////////////////////////////////
   // Public sync interface
   ////////////////////////////////////////////////////////////////////////////////
 
@@ -2544,93 +2362,6 @@ public:
         net.sendWork(tid, dst, bufferPtr, offset);
     }
 
-////////////////////////////////////////////////////////////////////////////////
-// Checkpointing code for graph
-////////////////////////////////////////////////////////////////////////////////
-
-// @todo Checkpointing code needs updates to make it work.
-#ifdef GALOIS_CHECKPOINT
-///*
-// * Headers for boost serialization
-// */
-//#include <boost/archive/binary_oarchive.hpp>
-//#include <boost/archive/binary_iarchive.hpp>
-//#include <boost/serialization/split_member.hpp>
-//#include <boost/serialization/binary_object.hpp>
-//#include <boost/serialization/serialization.hpp>
-//#include <boost/serialization/vector.hpp>
-//#include <boost/serialization/unordered_map.hpp>
-//
-// public:
-//  /**
-//   * Checkpoint the complete structure on the node to disk
-//   */
-//  void checkpointSaveNodeData(std::string checkpointFileName = "checkpoint") {
-//    using namespace boost::archive;
-//    galois::StatTimer TimerSaveCheckPoint(
-//        get_run_identifier("TimerSaveCheckpoint").c_str(), RNAME);
-//
-//    TimerSaveCheckPoint.start();
-//    std::string checkpointFileName_local =
-//        checkpointFileName + "_" + std::to_string(id);
-//
-//    std::ofstream outputStream(checkpointFileName_local, std::ios::binary);
-//    if (!outputStream.is_open()) {
-//      galois::gPrint("ERROR: Could not open ", checkpointFileName_local,
-//                     " to save checkpoint!!!\n");
-//    }
-//    galois::gPrint("[", id,
-//                   "] Saving local checkpoint to :", checkpointFileName_local,
-//                   "\n");
-//
-//    boost::archive::binary_oarchive ar(outputStream,
-//    boost::archive::no_header);
-//
-//    // TODO handle this with CuSP
-//    userGraph.serializeNodeData(ar);
-//
-//    std::string statSendBytes_str("CheckpointBytesTotal");
-//    constexpr static const char* const RREGION = "RECOVERY";
-//    size_t cp_size                             = outputStream.tellp();
-//    galois::runtime::reportStat_Tsum(RREGION, statSendBytes_str, cp_size);
-//
-//    outputStream.flush();
-//    outputStream.close();
-//    TimerSaveCheckPoint.stop();
-//  }
-//
-//  /**
-//   * Load checkpointed data from disk.
-//   */
-//  void checkpointApplyNodeData(std::string checkpointFileName = "checkpoint")
-//  {
-//    using namespace boost::archive;
-//    galois::StatTimer TimerApplyCheckPoint(
-//        get_run_identifier("TimerApplyCheckpoint").c_str(), RNAME);
-//
-//    TimerApplyCheckPoint.start();
-//    std::string checkpointFileName_local =
-//        checkpointFileName + "_" + std::to_string(id);
-//
-//    std::ifstream inputStream(checkpointFileName_local, std::ios::binary);
-//
-//    if (!inputStream.is_open()) {
-//      galois::gPrint("ERROR: Could not open ", checkpointFileName_local,
-//                     " to read checkpoint!!!\n");
-//    }
-//    galois::gPrint("[", id, "] reading local checkpoint from: ",
-//                   checkpointFileName_local, "\n");
-//
-//    boost::archive::binary_iarchive ar(inputStream,
-//    boost::archive::no_header);
-//
-//    // TODO handle this with CuSP
-//    userGraph.deSerializeNodeData(ar);
-//
-//    inputStream.close();
-//    TimerApplyCheckPoint.stop();
-//  }
-#endif
 };
 
 template <typename GraphTy>
