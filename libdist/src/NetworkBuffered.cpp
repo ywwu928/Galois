@@ -192,16 +192,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       recvBufferCommunication() : ptok(messages) {}
 
-      std::optional<std::pair<uint32_t, uint8_t*>> tryPopMsg() {
+      bool tryPopMsg(uint32_t& host, uint8_t*& work) {
           std::pair<uint32_t, uint8_t*> message;
           bool success = messages.try_dequeue_from_producer(ptok, message);
           if (success) {
               --inflightRecvs;
-              return std::optional<std::pair<uint32_t, uint8_t*>>(message);
+              host = message.first;
+              work = message.second;
           }
-          else {
-              return std::optional<std::pair<uint32_t, uint8_t*>>();
-          }
+
+          return success;
       }
 
       // Worker thread interface
@@ -225,16 +225,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       recvBufferRemoteWork() : ptok(messages) {}
 
-      std::optional<std::pair<uint8_t*, size_t>> tryPopMsg() {
+      bool tryPopMsg(uint8_t*& work, size_t& workLen) {
           std::pair<uint8_t*, size_t> message;
           bool success = messages.try_dequeue_from_producer(ptok, message);
           if (success) {
               --inflightRecvs;
-              return std::optional<std::pair<uint8_t*, size_t>>(message);
+              work = message.first;
+              workLen = message.second;
           }
-          else {
-              return std::optional<std::pair<uint8_t*, size_t>>();
-          }
+
+          return success;
       }
 
       // Worker thread interface
@@ -325,16 +325,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           return flush > 0;
       }
     
-      std::optional<std::pair<uint8_t*, size_t>> pop() {
+      bool pop(uint8_t*& work, size_t& workLen) {
           std::pair<uint8_t*, size_t> message;
           bool success = messages.try_dequeue_from_producer(ptok, message);
           if (success) {
               flush -= 1;
-              return std::optional<std::pair<uint8_t*, size_t>>(message);
+              work = message.first;
+              workLen = message.second;
           }
-          else {
-              return std::optional<std::pair<uint8_t*, size_t>>();
-          }
+
+          return success;
       }
 
       void push(uint8_t* work, size_t workLen) {
@@ -402,16 +402,16 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           return flush > 0;
       }
     
-      std::optional<std::pair<uint8_t*, size_t>> pop() {
+      bool pop(uint8_t*& work, size_t& workLen) {
           std::pair<uint8_t*, size_t> message;
           bool success = messages.try_dequeue_from_producer(ptok, message);
           if (success) {
               flush -= 1;
-              return std::optional<std::pair<uint8_t*, size_t>>(message);
+              work = message.first;
+              workLen = message.second;
           }
-          else {
-              return std::optional<std::pair<uint8_t*, size_t>>();
-          }
+
+          return success;
       }
 
       void add(uint8_t* work, size_t workLen) {
@@ -632,10 +632,12 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           
                       auto& srw = sendRemoteWork[i][t];
                       if (srw.checkFlush()) {
-                          auto payload = srw.pop();
+                          uint8_t* work = nullptr;
+                          size_t workLen = 0;
+                          bool success = srw.pop(work, workLen);
                           
-                          if (payload.has_value()) {
-                              send(t, i, sendMessage(galois::runtime::remoteWorkTag, payload.value().first, payload.value().second));
+                          if (success) {
+                              send(t, i, sendMessage(galois::runtime::remoteWorkTag, work, workLen));
                               hostEmpty = false;
                           }
                       }
@@ -654,11 +656,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   // 3. communication
                   auto& sc = sendCommunication[i];
                   if (sc.checkFlush()) {
-                      auto payload = sc.pop();
+                      uint8_t* work = nullptr;
+                      size_t workLen = 0;
+                      bool success = sc.pop(work, workLen);
                       
-                      if (payload.has_value()) {
+                      if (success) {
                           // put it on the first thread
-                          send(0, i, sendMessage(galois::runtime::communicationTag, payload.value().first, payload.value().second));
+                          send(0, i, sendMessage(galois::runtime::communicationTag, work, workLen));
                       }
                   }
                   
@@ -806,45 +810,34 @@ public:
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
   
-  virtual std::optional<std::pair<uint8_t*, size_t>>
-  receiveRemoteWork() {
-      auto buf = recvRemoteWork.tryPopMsg();
-      if (buf.has_value()) {
-          anyReceivedMessages = true;
-          return buf;
-      }
-      else {
-          return std::optional<std::pair<uint8_t*, size_t>>();
-      }
+  virtual bool receiveRemoteWork(uint8_t*& work, size_t& workLen) {
+      bool success = recvRemoteWork.tryPopMsg(work, workLen);
+      return success;
   }
 
-  virtual std::optional<std::pair<uint8_t*, size_t>>
-  receiveRemoteWork(bool& terminateFlag) {
+  virtual bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) {
       terminateFlag = false;
 
-      auto buf = recvRemoteWork.tryPopMsg();
-      if (buf.has_value()) {
+      bool success = recvRemoteWork.tryPopMsg(work, workLen);
+      if (success) {
           anyReceivedMessages = true;
-          return buf;
       }
       else {
           if (checkTermination()) {
               terminateFlag = true;
           }
-          return std::optional<std::pair<uint8_t*, size_t>>();
       }
+
+      return success;
   }
   
-  virtual std::optional<std::pair<uint32_t, uint8_t*>>
-  receiveComm() {
-      auto buf = recvCommunication.tryPopMsg();
-      if (buf.has_value()) {
+  virtual bool receiveComm(uint32_t& host, uint8_t*& work) {
+      bool success = recvCommunication.tryPopMsg(host, work);
+      if (success) {
           anyReceivedMessages = true;
-          return buf;
       }
-      else {
-          return std::optional<std::pair<uint32_t, uint8_t*>>();
-      }
+
+      return success;
   }
   
   virtual void flush() {

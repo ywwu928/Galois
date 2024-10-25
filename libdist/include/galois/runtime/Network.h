@@ -140,14 +140,11 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
-  virtual std::optional<std::pair<uint8_t*, size_t>>
-  receiveRemoteWork() = 0;
+  virtual bool receiveRemoteWork(uint8_t*& work, size_t& workLen) = 0;
   
-  virtual std::optional<std::pair<uint8_t*, size_t>>
-  receiveRemoteWork(bool& terminateFlag) = 0;
+  virtual bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) = 0;
   
-  virtual std::optional<std::pair<uint32_t, uint8_t*>>
-  receiveComm() = 0;
+  virtual bool receiveComm(uint32_t& host, uint8_t*& work) = 0;
   
   virtual void resetTermination() = 0;
   

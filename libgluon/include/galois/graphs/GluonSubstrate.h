@@ -1441,16 +1441,21 @@ private:
     galois::CondStatTimer<GALOIS_COMM_STATS> Twait(wait_timer_str.c_str(), RNAME);
 
     if (async) {
-      decltype(net.receiveComm()) p;
+      bool success = false;
+      uint32_t host = ~0U;
+      uint8_t* work = nullptr;
       do {
-        p = net.receiveComm();
+        success = net.receiveComm(host, work);
 
-        if (p) {
+        if (success) {
           recvCommBufferOffset = 0;
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p.value().first, p.value().second, loopName);
+          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(host, work, loopName);
         }
-      } while (p);
+      } while (success);
     } else {
+      bool success;
+      uint32_t host;
+      uint8_t* work;
       for (unsigned x = 0; x < numHosts; ++x) {
         if (x == id)
           continue;
@@ -1458,17 +1463,19 @@ private:
           continue;
 
         Twait.start();
-        decltype(net.receiveComm()) p;
+        success = false;
+        host = ~0U;
+        work = nullptr;
         do {
 #ifndef GALOIS_FULL_MIRRORING     
           check_remote_work<SyncFnTy>();
 #endif
-          p = net.receiveComm();
-        } while (!p);
+          success = net.receiveComm(host, work);
+        } while (!success);
         Twait.stop();
 
         recvCommBufferOffset = 0;
-        syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(p.value().first, p.value().second, loopName);
+        syncRecvApply<syncType, SyncFnTy, BitsetFnTy, async>(host, work, loopName);
       }
       incrementEvilPhase();
     }
@@ -2183,25 +2190,28 @@ public:
 
     template<typename FnTy>
     void poll_for_remote_work_dedicated() {
-        decltype(net.receiveRemoteWork()) p;
+        bool success;
+        uint8_t* buf;
+        size_t bufLen;
         while (!stopDedicated) {
+            success = false;
+            buf = nullptr;
+            bufLen = 0;
             do {
-                p = net.receiveRemoteWork();
+                success = net.receiveRemoteWork(buf, bufLen);
                 if (stopDedicated) {
                     break;
                 }
-                if (!p.has_value()) {
+                if (!success) {
                     galois::substrate::asmPause();
                 }
-            } while (!p.has_value());
+            } while (!success);
             
             if (stopDedicated) {
                 break;
             }
 
-            if (p.has_value()) { // received message
-                uint8_t* buf = p.value().first;
-                size_t bufLen = p.value().second;
+            if (success) { // received message
                 // dedicated thread does not care about the number of aggregated message count
                 bufLen -= sizeof(uint32_t);
                 size_t offset = 0;
@@ -2225,25 +2235,28 @@ public:
     template<typename FnTy>
     void poll_for_remote_work() {
         if (!terminateFlag) {
-            decltype(net.receiveRemoteWork(terminateFlag)) p;
+            bool success;
+            uint8_t* buf;
+            size_t bufLen;
             while (true) {
+                success = false;
+                buf = nullptr;
+                bufLen = 0;
                 do {
-                    p = net.receiveRemoteWork(terminateFlag);
+                    success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                     if (terminateFlag) {
                         break;
                     }
-                    if (!p.has_value()) {
+                    if (!success) {
                         galois::substrate::asmPause();
                     }
-                } while (!p.has_value());
+                } while (!success);
                 
                 if (terminateFlag) {
                     break;
                 }
 
-                if (p.has_value()) { // received message
-                    uint8_t* buf = p.value().first;
-                    size_t bufLen = p.value().second;
+                if (success) { // received message
                     uint32_t msgCount;
                     std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
 
@@ -2284,13 +2297,13 @@ public:
     template<typename FnTy>
     void check_remote_work() {
         if (!terminateFlag) {
-            decltype(net.receiveRemoteWork(terminateFlag)) p;
+            bool success = false;;
+            uint8_t* buf = nullptr;
+            size_t bufLen = 0;
             do {
-                p = net.receiveRemoteWork(terminateFlag);
+                success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                 
-                if (p.has_value()) { // received message
-                    uint8_t* buf = p.value().first;
-                    size_t bufLen = p.value().second;
+                if (success) { // received message
                     uint32_t msgCount;
                     std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
 
@@ -2324,7 +2337,7 @@ public:
 
                     net.deallocateRecvBuffer(buf);
                 }
-            } while (p.has_value());
+            } while (success);
         }
     }
 
