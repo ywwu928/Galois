@@ -72,7 +72,7 @@ namespace graphs {
  *
  * @tparam GraphTy User graph to handle communication for
  */
-template <typename GraphTy>
+template <typename GraphTy, typename ValTy>
 class GluonSubstrate : public galois::runtime::GlobalObject {
 private:
   //! Synchronization type
@@ -127,6 +127,9 @@ private:
   size_t maxSharedSize;
 
   uint32_t dataSizeRatio;
+
+  // double buffering storage to enforce synchronization for partial or no mirroring
+  std::vector<std::unique_ptr<ValTy>> ghostMasterUpdateBuffer;
 
   // Used for efficient comms
   DataCommMode data_mode;
@@ -273,11 +276,13 @@ private:
     incrementEvilPhase();
     
     // convert the global ids stored in the ghost (master) nodes arrays to local ids
+    ghostMasterUpdateBuffer.resize(userGraph.numMasters());
     for (uint32_t h = 0; h < ghostMasterNodes.size(); ++h) {
       galois::do_all(
           galois::iterate(size_t{0}, ghostMasterNodes[h].size()),
           [&](size_t n) {
             ghostMasterNodes[h][n] = userGraph.getLID(ghostMasterNodes[h][n]);
+            ghostMasterUpdateBuffer[ghostMasterNodes[h][n]] = std::make_unique<ValTy>();
           },
 #if GALOIS_COMM_STATS
           galois::loopname(get_run_identifier("GhostMasterNodes").c_str()),
@@ -505,9 +510,55 @@ public:
     Tgraph_construct_comm.stop();
 
     numT = galois::getActiveThreads();
+
+    // allocate send work buffer
     sendWorkBuffer.resize(numT, nullptr);
+    for (unsigned t=0; t<numT; t++) {
+        void* ptr = malloc(sizeof(uint64_t) + sizeof(ValTy));
+        if (ptr == nullptr) {
+            galois::gError("Failed to allocate memory for the thread send work buffer\n");
+        }
+        sendWorkBuffer[t] = static_cast<uint8_t*>(ptr);
+    }
+
+    // allocate communication buffer
     sendCommBuffer.resize(numHosts, nullptr);
     sendCommBufferLen.resize(numHosts, 0);
+    syncBitset = (uint8_t*)malloc(maxSharedSize * sizeof(uint8_t));
+    if (syncBitset == nullptr) {
+        galois::gError("Failed to allocate memory for the communication bitset\n");
+    }
+
+    syncOffsets = (uint32_t*)malloc(maxSharedSize * sizeof(uint32_t));
+    if (syncOffsets == nullptr) {
+        galois::gError("Failed to allocate memory for the communication offset array\n");
+    }
+
+    // noData : data_mode
+    // bitsetData : data_mode + syncBitset + dirty data
+    // offsetsData : data_mode + syncOffsetsLen + syncOffsets + dirty data
+    // onlyData : data_mode + dirty data
+    size_t total_alloc_size =
+        sizeof(DataCommMode) +
+        sizeof(size_t) +
+        (maxSharedSize * sizeof(uint32_t)) + // syncOffsets or syncBitset
+        (maxSharedSize * sizeof(ValTy)); // dirty data
+
+    // send buffer
+    for (unsigned i=0; i<numHosts; i++) {
+        if (i == id) {
+            continue;
+        }
+          
+        void* ptr = malloc(total_alloc_size);
+        if (ptr == nullptr) {
+            galois::gError("Failed to allocate memory for the communication phase send buffer\n");
+        }
+        sendCommBuffer[i] = static_cast<uint8_t*>(ptr);
+    }
+
+    // receive buffer
+    net.allocateRecvCommBuffer(total_alloc_size);
   }
 
   ~GluonSubstrate() {
@@ -522,45 +573,6 @@ public:
               free(sendCommBuffer[i]);
           }
       }
-  }
-
-  template <typename SyncFnTy>
-  void allocate_comm_buffer() {
-      syncBitset = (uint8_t*)malloc(maxSharedSize * sizeof(uint8_t));
-      if (syncBitset == nullptr) {
-          galois::gError("Failed to allocate memory for the communication bitset\n");
-      }
-
-      syncOffsets = (uint32_t*)malloc(maxSharedSize * sizeof(uint32_t));
-      if (syncOffsets == nullptr) {
-          galois::gError("Failed to allocate memory for the communication offset array\n");
-      }
-
-      // noData : data_mode
-      // bitsetData : data_mode + syncBitset + dirty data
-      // offsetsData : data_mode + syncOffsetsLen + syncOffsets + dirty data
-      // onlyData : data_mode + dirty data
-      size_t total_alloc_size =
-          sizeof(DataCommMode) +
-          sizeof(size_t) +
-          (maxSharedSize * sizeof(uint32_t)) + // syncOffsets or syncBitset
-          (maxSharedSize * sizeof(typename SyncFnTy::ValTy)); // dirty data
-
-      // send buffer
-      for (unsigned i=0; i<numHosts; i++) {
-          if (i == id) {
-              continue;
-          }
-          
-          void* ptr = malloc(total_alloc_size);
-          if (ptr == nullptr) {
-              galois::gError("Failed to allocate memory for the communication phase send buffer\n");
-          }
-          sendCommBuffer[i] = static_cast<uint8_t*>(ptr);
-      }
-
-      // receive buffer
-      net.allocateRecvCommBuffer(total_alloc_size);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -681,7 +693,7 @@ private:
    * @param data_mode OUTPUT: the way that this data should be communicated
    * based on how much data needs to be sent out
    */
-  template <typename FnTy, SyncType syncType>
+  template <SyncType syncType>
   void getBitsetAndOffsets(const std::string& loopName,
                            const std::vector<size_t>& indices,
                            const galois::DynamicBitSet& bitset_compute) {
@@ -712,7 +724,7 @@ private:
       getOffsetsFromBitset<syncType>(loopName);
     }
 
-    data_mode = get_data_mode<typename FnTy::ValTy>(bit_set_count, indices.size());
+    data_mode = get_data_mode<ValTy>(bit_set_count, indices.size());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1018,10 +1030,9 @@ private:
    * @param bitSetCount Number of nodes that will actually be sent
    * @param bitSetComm bitset used to send data
    */
-  template <typename SyncFnTy>
   void reportRedundantSize(std::string loopName, std::string syncTypeStr,
                            uint32_t totalToSend) {
-    size_t redundant_size = (totalToSend - bit_set_count) * sizeof(typename SyncFnTy::ValTy);
+    size_t redundant_size = (totalToSend - bit_set_count) * sizeof(ValTy);
     size_t bit_set_size = (syncBitsetLen * sizeof(uint8_t));
 
     if (redundant_size > bit_set_size) {
@@ -1048,7 +1059,7 @@ private:
    */
   /* Reduction extract resets the value afterwards */
   template <typename FnTy, SyncType syncType>
-  inline typename FnTy::ValTy extractWrapper(size_t lid) {
+  inline ValTy extractWrapper(size_t lid) {
     if (syncType == syncReduce) {
       auto val = FnTy::extract(lid, userGraph.getData(lid));
       FnTy::reset(lid, userGraph.getData(lid));
@@ -1099,7 +1110,7 @@ private:
             else
               offset = syncOffsets[n];
             size_t lid         = indices[offset];
-            typename FnTy::ValTy val = extractWrapper<FnTy, syncType>(lid);
+            ValTy val = extractWrapper<FnTy, syncType>(lid);
             size_t threadOffset = bufOffset + n * sizeof(val);
             std::memcpy(bufPtr + threadOffset, &val, sizeof(val));
           },
@@ -1108,7 +1119,7 @@ private:
 #endif
           galois::no_stats());
       
-      bufOffset += size * sizeof(typename FnTy::ValTy);
+      bufOffset += size * sizeof(ValTy);
     } else { // non-parallel version
       for (unsigned n = 0; n < size; ++n) {
         unsigned int offset;
@@ -1118,7 +1129,7 @@ private:
           offset = syncOffsets[n];
 
         size_t lid         = indices[offset];
-        typename FnTy::ValTy val = extractWrapper<FnTy, syncType>(lid);
+        ValTy val = extractWrapper<FnTy, syncType>(lid);
         std::memcpy(bufPtr + bufOffset, &val, sizeof(val));
         bufOffset += sizeof(val);
       }
@@ -1141,7 +1152,7 @@ private:
    * if reduction causes a change
    */
   template <typename FnTy, SyncType syncType, bool async>
-  inline void setWrapper(size_t lid, typename FnTy::ValTy val,
+  inline void setWrapper(size_t lid, ValTy val,
                          galois::DynamicBitSet& bit_set_compute) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
@@ -1197,7 +1208,7 @@ private:
             else
               offset = syncOffsets[n];
             auto lid = indices[offset];
-            typename FnTy::ValTy val;
+            ValTy val;
             size_t threadOffset = recvCommBufferOffset + n * sizeof(val);
             std::memcpy(&val, bufPtr + threadOffset, sizeof(val));
             setWrapper<FnTy, syncType, async>(lid, val, bit_set_compute);
@@ -1207,7 +1218,7 @@ private:
 #endif
           galois::no_stats());
 
-      recvCommBufferOffset += size * sizeof(typename FnTy::ValTy);
+      recvCommBufferOffset += size * sizeof(ValTy);
     } else {
       for (unsigned int n = 0; n < size; ++n) {
         unsigned int offset;
@@ -1216,7 +1227,7 @@ private:
         else
           offset = syncOffsets[n];
         auto lid = indices[offset];
-        typename FnTy::ValTy val;
+        ValTy val;
         std::memcpy(&val, bufPtr + recvCommBufferOffset, sizeof(val));
         recvCommBufferOffset += sizeof(val);
         setWrapper<FnTy, syncType, async>(lid, val, bit_set_compute);
@@ -1262,7 +1273,7 @@ private:
         const galois::DynamicBitSet& bit_set_compute = BitsetFnTy::get();
         bit_set_count = 0;
 
-        getBitsetAndOffsets<SyncFnTy, syncType>(loopName, indices, bit_set_compute);
+        getBitsetAndOffsets<syncType>(loopName, indices, bit_set_compute);
 
         serializeMessage<async, syncType>(loopName, from_id);
         if (data_mode == onlyData) {
@@ -1271,7 +1282,7 @@ private:
         } else if (data_mode != noData) { // bitsetData or offsetsData
             extractSubset<SyncFnTy, syncType, false, true>(loopName, from_id, indices, bit_set_count);
         }
-        reportRedundantSize<SyncFnTy>(loopName, syncTypeStr, num);
+        reportRedundantSize(loopName, syncTypeStr, num);
     } else {
         data_mode = noData;
         if (!async) {
@@ -1411,7 +1422,7 @@ private:
                       async, true, true>(loopName, sharedNodes[from_id], num, bufPtr, bit_set_compute);
           } else { // bitsetData or offsetsData
             setSubset<decltype(sharedNodes[from_id]), SyncFnTy, syncType,
-                      async, false, false>(loopName, sharedNodes[from_id], bit_set_count, bufPtr, bit_set_compute);
+                      async, false, true>(loopName, sharedNodes[from_id], bit_set_count, bufPtr, bit_set_compute);
           }
           // TODO: reduce could update the bitset, so it needs to be copied
           // back to the device
@@ -2188,8 +2199,18 @@ public:
         net.resetTermination();
     }
 
-    template<typename FnTy>
-    void poll_for_remote_work_dedicated() {
+    void set_update_buf_to_identity(ValTy identity) {
+        galois::do_all(
+            galois::iterate((uint32_t)0, (uint32_t)ghostMasterUpdateBuffer.size()),
+            [&](uint32_t lid) {
+                if(ghostMasterUpdateBuffer[lid]) {
+                    *(ghostMasterUpdateBuffer[lid]) = identity;
+                }
+            },
+            galois::no_stats());
+    }
+
+    void poll_for_remote_work_dedicated(const ValTy (*func)(ValTy&, const ValTy&)) {
         bool success;
         uint8_t* buf;
         size_t bufLen;
@@ -2217,19 +2238,33 @@ public:
                 size_t offset = 0;
 
                 uint32_t lid;
-                typename FnTy::ValTy val;
+                ValTy val;
 
                 while (offset != bufLen) {
                     std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                     offset += sizeof(uint32_t);
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
-                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                    func(*(ghostMasterUpdateBuffer[lid]), val);
                 }
 
                 net.deallocateRecvBuffer(buf);
             }
         }
+    }
+    
+    template<typename FnTy>
+    void sync_update_buf(ValTy identity) {
+        galois::do_all(
+            galois::iterate((uint32_t)0, (uint32_t)ghostMasterUpdateBuffer.size()),
+            [&](uint32_t lid) {
+                if(ghostMasterUpdateBuffer[lid]) {
+                    if (*(ghostMasterUpdateBuffer[lid]) != identity) { // there is update
+                        FnTy::reduce(lid, userGraph.getData(lid), *(ghostMasterUpdateBuffer[lid]));
+                    }
+                }
+            },
+            galois::no_stats());
     }
     
     template<typename FnTy>
@@ -2273,10 +2308,10 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
+                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
                             
                             uint32_t lid;
-                            typename FnTy::ValTy val;
+                            ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
                                 std::memcpy(&lid, buf + offset, sizeof(uint32_t));
@@ -2320,10 +2355,10 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
+                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
                             
                             uint32_t lid;
-                            typename FnTy::ValTy val;
+                            ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
                                 std::memcpy(&lid, buf + offset, sizeof(uint32_t));
@@ -2346,22 +2381,8 @@ public:
         net.broadcastTermination();
         stopDedicated = true;
     }
-    
-    template <typename FnTy>
-    void allocate_send_work_buffer() {
-        for (unsigned t=0; t<numT; t++) {
-            if (sendWorkBuffer[t] == nullptr) {
-                void* ptr = malloc(sizeof(uint64_t) + sizeof(typename FnTy::ValTy));
-                if (ptr == nullptr) {
-                    galois::gError("Failed to allocate memory for the thread send work buffer\n");
-                }
-                sendWorkBuffer[t] = static_cast<uint8_t*>(ptr);
-            }
-        }
-    }
 
-    template <typename FnTy>
-    void send_data_to_remote(unsigned dst, uint32_t lid, typename FnTy::ValTy val) {
+    void send_data_to_remote(unsigned dst, uint32_t lid, ValTy val) {
         unsigned tid = galois::substrate::ThreadPool::getTID();
         
         // serialize
@@ -2377,8 +2398,8 @@ public:
 
 };
 
-template <typename GraphTy>
-constexpr const char* const galois::graphs::GluonSubstrate<GraphTy>::RNAME;
+template <typename GraphTy, typename ValTy>
+constexpr const char* const galois::graphs::GluonSubstrate<GraphTy, ValTy>::RNAME;
 } // end namespace graphs
 } // end namespace galois
 

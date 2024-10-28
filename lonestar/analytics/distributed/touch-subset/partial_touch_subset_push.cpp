@@ -71,7 +71,7 @@ typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 typedef GNode WorkItem;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, uint32_t>> syncSubstrate;
 
 #include "touch_subset_push_sync.hh"
 
@@ -123,10 +123,11 @@ struct TouchSubset {
       galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
       StatTimer_compute.start();
-#ifndef GALOIS_FULL_MIRRORING     
+#ifndef GALOIS_FULL_MIRRORING
+      syncSubstrate->set_update_buf_to_identity(0);
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_value>();
+              syncSubstrate->poll_for_remote_work_dedicated(galois::add<uint32_t>);
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
@@ -140,6 +141,7 @@ struct TouchSubset {
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
       galois::substrate::getThreadPool().waitDedicated();
+      syncSubstrate->sync_update_buf<Reduce_add_value>(0);
 #endif
       StatTimer_compute.stop();
       
@@ -177,7 +179,7 @@ struct TouchSubset {
               GNode dst       = graph->getEdgeDst(nbr);
 #ifndef GALOIS_FULL_MIRRORING     
               if (graph->isGhost(dst)) {
-                  syncSubstrate->send_data_to_remote<Reduce_add_value>(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), (uint32_t)1);
+                  syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), (uint32_t)1);
               }
               else {
 #endif
@@ -274,14 +276,11 @@ int main(int argc, char** argv) {
   StatTimer_total.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t>();
 
   hg->sortEdgesByDestination();
 
   bitset_value.resize(hg->size());
-
-  syncSubstrate->allocate_send_work_buffer<Reduce_add_value>();
-  syncSubstrate->allocate_comm_buffer<Reduce_add_value>();
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
