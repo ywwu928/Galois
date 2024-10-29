@@ -63,6 +63,7 @@ static cll::opt<Exec> execution(
 
 struct NodeData {
   std::atomic<uint32_t> value;
+  uint32_t sum;
 };
 
 galois::DynamicBitSet bitset_value;
@@ -94,7 +95,29 @@ struct InitializeGraph {
 
   void operator()(GNode src) const {
     NodeData& sdata = graph->getData(src);
-    sdata.value     = 1;
+    sdata.value = 1;
+    sdata.sum = 1;
+  }
+};
+
+struct TouchSubset_sync {
+  Graph* graph;
+
+  TouchSubset_sync(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes.begin(), masterNodes.end()),
+        TouchSubset_sync{&_graph}, galois::no_stats(),
+        galois::loopname(syncSubstrate->get_run_identifier("TouchSubset_sync").c_str()));
+  }
+
+  void operator()(WorkItem src) const {
+    NodeData& sdata = graph->getData(src);
+    sdata.sum += sdata.value;
+    sdata.value = 0;
   }
 };
 
@@ -123,6 +146,8 @@ struct TouchSubset {
       galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
       StatTimer_compute.start();
+      TouchSubset_sync::go(_graph);
+
 #ifndef GALOIS_FULL_MIRRORING
       syncSubstrate->set_update_buf_to_identity(0);
       // dedicate a thread to poll for remote messages
@@ -173,18 +198,17 @@ struct TouchSubset {
 
   void operator()(WorkItem src) const {
       NodeData& sdata = graph->getData(src);
-      uint32_t temp = sdata.value.load();
       if (src % factor == 0) { // filter out nodes
           for (auto nbr : graph->edges(src)) {
               GNode dst       = graph->getEdgeDst(nbr);
 #ifndef GALOIS_FULL_MIRRORING     
               if (graph->isGhost(dst)) {
-                  syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), (uint32_t)1);
+                  syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), sdata.sum);
               }
               else {
 #endif
                   NodeData& ddata = graph->getData(dst);
-                  galois::atomicAdd(ddata.value, temp);
+                  galois::atomicAdd(ddata.value, sdata.sum);
                   bitset_value.set(dst);
 #ifndef GALOIS_FULL_MIRRORING     
               }
@@ -201,41 +225,61 @@ struct TouchSubset {
 struct TouchSubsetSanity {
   Graph* graph;
 
-  galois::DGAccumulator<float>& DGAccumulator_sum;
-
+  galois::DGAccumulator<float>& DGAccumulator_value;
   galois::DGReduceMax<float>& max_value;
   galois::DGReduceMin<float>& min_value;
+  galois::DGAccumulator<float>& DGAccumulator_sum;
+  galois::DGReduceMax<float>& max_sum;
+  galois::DGReduceMin<float>& min_sum;
 
   TouchSubsetSanity(
       Graph* _graph,
-      galois::DGAccumulator<float>& _DGAccumulator_sum,
+      galois::DGAccumulator<float>& _DGAccumulator_value,
       galois::DGReduceMax<float>& _max_value,
-      galois::DGReduceMin<float>& _min_value)
+      galois::DGReduceMin<float>& _min_value,
+      galois::DGAccumulator<float>& _DGAccumulator_sum,
+      galois::DGReduceMax<float>& _max_sum,
+      galois::DGReduceMin<float>& _min_sum)
       : graph(_graph),
+        DGAccumulator_value(_DGAccumulator_value),
+        max_value(_max_value), min_value(_min_value),
         DGAccumulator_sum(_DGAccumulator_sum),
-        max_value(_max_value), min_value(_min_value) {}
+        max_sum(_max_sum), min_sum(_min_sum) {}
 
-  void static go(Graph& _graph, galois::DGAccumulator<float>& DGA_sum,
+  void static go(Graph& _graph,
+                 galois::DGAccumulator<float>& DGA_value,
                  galois::DGReduceMax<float>& max_value,
-                 galois::DGReduceMin<float>& min_value) {
-    DGA_sum.reset();
+                 galois::DGReduceMin<float>& min_value,
+                 galois::DGAccumulator<float>& DGA_sum,
+                 galois::DGReduceMax<float>& max_sum,
+                 galois::DGReduceMin<float>& min_sum) {
+    DGA_value.reset();
     max_value.reset();
     min_value.reset();
+    DGA_sum.reset();
+    max_sum.reset();
+    min_sum.reset();
 
     galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
                                    _graph.masterNodesRange().end()),
-                   TouchSubsetSanity(&_graph, DGA_sum, max_value, min_value),
+                   TouchSubsetSanity(&_graph, DGA_value, max_value, min_value, DGA_sum, max_sum, min_sum),
                    galois::no_stats(), galois::loopname("TouchSubsetSanity"));
 
     float max_rank          = max_value.reduce();
     float min_rank          = min_value.reduce();
-    float rank_sum          = DGA_sum.reduce();
+    float rank_sum          = DGA_value.reduce();
+    float max_acc          = max_sum.reduce();
+    float min_acc          = min_sum.reduce();
+    float acc_sum          = DGA_sum.reduce();
 
     // Only node 0 will print data
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Max rank is ", max_rank, "\n");
-      galois::gPrint("Min rank is ", min_rank, "\n");
-      galois::gPrint("Rank sum is ", rank_sum, "\n");
+      galois::gPrint("Max value is ", max_rank, "\n");
+      galois::gPrint("Min value is ", min_rank, "\n");
+      galois::gPrint("Accumulated value is ", rank_sum, "\n");
+      galois::gPrint("Max sum is ", max_acc, "\n");
+      galois::gPrint("Min sum is ", min_acc, "\n");
+      galois::gPrint("Accumulated sum is ", acc_sum, "\n");
     }
   }
 
@@ -246,8 +290,10 @@ struct TouchSubsetSanity {
 
     max_value.update(sdata.value);
     min_value.update(sdata.value);
-
-    DGAccumulator_sum += sdata.value;
+    DGAccumulator_value += sdata.value;
+    max_sum.update(sdata.sum);
+    min_sum.update(sdata.sum);
+    DGAccumulator_sum += sdata.sum;
   }
 };
 
@@ -287,9 +333,12 @@ int main(int argc, char** argv) {
   InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
 
-  galois::DGAccumulator<float> DGA_sum;
+  galois::DGAccumulator<float> DGA_value;
   galois::DGReduceMax<float> max_value;
   galois::DGReduceMin<float> min_value;
+  galois::DGAccumulator<float> DGA_sum;
+  galois::DGReduceMax<float> max_sum;
+  galois::DGReduceMin<float> min_sum;
 
   for (auto run = 0; run < numRuns; ++run) {
     REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
@@ -306,7 +355,7 @@ int main(int argc, char** argv) {
     StatTimer_main.stop();
 
     // sanity check
-    TouchSubsetSanity::go(*hg, DGA_sum, max_value, min_value);
+    TouchSubsetSanity::go(*hg, DGA_value, max_value, min_value, DGA_sum, max_sum, min_sum);
 
     if ((run + 1) != numRuns) {
       bitset_value.reset();
