@@ -83,6 +83,30 @@ cll::opt<std::string> mastersFile("mastersFile",
                                   cll::init(""), cll::Hidden);
 
 #ifdef GALOIS_FULL_MIRRORING
+MirrorMode mirrorMode = percentage;
+#elif defined(GALOIS_NO_MIRRORING)
+MirrorMode mirrorMode = percentage;
+#else
+cll::opt<MirrorMode> mirrorMode(
+    "mirrorMode", cll::desc("Mirror selection mode"),
+    cll::values(clEnumValN(threshold, "threshold", "select by incoming degree threshold"),
+                clEnumValN(percentage, "percentage", "select by percentage of total mirrors")),
+    cll::init(percentage));
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
+DegreeMode degreeMode = high;
+#elif defined(GALOIS_NO_MIRRORING)
+DegreeMode degreeMode = high;
+#else
+cll::opt<DegreeMode> degreeMode(
+    "degreeMode", cll::desc("incoming degree mirror selection mode"),
+    cll::values(clEnumValN(low, "low", "create mirrors with low incoming degree first"),
+                clEnumValN(high, "high", "create mirrors with high incoming degree first")),
+    cll::init(high));
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
 int mirrorThreshold = 0;
 #elif defined(GALOIS_NO_MIRRORING)
 int mirrorThreshold = -1;
@@ -90,6 +114,16 @@ int mirrorThreshold = -1;
 cll::opt<int> mirrorThreshold("mirrorThreshold",
                                   cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (0 means full mirroring & -1 means no mirroring)"),
                                   cll::init(0));
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
+int mirrorPercentage = 100;
+#elif defined(GALOIS_NO_MIRRORING)
+int mirrorPercentage = 0;
+#else
+cll::opt<int> mirrorPercentage("mirrorPercentage",
+                                  cll::desc("Percentage of mirrors to be actually created (0 means no mirroring & 100 means full mirroring)"),
+                                  cll::init(100));
 #endif
 
 cll::opt<uint32_t> dataSizeRatio("dataSizeRatio",

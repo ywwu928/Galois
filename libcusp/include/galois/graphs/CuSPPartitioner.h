@@ -83,7 +83,7 @@ template <typename PartitionPolicy, typename NodeData = char,
           typename EdgeData = void>
 DistGraphPtr<NodeData, EdgeData>
 cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
-                   CUSP_GRAPH_TYPE outputType, int mirrorThreshold = -1, bool symmetricGraph = false,
+                   CUSP_GRAPH_TYPE outputType, MirrorMode mirrorMode = percentage, DegreeMode degreeMode = high, int mirrorThreshold = -1, int mirrorPercentage = 0, bool symmetricGraph = false,
                    std::string transposeGraphFile = "",
                    std::string masterBlockFile = "", bool cuspAsync = true,
                    uint32_t cuspStateRounds = 100,
@@ -126,13 +126,13 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
     }
 
     return std::make_unique<DistGraphConstructor>(
-        inputToUse, net.ID, net.Num, mirrorThreshold, cuspAsync, cuspStateRounds, useTranspose,
+        inputToUse, net.ID, net.Num, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, cuspAsync, cuspStateRounds, useTranspose,
         readPolicy, nodeWeight, edgeWeight, masterBlockFile);
   } else {
     // symmetric graph path: assume the passed in graphFile is a symmetric
     // graph; output is also symmetric
     return std::make_unique<DistGraphConstructor>(
-        graphFile, net.ID, net.Num, mirrorThreshold, cuspAsync, cuspStateRounds, false,
+        graphFile, net.ID, net.Num, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, cuspAsync, cuspStateRounds, false,
         readPolicy, nodeWeight, edgeWeight, masterBlockFile);
   }
 }

@@ -114,12 +114,35 @@ extern cll::opt<bool> saveLocalGraph;
 extern cll::opt<std::string> mastersFile;
 
 #ifdef GALOIS_FULL_MIRRORING
+extern MirrorMode mirrorMode;
+#elif defined(GALOIS_NO_MIRRORING)
+extern MirrorMode mirrorMode;
+#else
+extern cll::opt<MirrorMode> mirrorMode;
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
+extern DegreeMode degreeMode;
+#elif defined(GALOIS_NO_MIRRORING)
+extern DegreeMode degreeMode;
+#else
+extern cll::opt<DegreeMode> degreeMode;
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
 extern int mirrorThreshold;
 #elif defined(GALOIS_NO_MIRRORING)
 extern int mirrorThreshold;
 #else
-//! incoming degree threshold for creating mirrors
 extern cll::opt<int> mirrorThreshold;
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING
+extern int mirrorPercentage;
+#elif defined(GALOIS_NO_MIRRORING)
+extern int mirrorPercentage;
+#else
+extern cll::opt<int> mirrorPercentage;
 #endif
 
 //! size ratio of node data to edge data
@@ -157,23 +180,23 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   switch (partitionScheme) {
   case HASH:
     return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
   case OEC:
   case IEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true, inputFileTranspose,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true, inputFileTranspose,
         mastersFile);
   case HOVC:
   case HIVC:
     return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
 
   case CART_VCUT:
   case CART_VCUT_IEC:
     return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
 
     // case CEC:
@@ -183,18 +206,18 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   case GINGER_O:
   case GINGER_I:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
 
   case FENNEL_O:
   case FENNEL_I:
     return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
 
   case SUGAR_O:
     return galois::cuspPartitionGraph<SugarP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, true,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, true,
         inputFileTranspose);
   default:
     GALOIS_DIE("partition scheme specified is invalid: ", partitionScheme);
@@ -223,24 +246,24 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   auto& net = galois::runtime::getSystemNetworkInterface();
   if (net.Num == 1) {
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   }
 
   switch (partitionScheme) {
   case HASH:
     return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose, mastersFile);
   case IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose, mastersFile);
     } else {
       GALOIS_DIE("incoming edge cut requires transpose graph");
@@ -249,12 +272,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case HOVC:
     return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case HIVC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("incoming hybrid cut requires transpose graph");
@@ -263,13 +286,13 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case CART_VCUT:
     return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
 
   case CART_VCUT_IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("cvc incoming cut requires transpose graph");
@@ -282,12 +305,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case GINGER_O:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case GINGER_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Ginger requires transpose graph");
@@ -296,12 +319,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case FENNEL_O:
     return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case FENNEL_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Fennel requires transpose graph");
@@ -310,7 +333,7 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case SUGAR_O:
     return galois::cuspPartitionGraph<SugarP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
 
   default:
@@ -342,7 +365,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   if (net.Num == 1) {
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       fprintf(stderr, "WARNING: Loading transpose graph through in-memory "
@@ -350,7 +373,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
                       "graph with -graphTranspose to avoid unnecessary "
                       "overhead.\n");
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     }
   }
@@ -358,17 +381,17 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   switch (partitionScheme) {
   case HASH:
     return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose, mastersFile);
   case IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose, mastersFile);
     } else {
       GALOIS_DIE("iec requires transpose graph");
@@ -377,12 +400,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case HOVC:
     return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case HIVC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("hivc requires transpose graph");
@@ -391,13 +414,13 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case CART_VCUT:
     return galois::cuspPartitionGraph<GenericCVCColumnFlip, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case CART_VCUT_IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericCVCColumnFlip, NodeData,
                                         EdgeData>(inputFile, galois::CUSP_CSC,
-                                                  galois::CUSP_CSC, mirrorThreshold, false,
+                                                  galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
                                                   inputFileTranspose);
     } else {
       GALOIS_DIE("cvc requires transpose graph");
@@ -406,12 +429,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case GINGER_O:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case GINGER_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Ginger requires transpose graph");
@@ -420,12 +443,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case FENNEL_O:
     return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
   case FENNEL_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorThreshold, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Fennel requires transpose graph");
@@ -434,7 +457,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case SUGAR_O:
     return galois::cuspPartitionGraph<SugarColumnFlipP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorThreshold, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, false,
         inputFileTranspose);
 
   default:
