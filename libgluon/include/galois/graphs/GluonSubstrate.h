@@ -2227,7 +2227,8 @@ public:
             galois::no_stats());
     }
 
-    void poll_for_remote_work_dedicated(const ValTy (*func)(ValTy&, const ValTy&)) {
+    template<typename FnTy>
+    void poll_for_remote_work_dedicated(ValTy identity, const ValTy (*func)(ValTy&, const ValTy&)) {
         bool success;
         uint8_t* buf;
         size_t bufLen;
@@ -2266,6 +2267,15 @@ public:
                 }
 
                 net.deallocateRecvBuffer(buf);
+            }
+        }
+
+        // sync update buffer
+        for (uint32_t lid=0; lid<ghostMasterUpdateBuffer.size(); lid++) {
+            if(ghostMasterUpdateBuffer[lid]) {
+                if (*(ghostMasterUpdateBuffer[lid]) != identity) { // there is update
+                    FnTy::reduce_atomic(lid, userGraph.getData(lid), *(ghostMasterUpdateBuffer[lid]));
+                }
             }
         }
     }

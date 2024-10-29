@@ -152,7 +152,7 @@ struct TouchSubset {
       syncSubstrate->set_update_buf_to_identity(0);
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated(galois::add<uint32_t>);
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_value>(0, galois::add<uint32_t>);
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
@@ -165,8 +165,6 @@ struct TouchSubset {
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
-      galois::substrate::getThreadPool().waitDedicated();
-      syncSubstrate->sync_update_buf<Reduce_add_value>(0);
 #endif
       StatTimer_compute.stop();
       
@@ -174,11 +172,14 @@ struct TouchSubset {
       galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       StatTimer_comm.start();
-#ifndef GALOIS_NO_MIRRORING     
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_value,
-                          Bitset_value, async>("TouchSubset");
-#else
+#ifdef GALOIS_FULL_MIRRORING     
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_value, Bitset_value, async>("TouchSubset");
+#elif defined(GALOIS_NO_MIRRORING)
       syncSubstrate->poll_for_remote_work<Reduce_add_value>();
+      galois::substrate::getThreadPool().waitDedicated();
+#else
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_value, Bitset_value, async>("TouchSubset");
+      galois::substrate::getThreadPool().waitDedicated();
 #endif
       StatTimer_comm.stop();
       
