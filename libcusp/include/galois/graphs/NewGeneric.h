@@ -1559,7 +1559,7 @@ private:
 
     auto maxElement = std::max_element(incomingDegree.begin(), incomingDegree.end());
     std::string max_degree_str = "MaxIncomingDegree_Host_" + std::to_string(myID);
-    galois::runtime::reportStat_Tsum(GRNAME, max_degree_str, *maxElement);
+    galois::runtime::reportStat_Single(GRNAME, max_degree_str, *maxElement);
 
     inspectionTimer.stop();
 
@@ -3157,6 +3157,8 @@ constexpr const char* const
 
 template <typename NodeTy, typename EdgeTy, typename Partitioner>
 class NewDistGraphMemOverheadSweep : public DistGraph<NodeTy, EdgeTy> {
+    
+    constexpr static const char* const GRNAME = "MemOverheadSweep";
 
 public:
     //! typedef for base DistGraph class
@@ -3224,6 +3226,10 @@ public:
         galois::gPrint("[", base_DistGraph::id, "] Reading graph complete.\n");
         bufGraph.resetReadCounters();
         
+        galois::DynamicBitSet incomingMirrors;
+        incomingMirrors.resize(base_DistGraph::numGlobalNodes);
+        incomingMirrors.reset();
+
         std::vector<int> incomingDegree;
         std::vector<substrate::SimpleLock> incomingDegreeLock;
         incomingDegree.resize(base_DistGraph::numGlobalNodes);
@@ -3241,6 +3247,7 @@ public:
               for (; ii < ee; ++ii) {
                 uint32_t dst = bufGraph.edgeDestination(*ii);
                 if (graphPartitioner->retrieveMaster(dst) != myID) {
+                  incomingMirrors.set(dst);
                   incomingDegreeLock[dst].lock();
                   incomingDegree[dst] += 1;
                   incomingDegreeLock[dst].unlock();
@@ -3250,6 +3257,8 @@ public:
             galois::steal(), galois::no_stats());
         incomingDegreeLock.clear();
         galois::gPrint("[", base_DistGraph::id, "] Edge inspection done\n");
+    
+        uint32_t fullMirrorCount = incomingMirrors.count();
         
         std::sort(incomingDegree.begin(), incomingDegree.end());
         int maxMirrorThreshold = incomingDegree.back();
@@ -3257,6 +3266,11 @@ public:
         for (int mirrorThreshold=0; mirrorThreshold<maxMirrorThreshold; mirrorThreshold++) {
             auto it = std::upper_bound(incomingDegree.begin(), incomingDegree.end(), mirrorThreshold);
             uint32_t partialMirrorCount = incomingDegree.end() - it;
+            if (fullMirrorCount > 0) {
+                float mirror_percentage = 100 * ((float)partialMirrorCount / (float)fullMirrorCount);
+                std::string mirror_percentage_str = "MirrorPercentage_Host_" + std::to_string(myID) + "_Threshold_" + std::to_string(mirrorThreshold);
+                galois::runtime::reportStat_Single(GRNAME, mirror_percentage_str, mirror_percentage);
+            }
             totalPartialMirrorCount.reset();
             totalPartialMirrorCount += partialMirrorCount;
             totalPartialMirrorCount.reduce();

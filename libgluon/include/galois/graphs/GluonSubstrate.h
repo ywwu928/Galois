@@ -358,13 +358,13 @@ private:
     uint64_t host_ghost_nodes = userGraph.numGhosts();
   
     std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, host_master_nodes);
     std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
     std::string ghost_nodes_str = "GhostNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, ghost_nodes_str, host_ghost_nodes);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, ghost_nodes_str, host_ghost_nodes);
     std::string ghost_master_nodes_str = "GhostMasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, ghost_master_nodes_str, ghostMasterCount);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, ghost_master_nodes_str, ghostMasterCount);
         
     if (net.ID == 0) {
         uint64_t global_total_mirror_nodes = host_mirror_nodes;
