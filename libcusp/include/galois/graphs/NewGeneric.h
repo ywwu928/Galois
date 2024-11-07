@@ -3261,16 +3261,23 @@ public:
         uint32_t fullMirrorCount = incomingMirrors.count();
         
         std::sort(incomingDegree.begin(), incomingDegree.end());
-        int maxMirrorThreshold = incomingDegree.back();
+        galois::DGAccumulator<int> maxMirrorThreshold;
+        maxMirrorThreshold.reset();
+        maxMirrorThreshold += incomingDegree.back();
+        maxMirrorThreshold.reduce();
         galois::DGAccumulator<uint32_t> totalPartialMirrorCount;
-        for (int mirrorThreshold=0; mirrorThreshold<maxMirrorThreshold; mirrorThreshold++) {
+        galois::DGAccumulator<uint32_t> terminator;
+        for (int mirrorThreshold=0; mirrorThreshold<maxMirrorThreshold.read(); mirrorThreshold++) {
             auto it = std::upper_bound(incomingDegree.begin(), incomingDegree.end(), mirrorThreshold);
             uint32_t partialMirrorCount = incomingDegree.end() - it;
+            
+            float mirror_percentage = 0;
             if (fullMirrorCount > 0) {
-                float mirror_percentage = 100 * ((float)partialMirrorCount / (float)fullMirrorCount);
-                std::string mirror_percentage_str = "MirrorPercentage_Host_" + std::to_string(myID) + "_Threshold_" + std::to_string(mirrorThreshold);
-                galois::runtime::reportStat_Single(GRNAME, mirror_percentage_str, mirror_percentage);
+                mirror_percentage = 100 * ((float)partialMirrorCount / (float)fullMirrorCount);
             }
+            std::string mirror_percentage_str = "MirrorPercentage_Host_" + std::to_string(myID) + "_Threshold_" + std::to_string(mirrorThreshold);
+            galois::runtime::reportStat_Single(GRNAME, mirror_percentage_str, mirror_percentage);
+            
             totalPartialMirrorCount.reset();
             totalPartialMirrorCount += partialMirrorCount;
             totalPartialMirrorCount.reduce();
@@ -3279,7 +3286,13 @@ public:
             if (myID == 0) {
                 galois::gPrint("Incoming Degree Threshold = ", mirrorThreshold, " : Replication Factor = ", replication_factor, ", Aggregated Memory Overhead = ", memory_overhead, "\n");
             }
-            if (memory_overhead < 1.01) {
+
+            terminator.reset();
+            if (mirror_percentage <10) {
+                terminator += 1;
+            }
+            terminator.reduce();
+            if (memory_overhead < 1.01 && terminator.read() == base_DistGraph::numHosts) {
                 break;
             }
         }
