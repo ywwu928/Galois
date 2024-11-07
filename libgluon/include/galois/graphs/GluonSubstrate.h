@@ -2205,12 +2205,14 @@ public:
 
 /* For Polling */
 private:
+    uint8_t stopUpdateBuffer = 0;
     bool stopDedicated = false;
     bool terminateFlag = false;
     std::vector<uint8_t*> sendWorkBuffer;
 
 public:
     void reset_termination() {
+        stopUpdateBuffer = 0;
         stopDedicated = false;
         terminateFlag = false;
         net.resetTermination();
@@ -2228,28 +2230,26 @@ public:
     }
 
     template<typename FnTy>
-    void poll_for_remote_work_dedicated(ValTy identity, const ValTy (*func)(ValTy&, const ValTy&)) {
+    void poll_for_remote_work_dedicated(const ValTy (*func)(ValTy&, const ValTy&)) {
         bool success;
         uint8_t* buf;
         size_t bufLen;
-        while (!stopDedicated) {
+        
+        while (stopUpdateBuffer == 0) {
             success = false;
             buf = nullptr;
             bufLen = 0;
             do {
-                success = net.receiveRemoteWork(buf, bufLen);
-                if (stopDedicated) {
+                if (stopUpdateBuffer == 1) {
                     break;
                 }
+
+                success = net.receiveRemoteWork(buf, bufLen);
                 if (!success) {
                     galois::substrate::asmPause();
                 }
             } while (!success);
             
-            if (stopDedicated) {
-                break;
-            }
-
             if (success) { // received message
                 // dedicated thread does not care about the number of aggregated message count
                 bufLen -= sizeof(uint32_t);
@@ -2270,28 +2270,60 @@ public:
             }
         }
 
-        // sync update buffer
-        for (uint32_t lid=0; lid<ghostMasterUpdateBuffer.size(); lid++) {
-            if(ghostMasterUpdateBuffer[lid]) {
-                if (*(ghostMasterUpdateBuffer[lid]) != identity) { // there is update
-                    FnTy::reduce_atomic(lid, userGraph.getData(lid), *(ghostMasterUpdateBuffer[lid]));
+        stopUpdateBuffer = 2;
+        
+        while (!stopDedicated) {
+            success = false;
+            buf = nullptr;
+            bufLen = 0;
+            do {
+                if (stopDedicated) {
+                    break;
                 }
+
+                success = net.receiveRemoteWork(buf, bufLen);
+                if (!success) {
+                    galois::substrate::asmPause();
+                }
+            } while (!success);
+            
+            if (success) { // received message
+                // dedicated thread does not care about the number of aggregated message count
+                bufLen -= sizeof(uint32_t);
+                size_t offset = 0;
+
+                uint32_t lid;
+                ValTy val;
+
+                while (offset != bufLen) {
+                    std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                    offset += sizeof(uint32_t);
+                    std::memcpy(&val, buf + offset, sizeof(val));
+                    offset += sizeof(val);
+                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                }
+
+                net.deallocateRecvBuffer(buf);
             }
         }
+
     }
     
     template<typename FnTy>
     void sync_update_buf(ValTy identity) {
+        while (stopUpdateBuffer != 2) {}
         galois::do_all(
             galois::iterate((uint32_t)0, (uint32_t)ghostMasterUpdateBuffer.size()),
             [&](uint32_t lid) {
                 if(ghostMasterUpdateBuffer[lid]) {
                     if (*(ghostMasterUpdateBuffer[lid]) != identity) { // there is update
-                        FnTy::reduce(lid, userGraph.getData(lid), *(ghostMasterUpdateBuffer[lid]));
+                        FnTy::reduce_atomic(lid, userGraph.getData(lid), *(ghostMasterUpdateBuffer[lid]));
                     }
                 }
             },
             galois::no_stats());
+
+        stopDedicated = true;
     }
     
     template<typename FnTy>
@@ -2406,7 +2438,7 @@ public:
     void net_flush() {
         net.flushRemoteWork();
         net.broadcastTermination();
-        stopDedicated = true;
+        stopUpdateBuffer = 1;
     }
 
     void send_data_to_remote(unsigned dst, uint32_t lid, ValTy val) {

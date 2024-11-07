@@ -210,7 +210,7 @@ struct PageRank {
       syncSubstrate->set_update_buf_to_identity(0);
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>(0, galois::add<float>);
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>(galois::add<float>);
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
@@ -230,14 +230,15 @@ struct PageRank {
       galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       StatTimer_comm.start();
+      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
+      galois::substrate::getThreadPool().waitDedicated();
+
 #ifdef GALOIS_FULL_MIRRORING     
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual, async>("PageRank");
 #elif defined(GALOIS_NO_MIRRORING)
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-      galois::substrate::getThreadPool().waitDedicated();
 #else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual, async>("PageRank");
-      galois::substrate::getThreadPool().waitDedicated();
 #endif
       
       StatTimer_comm.stop();
