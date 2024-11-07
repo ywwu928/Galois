@@ -1557,6 +1557,10 @@ private:
     incomingDegreeLock.clear();
     freeVector(incomingDegreeLock); // should no longer use this variable
 
+    auto maxElement = std::max_element(incomingDegree.begin(), incomingDegree.end());
+    std::string max_degree_str = "MaxIncomingDegree_Host_" + std::to_string(myID);
+    galois::runtime::reportStat_Tsum(GRNAME, max_degree_str, *maxElement);
+
     inspectionTimer.stop();
 
     uint64_t allBytesRead = bufGraph.getBytesRead();
