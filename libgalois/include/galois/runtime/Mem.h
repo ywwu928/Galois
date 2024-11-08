@@ -1053,11 +1053,13 @@ class FixedSizeBufferPool {
     const size_t hugePageSize = 2 * 1024 * 1024;
     std::vector<void*> regions;
     boost::lockfree::stack<uint8_t*> buffers;
+    uint32_t factor;
 
 public:
     FixedSizeBufferPool() {
         buffers.reserve(BufferCount);
-        allocateRegions();
+        allocateRegions(1);
+        factor = 1;
     }
 
     ~FixedSizeBufferPool() {
@@ -1065,15 +1067,16 @@ public:
     }
 
     inline uint8_t* allocate() {
-        if (!buffers.empty()) {
-            uint8_t* buffer = nullptr;
-            buffers.pop(buffer);
-            return buffer;
+        if (buffers.empty()) {
+            galois::gPrint("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
+            allocateRegions(factor);
+            factor = factor << 1;
         }
-
-        // no buffers available
-        galois::gPrint("No buffers available in FixedSizeBufferPool : adjust BufferCount and rerun to avoid waiting\n");
-        return nullptr;
+        
+        uint8_t* buffer = nullptr;
+        buffers.pop(buffer);
+        
+        return buffer;
     }
 
     inline void deallocate(uint8_t* buffer) {
@@ -1081,9 +1084,10 @@ public:
     }
 
 private:
-    inline void allocateRegions() {
+    inline void allocateRegions(uint32_t factor) {
         // allocate new regions
         size_t pageCount = (BufferCount * BufferSize + hugePageSize - 1) / hugePageSize;
+        pageCount = pageCount * factor;
 
         for (size_t i=0; i<pageCount; i++) {
             void* region = mmap(NULL, hugePageSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
