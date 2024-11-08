@@ -39,16 +39,6 @@
 
 #define CUSP_PT_TIMER 0
 
-enum MirrorMode {
-    threshold,
-    percentage
-};
-
-enum DegreeMode {
-    low,
-    high
-};
-
 namespace galois {
 namespace graphs {
 
@@ -183,7 +173,7 @@ public:
    */
   NewDistGraphGeneric(
       const std::string& filename, unsigned host, unsigned _numHosts,
-      MirrorMode mirrorMode, DegreeMode degreeMode, int mirrorThreshold, int mirrorPercentage,
+      int mirrorThreshold, float highDegreeFactor,
       bool cuspAsync = true, uint32_t stateRounds = 100, bool transpose = false,
       // galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
       galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
@@ -295,8 +285,7 @@ public:
       base_DistGraph::numOwned = nodeEnd - nodeBegin;
       uint64_t edgeOffset      = *bufGraph.edgeBegin(nodeBegin);
       // edge prefix sum, no comm required
-      edgeCutInspection(bufGraph, mirrorMode, degreeMode, mirrorThreshold, mirrorPercentage, inspectionTimer, edgeOffset,
-                        prefixSumOfEdges);
+      edgeCutInspection(bufGraph, mirrorThreshold, highDegreeFactor, inspectionTimer, edgeOffset, prefixSumOfEdges);
     }
     // inspection timer is stopped in edgeInspection function
 
@@ -1504,10 +1493,8 @@ private:
   }
 
   void edgeCutInspection(galois::graphs::BufferedGraph<EdgeTy>& bufGraph,
-                         MirrorMode mirrorMode,
-                         DegreeMode degreeMode,
                          int mirrorThreshold,
-                         int mirrorPercentage,
+                         float highDegreeFactor,
                          galois::StatTimer& inspectionTimer,
                          uint64_t edgeOffset,
                          galois::gstl::Vector<uint64_t>& prefixSumOfEdges) {
@@ -1515,14 +1502,14 @@ private:
     incomingMirrors.resize(base_DistGraph::numGlobalNodes);
     incomingMirrors.reset();
 
-    std::vector<int> incomingDegree;
+    std::vector<uint32_t> incomingDegree;
     std::vector<substrate::SimpleLock> incomingDegreeLock;
     incomingDegree.resize(base_DistGraph::numGlobalNodes);
     incomingDegreeLock.resize(base_DistGraph::numGlobalNodes);
     for (uint64_t i=0; i<incomingDegree.size(); i++) {
         incomingDegree[i] = 0;
     }
-
+    
     uint32_t myID         = base_DistGraph::id;
     uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
 
@@ -1541,6 +1528,7 @@ private:
             uint32_t dst = bufGraph.edgeDestination(*ii);
             if (graphPartitioner->retrieveMaster(dst) != myID) {
               incomingMirrors.set(dst);
+
               incomingDegreeLock[dst].lock();
               incomingDegree[dst] += 1;
               incomingDegreeLock[dst].unlock();
@@ -1574,40 +1562,33 @@ private:
     uint32_t totalNumNodes = base_DistGraph::numGlobalNodes;
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
-    if (mirrorMode == threshold) {
-        if (mirrorThreshold == 0) { // full mirroring
-            partialMirrorCount = fullMirrorCount;
-        }
-        else if (mirrorThreshold < 0) { // no mirroring
-            partialMirrorCount = 0;
-        }
-        else {
-            galois::GAccumulator<uint32_t> partialMirrorAccumulator;
-            partialMirrorAccumulator.reset();
+    
+    uint32_t highDegreeThreshold = base_DistGraph::numEdges / (highDegreeFactor * galois::getActiveThreads());
 
-            galois::on_each([&](unsigned tid, unsigned nthreads) {
-                size_t beginNode;
-                size_t endNode;
-                std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
-                for (size_t i = beginNode; i < endNode; i++) {
-                    if (incomingDegree[i] > mirrorThreshold)
-                        partialMirrorAccumulator += 1;
-                }
-            });
-
-            partialMirrorCount = partialMirrorAccumulator.reduce();
-        }
+    if (mirrorThreshold == 0) { // full mirroring
+        partialMirrorCount = fullMirrorCount;
     }
-    else if (mirrorMode == percentage) {
-        if (mirrorPercentage == 100) { // full mirroring
-            partialMirrorCount = fullMirrorCount;
-        }
-        else if (mirrorPercentage == 0) { // no mirroring
-            partialMirrorCount = 0;
-        }
-        else {
-            partialMirrorCount = mirrorPercentage * fullMirrorCount / 100;
-        }
+    else if (mirrorThreshold < 0) { // no mirroring
+        partialMirrorCount = 0;
+    }
+    else {
+        galois::GAccumulator<uint32_t> partialMirrorAccumulator;
+        galois::GAccumulator<uint32_t> highDegreeMirrorAccumulator;
+        partialMirrorAccumulator.reset();
+        highDegreeMirrorAccumulator.reset();
+      
+        galois::on_each([&](unsigned tid, unsigned nthreads) {
+            size_t beginNode;
+            size_t endNode;
+            std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
+            for (size_t i = beginNode; i < endNode; i++) {
+                if (incomingDegree[i] > (uint32_t)mirrorThreshold && incomingDegree[i] < highDegreeThreshold) {
+                    partialMirrorAccumulator += 1;
+                }
+            }
+        });
+
+        partialMirrorCount = partialMirrorAccumulator.reduce();
     }
     uint32_t ghostCount = fullMirrorCount - partialMirrorCount;
 
@@ -1619,6 +1600,11 @@ private:
                               prefixSumOfEdges.back());
     } else {
       prefixSumOfEdges.resize(fullMirrorCount);
+    }
+    if (prefixSumOfEdges.size() != 0) {
+      base_DistGraph::numEdges = prefixSumOfEdges.back();
+    } else {
+      base_DistGraph::numEdges = 0;
     }
 
     if (fullMirrorCount > 0) {
@@ -1675,48 +1661,98 @@ private:
           freeVector(threadPrefixSums); // should no longer use this variable
       }
       else {
-          std::vector<std::pair<int, int>> mirrorCandidates;
-          mirrorCandidates.reserve(fullMirrorCount);
-          for (uint32_t index = 0; index<totalNumNodes; index++) {
-              if (incomingMirrors.test(index)) {
-                  mirrorCandidates.push_back(std::make_pair(incomingDegree[index], index));
-              }
+          // TODO move this part below into separate function
+          uint32_t activeThreads = galois::getActiveThreads();
+          std::vector<uint64_t> threadMirrorPrefixSums(activeThreads);
+          std::vector<uint64_t> threadGhostPrefixSums(activeThreads);
+          galois::on_each([&](unsigned tid, unsigned nthreads) {
+            size_t beginNode;
+            size_t endNode;
+            std::tie(beginNode, endNode) =
+                galois::block_range(0u, totalNumNodes, tid, nthreads);
+            uint64_t mirror_count = 0;
+            uint64_t ghost_count = 0;
+            for (size_t i = beginNode; i < endNode; i++) {
+                if (incomingMirrors.test(i)) {
+                    if (incomingDegree[i] > (uint32_t)mirrorThreshold && incomingDegree[i] < highDegreeThreshold)
+                        ++mirror_count;
+                    else
+                        ++ghost_count;
+                }
+            }
+            threadMirrorPrefixSums[tid] = mirror_count;
+            threadGhostPrefixSums[tid] = ghost_count;
+          });
+          // get prefix sums
+          for (uint32_t i = 1; i < activeThreads; i++) {
+            threadMirrorPrefixSums[i] += threadMirrorPrefixSums[i - 1];
+            threadGhostPrefixSums[i] += threadGhostPrefixSums[i - 1];
           }
-          assert(mirrorCandidates.size() == fullMirrorCount);
 
-          if (degreeMode == low) {
-              std::sort(mirrorCandidates.begin(), mirrorCandidates.end());
-          }
-          else if (degreeMode == high) {
-              std::sort(mirrorCandidates.begin(), mirrorCandidates.end(),
-                        [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
-                            return a.first > b.first; // Compare the first elements
-                        }
-              );
-          }
-          
+          assert(threadMirrorPrefixSums.back() == partialMirrorCount);
+          assert(threadGhostPrefixSums.back() == ghostCount);
+
           // actual mirrors first
           uint32_t startingNodeIndex = base_DistGraph::numOwned;
           galois::on_each([&](unsigned tid, unsigned nthreads) {
             size_t beginNode;
             size_t endNode;
-            std::tie(beginNode, endNode) = galois::block_range(0u, partialMirrorCount, tid, nthreads);
+            std::tie(beginNode, endNode) =
+                galois::block_range(0u, totalNumNodes, tid, nthreads);
+            // start location to start adding things into prefix sums/vectors
+            uint32_t threadStartLocation = 0;
+            if (tid != 0) {
+              threadStartLocation = threadMirrorPrefixSums[tid - 1];
+            }
+            uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
-                base_DistGraph::localToGlobalVector[startingNodeIndex + i] = mirrorCandidates[i].second;
-                base_DistGraph::localHostVector[startingNodeIndex + i] = graphPartitioner->retrieveMaster(mirrorCandidates[i].second);
+                if (incomingMirrors.test(i)) {
+                    if (incomingDegree[i] > (uint32_t)mirrorThreshold && incomingDegree[i] < highDegreeThreshold) {
+                      base_DistGraph::localToGlobalVector[startingNodeIndex +
+                                                          threadStartLocation +
+                                                          handledNodes] = i;
+                      base_DistGraph::localHostVector[startingNodeIndex +
+                                                      threadStartLocation +
+                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
+                      handledNodes++;
+                    }
+                }
             }
           });
-          
+
+          threadMirrorPrefixSums.clear();
+          freeVector(threadMirrorPrefixSums); // should no longer use this variable
+
           // then ghost
+          startingNodeIndex = base_DistGraph::numOwned + partialMirrorCount;
           galois::on_each([&](unsigned tid, unsigned nthreads) {
             size_t beginNode;
             size_t endNode;
-            std::tie(beginNode, endNode) = galois::block_range(partialMirrorCount, fullMirrorCount, tid, nthreads);
+            std::tie(beginNode, endNode) =
+                galois::block_range(0u, totalNumNodes, tid, nthreads);
+            // start location to start adding things into prefix sums/vectors
+            uint32_t threadStartLocation = 0;
+            if (tid != 0) {
+              threadStartLocation = threadGhostPrefixSums[tid - 1];
+            }
+            uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
-                base_DistGraph::localToGlobalVector[startingNodeIndex + i] = mirrorCandidates[i].second;
-                base_DistGraph::localHostVector[startingNodeIndex + i] = graphPartitioner->retrieveMaster(mirrorCandidates[i].second);
+                if (incomingMirrors.test(i)) {
+                    if (incomingDegree[i] <= (uint32_t)mirrorThreshold || incomingDegree[i] >= highDegreeThreshold) {
+                      base_DistGraph::localToGlobalVector[startingNodeIndex +
+                                                          threadStartLocation +
+                                                          handledNodes] = i;
+                      base_DistGraph::localHostVector[startingNodeIndex +
+                                                      threadStartLocation +
+                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
+                      handledNodes++;
+                    }
+                }
             }
           });
+
+          threadGhostPrefixSums.clear();
+          freeVector(threadGhostPrefixSums); // should no longer use this variable
       }
     }
     
@@ -1726,11 +1762,6 @@ private:
     base_DistGraph::numNodes = base_DistGraph::numOwned + fullMirrorCount;
     base_DistGraph::numActualNodes = base_DistGraph::numOwned + partialMirrorCount;
     base_DistGraph::numGhostNodes = ghostCount;
-    if (prefixSumOfEdges.size() != 0) {
-      base_DistGraph::numEdges = prefixSumOfEdges.back();
-    } else {
-      base_DistGraph::numEdges = 0;
-    }
     assert(base_DistGraph::localToGlobalVector.size() ==
            base_DistGraph::numNodes);
     assert(prefixSumOfEdges.size() == base_DistGraph::numNodes);
@@ -3158,8 +3189,6 @@ constexpr const char* const
 template <typename NodeTy, typename EdgeTy, typename Partitioner>
 class NewDistGraphMemOverheadSweep : public DistGraph<NodeTy, EdgeTy> {
     
-    constexpr static const char* const GRNAME = "MemOverheadSweep";
-
 public:
     //! typedef for base DistGraph class
     using base_DistGraph = DistGraph<NodeTy, EdgeTy>;
@@ -3196,7 +3225,8 @@ private:
 
 public:
     NewDistGraphMemOverheadSweep(
-        const std::string& filename, unsigned host, unsigned _numHosts, uint32_t dataSizeRatio,
+        const std::string& filename, unsigned host, unsigned _numHosts,
+        uint32_t dataSizeRatio, float highDegreeFactor,
         galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
         uint32_t nodeWeight = 0, uint32_t edgeWeight = 0)
         : base_DistGraph(host, _numHosts) {
@@ -3237,7 +3267,15 @@ public:
         for (uint64_t i=0; i<incomingDegree.size(); i++) {
             incomingDegree[i] = 0;
         }
+    
+        galois::gstl::Vector<uint64_t> prefixSumOfEdges;
+        base_DistGraph::numOwned = nodeEnd - nodeBegin;
+        prefixSumOfEdges.resize(base_DistGraph::numOwned);
+        
         uint32_t myID = base_DistGraph::id;
+        uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
+        uint64_t edgeOffset = *bufGraph.edgeBegin(nodeBegin);
+
         galois::do_all(
             galois::iterate(base_DistGraph::gid2host[base_DistGraph::id].first,
                             base_DistGraph::gid2host[base_DistGraph::id].second),
@@ -3253,46 +3291,89 @@ public:
                   incomingDegreeLock[dst].unlock();
                 }
               }
+              prefixSumOfEdges[n - globalOffset] = (*ee) - edgeOffset;
             },
             galois::steal(), galois::no_stats());
         incomingDegreeLock.clear();
+        
+        if (prefixSumOfEdges.size() != 0) {
+          base_DistGraph::numEdges = prefixSumOfEdges.back();
+        } else {
+          base_DistGraph::numEdges = 0;
+        }
+
         galois::gPrint("[", base_DistGraph::id, "] Edge inspection done\n");
     
         uint32_t fullMirrorCount = incomingMirrors.count();
         
+        uint32_t highDegreeThreshold = base_DistGraph::numEdges / (highDegreeFactor * galois::getActiveThreads());
+        
         std::sort(incomingDegree.begin(), incomingDegree.end());
+        auto highDegreeIt = std::lower_bound(incomingDegree.begin(), incomingDegree.end(), highDegreeThreshold);
+        
         galois::DGAccumulator<int> maxMirrorThreshold;
         maxMirrorThreshold.reset();
         maxMirrorThreshold += incomingDegree.back();
         maxMirrorThreshold.reduce();
+
+        galois::DGAccumulator<uint32_t> totalFullMirrorCount;
+        totalFullMirrorCount.reset();
+        totalFullMirrorCount += fullMirrorCount;
+        totalFullMirrorCount.reduce();
+
+        uint32_t partialMirrorCount;
         galois::DGAccumulator<uint32_t> totalPartialMirrorCount;
-        galois::DGAccumulator<uint32_t> terminator;
+        
+        galois::DGReduceMax<float> maxMemoryOverhead;
+
         for (int mirrorThreshold=0; mirrorThreshold<maxMirrorThreshold.read(); mirrorThreshold++) {
+            std::string host_region_str = "Host_" + std::to_string(myID) + "_Threshold_" + std::to_string(mirrorThreshold);
+
             auto it = std::upper_bound(incomingDegree.begin(), incomingDegree.end(), mirrorThreshold);
-            uint32_t partialMirrorCount = incomingDegree.end() - it;
+            if (it < highDegreeIt) {
+                partialMirrorCount = highDegreeIt - it;
+            }
+            else {
+                partialMirrorCount = 0;
+            }
             
             float mirror_percentage = 0;
             if (fullMirrorCount > 0) {
                 mirror_percentage = 100 * ((float)partialMirrorCount / (float)fullMirrorCount);
             }
-            std::string mirror_percentage_str = "MirrorPercentage_Host_" + std::to_string(myID) + "_Threshold_" + std::to_string(mirrorThreshold);
-            galois::runtime::reportStat_Single(GRNAME, mirror_percentage_str, mirror_percentage);
+            std::string mirror_percentage_str = "MirrorPercentage";
+            galois::runtime::reportStat_Single(host_region_str.c_str(), mirror_percentage_str, mirror_percentage);
+            float replication_factor = (float)partialMirrorCount / (float)base_DistGraph::numOwned;
+            std::string replication_factor_str = "ReplicationFactor";
+            galois::runtime::reportStat_Single(host_region_str.c_str(), replication_factor_str, replication_factor);
+            float memory_overhead = (float)(dataSizeRatio * base_DistGraph::numOwned + base_DistGraph::numEdges + dataSizeRatio * partialMirrorCount) / (float)(dataSizeRatio * base_DistGraph::numOwned + base_DistGraph::numEdges);
+            std::string memory_overhead_str = "MemoryOverhead";
+            galois::runtime::reportStat_Single(host_region_str.c_str(), memory_overhead_str, memory_overhead);
+            maxMemoryOverhead.reset();
+            maxMemoryOverhead.update(memory_overhead);
+            maxMemoryOverhead.reduce();
             
             totalPartialMirrorCount.reset();
             totalPartialMirrorCount += partialMirrorCount;
             totalPartialMirrorCount.reduce();
-            float replication_factor = (float)totalPartialMirrorCount.read() / (float)base_DistGraph::numGlobalNodes;
-            float memory_overhead = (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges + dataSizeRatio * totalPartialMirrorCount.read()) / (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges);
+            
             if (myID == 0) {
+                std::string max_region_str = "Max_Threshold_" + std::to_string(mirrorThreshold);
+                galois::runtime::reportStat_Single(max_region_str.c_str(), memory_overhead_str, maxMemoryOverhead.read());
+                std::string aggregated_region_str = "Aggregated_Threshold_" + std::to_string(mirrorThreshold);
+                mirror_percentage = 0;
+                if (totalFullMirrorCount.read() > 0) {
+                    mirror_percentage = 100 * ((float)totalPartialMirrorCount.read() / (float)totalFullMirrorCount.read());
+                }
+                galois::runtime::reportStat_Single(aggregated_region_str.c_str(), mirror_percentage_str, mirror_percentage);
+                replication_factor = (float)totalPartialMirrorCount.read() / (float)base_DistGraph::numGlobalNodes;
+                galois::runtime::reportStat_Single(aggregated_region_str.c_str(), replication_factor_str, replication_factor);
+                memory_overhead = (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges + dataSizeRatio * totalPartialMirrorCount.read()) / (float)(dataSizeRatio * base_DistGraph::numGlobalNodes + base_DistGraph::numGlobalEdges);
+                galois::runtime::reportStat_Single(aggregated_region_str.c_str(), memory_overhead_str, memory_overhead);
                 galois::gPrint("Incoming Degree Threshold = ", mirrorThreshold, " : Replication Factor = ", replication_factor, ", Aggregated Memory Overhead = ", memory_overhead, "\n");
             }
 
-            terminator.reset();
-            if (mirror_percentage <10) {
-                terminator += 1;
-            }
-            terminator.reduce();
-            if (memory_overhead < 1.01 && terminator.read() == base_DistGraph::numHosts) {
+            if (maxMemoryOverhead.read() < 1.01) {
                 break;
             }
         }
