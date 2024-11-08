@@ -173,7 +173,7 @@ public:
    */
   NewDistGraphGeneric(
       const std::string& filename, unsigned host, unsigned _numHosts,
-      int mirrorThreshold, float highDegreeFactor,
+      int mirrorThreshold, uint32_t highDegreeFactor,
       bool cuspAsync = true, uint32_t stateRounds = 100, bool transpose = false,
       // galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
       galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
@@ -1494,7 +1494,7 @@ private:
 
   void edgeCutInspection(galois::graphs::BufferedGraph<EdgeTy>& bufGraph,
                          int mirrorThreshold,
-                         float highDegreeFactor,
+                         uint32_t highDegreeFactor,
                          galois::StatTimer& inspectionTimer,
                          uint64_t edgeOffset,
                          galois::gstl::Vector<uint64_t>& prefixSumOfEdges) {
@@ -1509,6 +1509,9 @@ private:
     for (uint64_t i=0; i<incomingDegree.size(); i++) {
         incomingDegree[i] = 0;
     }
+    
+    galois::GAccumulator<uint32_t> totalIncomingDegree;
+    totalIncomingDegree.reset();
     
     uint32_t myID         = base_DistGraph::id;
     uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
@@ -1532,6 +1535,8 @@ private:
               incomingDegreeLock[dst].lock();
               incomingDegree[dst] += 1;
               incomingDegreeLock[dst].unlock();
+
+              totalIncomingDegree += 1;
             }
           }
           prefixSumOfEdges[n - globalOffset] = (*ee) - edgeOffset;
@@ -1544,6 +1549,7 @@ private:
     
     incomingDegreeLock.clear();
     freeVector(incomingDegreeLock); // should no longer use this variable
+    totalIncomingDegree.reduce();
 
     auto maxElement = std::max_element(incomingDegree.begin(), incomingDegree.end());
     std::string max_degree_str = "MaxIncomingDegree_Host_" + std::to_string(myID);
@@ -1563,7 +1569,13 @@ private:
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
     
-    uint32_t highDegreeThreshold = base_DistGraph::numEdges / (highDegreeFactor * galois::getActiveThreads());
+    uint32_t highDegreeThreshold;
+    if (highDegreeFactor == 0) {
+        highDegreeThreshold = UINT32_MAX;
+    }
+    else {
+        highDegreeThreshold = totalIncomingDegree.getLocal() / highDegreeFactor;
+    }
 
     if (mirrorThreshold == 0) { // full mirroring
         partialMirrorCount = fullMirrorCount;
@@ -1600,11 +1612,6 @@ private:
                               prefixSumOfEdges.back());
     } else {
       prefixSumOfEdges.resize(fullMirrorCount);
-    }
-    if (prefixSumOfEdges.size() != 0) {
-      base_DistGraph::numEdges = prefixSumOfEdges.back();
-    } else {
-      base_DistGraph::numEdges = 0;
     }
 
     if (fullMirrorCount > 0) {
@@ -1764,6 +1771,11 @@ private:
     base_DistGraph::numGhostNodes = ghostCount;
     assert(base_DistGraph::localToGlobalVector.size() ==
            base_DistGraph::numNodes);
+    if (prefixSumOfEdges.size() != 0) {
+      base_DistGraph::numEdges = prefixSumOfEdges.back();
+    } else {
+      base_DistGraph::numEdges = 0;
+    }
     assert(prefixSumOfEdges.size() == base_DistGraph::numNodes);
 
     // g2l mapping
@@ -3226,7 +3238,7 @@ private:
 public:
     NewDistGraphMemOverheadSweep(
         const std::string& filename, unsigned host, unsigned _numHosts,
-        uint32_t dataSizeRatio, float highDegreeFactor,
+        uint32_t dataSizeRatio, uint32_t highDegreeFactor,
         galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
         uint32_t nodeWeight = 0, uint32_t edgeWeight = 0)
         : base_DistGraph(host, _numHosts) {
@@ -3267,11 +3279,14 @@ public:
         for (uint64_t i=0; i<incomingDegree.size(); i++) {
             incomingDegree[i] = 0;
         }
-    
+        
+        galois::GAccumulator<uint32_t> totalIncomingDegree;
+        totalIncomingDegree.reset();
+
         galois::gstl::Vector<uint64_t> prefixSumOfEdges;
         base_DistGraph::numOwned = nodeEnd - nodeBegin;
         prefixSumOfEdges.resize(base_DistGraph::numOwned);
-        
+    
         uint32_t myID = base_DistGraph::id;
         uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
         uint64_t edgeOffset = *bufGraph.edgeBegin(nodeBegin);
@@ -3286,16 +3301,20 @@ public:
                 uint32_t dst = bufGraph.edgeDestination(*ii);
                 if (graphPartitioner->retrieveMaster(dst) != myID) {
                   incomingMirrors.set(dst);
+
                   incomingDegreeLock[dst].lock();
                   incomingDegree[dst] += 1;
                   incomingDegreeLock[dst].unlock();
+
+                  totalIncomingDegree += 1;
                 }
               }
               prefixSumOfEdges[n - globalOffset] = (*ee) - edgeOffset;
             },
             galois::steal(), galois::no_stats());
         incomingDegreeLock.clear();
-        
+        totalIncomingDegree.reduce();
+
         if (prefixSumOfEdges.size() != 0) {
           base_DistGraph::numEdges = prefixSumOfEdges.back();
         } else {
@@ -3306,7 +3325,13 @@ public:
     
         uint32_t fullMirrorCount = incomingMirrors.count();
         
-        uint32_t highDegreeThreshold = base_DistGraph::numEdges / (highDegreeFactor * galois::getActiveThreads());
+        uint32_t highDegreeThreshold;
+        if (highDegreeFactor == 0) {
+            highDegreeThreshold = UINT32_MAX;
+        }
+        else {
+            highDegreeThreshold = totalIncomingDegree.getLocal() / highDegreeFactor;
+        }
         
         std::sort(incomingDegree.begin(), incomingDegree.end());
         auto highDegreeIt = std::lower_bound(incomingDegree.begin(), incomingDegree.end(), highDegreeThreshold);

@@ -84,7 +84,7 @@ template <typename PartitionPolicy, typename NodeData = char,
 DistGraphPtr<NodeData, EdgeData>
 cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
                    CUSP_GRAPH_TYPE outputType, int mirrorThreshold = -1,
-                   float highDegreeFactor = 1, bool symmetricGraph = false,
+                   uint32_t highDegreeFactor = 0, bool symmetricGraph = false,
                    std::string transposeGraphFile = "",
                    std::string masterBlockFile = "", bool cuspAsync = true,
                    uint32_t cuspStateRounds = 100,
@@ -141,7 +141,7 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
 template <typename PartitionPolicy, typename NodeData = char,
           typename EdgeData = void>
 void
-cuspGraphMemOverheadSweep(std::string graphFile, uint32_t dataSizeRatio = 1, float highDegreeFactor = 1,
+cuspGraphMemOverheadSweep(std::string graphFile, uint32_t dataSizeRatio = 1, uint32_t highDegreeFactor = 0,
                           galois::graphs::MASTERS_DISTRIBUTION readPolicy = galois::graphs::BALANCED_EDGES_OF_MASTERS,
                           uint32_t nodeWeight = 0, uint32_t edgeWeight = 0) {
     auto& net = galois::runtime::getSystemNetworkInterface();

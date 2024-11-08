@@ -122,11 +122,11 @@ extern cll::opt<int> mirrorThreshold;
 #endif
 
 #ifdef GALOIS_FULL_MIRRORING
-extern float highDegreeFactor;
+extern uint32_t highDegreeFactor;
 #elif defined(GALOIS_NO_MIRRORING)
-extern float highDegreeFactor;
+extern uint32_t highDegreeFactor;
 #else
-extern cll::opt<float> highDegreeFactor;
+extern cll::opt<uint32_t> highDegreeFactor;
 #endif
 
 //! size ratio of node data to edge data
