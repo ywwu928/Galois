@@ -283,9 +283,7 @@ symmetricDistGraphInitialization() {
   g = loadSymmetricDistGraph<NodeData, EdgeData>(scaleFactor);
   // load substrate
   const auto& net = galois::runtime::getSystemNetworkInterface();
-  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(),
-                                  g->cartesianGrid(), partitionAgnostic,
-                                  commMetadata);
+  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(), dataSizeRatio, g->cartesianGrid(), partitionAgnostic, commMetadata);
 
 // marshal graph to GPU as necessary
 #ifdef GALOIS_ENABLE_GPU
