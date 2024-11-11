@@ -632,13 +632,14 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           
                       auto& srw = sendRemoteWork[i][t];
                       if (srw.checkFlush()) {
+                          hostEmpty = false;
+                          
                           uint8_t* work = nullptr;
                           size_t workLen = 0;
                           bool success = srw.pop(work, workLen);
                           
                           if (success) {
                               send(t, i, sendMessage(galois::runtime::remoteWorkTag, work, workLen));
-                              hostEmpty = false;
                           }
                       }
                   }
