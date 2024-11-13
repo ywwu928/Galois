@@ -141,11 +141,11 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
 template <typename PartitionPolicy, typename NodeData = char,
           typename EdgeData = void>
 void
-cuspGraphMemOverheadSweep(std::string graphFile, uint32_t dataSizeRatio = 1, uint32_t highDegreeFactor = 0,
+cuspGraphMemOverheadSweep(std::string graphFile, uint32_t dataSizeRatio = 1, uint32_t highDegreeFactor = 0, uint32_t stopThreshold = 1,
                           galois::graphs::MASTERS_DISTRIBUTION readPolicy = galois::graphs::BALANCED_EDGES_OF_MASTERS,
                           uint32_t nodeWeight = 0, uint32_t edgeWeight = 0) {
     auto& net = galois::runtime::getSystemNetworkInterface();
-    galois::graphs::NewDistGraphMemOverheadSweep<NodeData, EdgeData, PartitionPolicy> temp(graphFile, net.ID, net.Num, dataSizeRatio, highDegreeFactor, readPolicy, nodeWeight, edgeWeight);
+    galois::graphs::NewDistGraphMemOverheadSweep<NodeData, EdgeData, PartitionPolicy> temp(graphFile, net.ID, net.Num, dataSizeRatio, highDegreeFactor, stopThreshold, readPolicy, nodeWeight, edgeWeight);
 }
 
 } // end namespace galois

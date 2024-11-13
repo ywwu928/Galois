@@ -132,6 +132,9 @@ extern cll::opt<uint32_t> highDegreeFactor;
 //! size ratio of node data to edge data
 extern cll::opt<uint32_t> dataSizeRatio;
 
+//! threshold to stop sweeping memory overhead
+extern cll::opt<uint32_t> stopThreshold;
+
 // @todo command line argument for read balancing across hosts
 
 /*******************************************************************************
@@ -453,7 +456,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 template <typename NodeData, typename EdgeData, bool iterateOut = true,
           typename std::enable_if<iterateOut>::type* = nullptr>
 void graphMemOverheadSweep() {
-    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(inputFile, dataSizeRatio, highDegreeFactor);
+    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(inputFile, dataSizeRatio, highDegreeFactor, stopThreshold);
 }
 
 #endif
