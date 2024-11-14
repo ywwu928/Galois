@@ -30,17 +30,8 @@
 #include <limits>
 #include <random>
 
-#include "../instrumentation/instrument_static.h"
-
-#ifdef GALOIS_ENABLE_GPU
-#include "bfs_push_cuda.h"
-struct CUDA_Context* cuda_ctx;
-#else
-enum { CPU, GPU_CUDA };
-int personality = CPU;
-#endif
-
-constexpr static const char* const REGION_NAME = "BFS";
+static std::string REGION_NAME = "BFS";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -86,9 +77,7 @@ galois::DynamicBitSet bitset_dist_current;
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph>> syncSubstrate;
-
-std::unique_ptr<Instrument<Graph>> inst;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, uint32_t>> syncSubstrate;
 
 #include "bfs_push_sync.hh"
 
@@ -105,26 +94,13 @@ struct InitializeGraph {
       : local_infinity(_infinity), local_src_node(_src_node), graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& allNodes = _graph.allNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str(
-          syncSubstrate->get_run_identifier("InitializeGraph_"));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      InitializeGraph_allNodes_cuda(infinity, src_node, cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
-          InitializeGraph{src_node, infinity, &_graph}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(presentNodes.begin(), presentNodes.end()),
+        InitializeGraph{src_node, infinity, &_graph}, galois::no_stats(),
+        galois::loopname(
+            syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
   }
 
   void operator()(GNode src) const {
@@ -142,67 +118,60 @@ struct FirstItr_BFS {
   FirstItr_BFS(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    uint32_t __begin, __end;
-    if (_graph.isLocal(src_node)) {
-      __begin = _graph.getLID(src_node);
-      __end   = __begin + 1;
-    } else {
-      __begin = 0;
-      __end   = 0;
-    }
-    syncSubstrate->set_num_round(0);
-
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str(syncSubstrate->get_run_identifier("BFS"));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      FirstItr_BFS_cuda(__begin, __end, cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-
-      inst->clear();
-      
-      // one node
-      galois::do_all(
-          galois::iterate(__begin, __end), 
-          FirstItr_BFS{&_graph},
-          galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
-    }
-
-    inst->log_round(0);
-	
-    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
-      
-    // just a barrier to synchronize output
-    // master_round.reduce();
+    auto& net = galois::runtime::getSystemNetworkInterface();
     
-    galois::runtime::reportStat_Tsum(
-        REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
-        __end - __begin);
-  }
-
-  void operator()(GNode src) const {
-    NodeData& snode = graph->getData(src);
-	inst->record_local_read_stream();
-    snode.dist_old  = snode.dist_current;
-	inst->record_local_write_stream();
-    for (auto jj : graph->edges(src)) {
-      inst->record_local_read_stream();
-      GNode dst         = graph->getEdgeDst(jj);
-      auto& dnode       = graph->getData(dst);
-      inst->record_read_random(dst);
-      uint32_t new_dist = 1 + snode.dist_current;
-      uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
-      if (old_dist > new_dist) {
-        inst->record_write_random(dst, !bitset_dist_current.test(dst));
-        bitset_dist_current.set(dst);
-      }
+    std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(0));
+    galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      
+    StatTimer_compute.start();
+    if (_graph.isOwned(src_node)) {
+        GNode src = _graph.getLID(src_node);
+        NodeData& snode = _graph.getData(src);
+        snode.dist_old  = snode.dist_current;
+        for (auto jj : _graph.edges(src)) {
+            GNode dst         = _graph.getEdgeDst(jj);
+#ifndef GALOIS_FULL_MIRRORING     
+            if (_graph.isGhost(dst)) {
+                uint32_t new_dist = 1 + snode.dist_current;
+                syncSubstrate->send_data_to_remote(_graph.getHostIDForLocal(dst), _graph.getGhostRemoteLID(dst), new_dist);
+            }
+            else {
+#endif
+                auto& dnode       = _graph.getData(dst);
+                uint32_t new_dist = 1 + snode.dist_current;
+                uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
+                if (old_dist > new_dist) {
+                    bitset_dist_current.set(dst);
+                }
+#ifndef GALOIS_FULL_MIRRORING     
+            }
+#endif
+        }
     }
+
+#ifndef GALOIS_FULL_MIRRORING     
+    // inform all other hosts that this host has finished sending messages
+    // force all messages to be processed before continuing
+    syncSubstrate->net_flush();
+#endif
+    StatTimer_compute.stop();
+
+    syncSubstrate->set_num_round(0);
+    
+    std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(0));
+    galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+    StatTimer_comm.start();
+#ifdef GALOIS_FULL_MIRRORING     
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+#elif defined(GALOIS_NO_MIRRORING)
+    syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
+#else
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+#endif
+    StatTimer_comm.stop();
+    
+    syncSubstrate->reset_termination();
   }
 };
 
@@ -228,12 +197,15 @@ struct BFS {
       work_edges(_work_edges) {}
 
   void static go(Graph& _graph) {
-
     FirstItr_BFS<async>::go(_graph);
 
     unsigned _num_iterations = 1;
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+#ifndef GALOIS_FULL_MIRRORING     
+    const auto& masterNodes = _graph.masterNodesRangeReserved();
+#else
+    const auto& masterNodes = _graph.masterNodesRange();
+#endif
 
     uint32_t priority;
     if (delta == 0)
@@ -243,51 +215,72 @@ struct BFS {
     DGTerminatorDetector dga;
     DGAccumulatorTy work_edges;
     
-    do {
+    auto& net = galois::runtime::getSystemNetworkInterface();
 
+    do {
       priority += delta;
 
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();
       
-      inst->clear();
+      std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        std::string impl_str(syncSubstrate->get_run_identifier("BFS"));
-        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-        StatTimer_cuda.start();
-        unsigned int __retval  = 0;
-        unsigned int __retval2 = 0;
-        BFS_nodesWithEdges_cuda(__retval, __retval2, priority, cuda_ctx);
-        dga += __retval;
-        work_edges += __retval2;
-        StatTimer_cuda.stop();
-#else
-        abort();
+      StatTimer_compute.start();
+#ifndef GALOIS_FULL_MIRRORING     
+      syncSubstrate->set_update_buf_to_identity(UINT32_MAX);
+      // dedicate a thread to poll for remote messages
+      std::function<void(void)> func = [&]() {
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_dist_current>(galois::min<uint32_t>);
+      };
+      galois::substrate::getThreadPool().runDedicated(func);
 #endif
-      } else if (personality == CPU) {
-        galois::do_all(
-            galois::iterate(nodesWithEdges),
-            BFS(priority, 
-                &_graph, 
-                dga, 
-                work_edges), 
-            galois::steal(),
-            galois::no_stats(),
-            galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
-      }
 
-	  inst->log_round(_num_iterations);
-      
+      // launch all other threads to compute
+      galois::do_all(
+          galois::iterate(masterNodes),
+          BFS(priority, 
+              &_graph, 
+              dga, 
+              work_edges), 
+          galois::steal(),
+          galois::no_stats(),
+          galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
+
+#ifndef GALOIS_FULL_MIRRORING     
+      // inform all other hosts that this host has finished sending messages
+      // force all messages to be processed before continuing
+      syncSubstrate->net_flush();
+#endif
+      StatTimer_compute.stop();
+     
+      std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_comm.start();
+#ifndef GALOIS_FULL_MIRRORING     
+      syncSubstrate->sync_update_buf<Reduce_min_dist_current>(UINT32_MAX);
+      galois::substrate::getThreadPool().waitDedicated();
+#endif
+
+#ifdef GALOIS_FULL_MIRRORING     
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+#elif defined(GALOIS_NO_MIRRORING)
+      syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
+#else
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
+#endif
+      StatTimer_comm.stop();
+      
+      syncSubstrate->reset_termination();
       
       galois::runtime::reportStat_Tsum(
           REGION_NAME, syncSubstrate->get_run_identifier("NumWorkItems"),
           (unsigned long)work_edges.read_local());
 
       ++_num_iterations;
+      //galois::runtime::getHostBarrier().wait();
     } while ((async || (_num_iterations < maxIterations)) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
 
@@ -299,29 +292,34 @@ struct BFS {
 
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
-    inst->record_local_read_stream();
     
     if (snode.dist_old > snode.dist_current) {
       active_vertices += 1;
 
-      if (local_priority > snode.dist_current) {
+      if (local_priority > snode.dist_old) {
         snode.dist_old = snode.dist_current;
-
+        
         for (auto jj : graph->edges(src)) {
-          inst->record_local_read_stream();
-
 		  work_edges += 1;
 
           GNode dst         = graph->getEdgeDst(jj);
-          auto& dnode       = graph->getData(dst);     
-          inst->record_read_random(dst);
-          uint32_t new_dist = 1 + snode.dist_current;
-          uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
-          
-          if (old_dist > new_dist) {
-			inst->record_write_random(dst, !bitset_dist_current.test(dst));
-            bitset_dist_current.set(dst);
+#ifndef GALOIS_FULL_MIRRORING     
+          if (graph->isGhost(dst)) {
+            uint32_t new_dist = 1 + snode.dist_current;
+            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), new_dist);
           }
+          else {
+#endif
+            auto& dnode       = graph->getData(dst);     
+            uint32_t new_dist = 1 + snode.dist_current;
+            uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
+          
+            if (old_dist > new_dist) {
+              bitset_dist_current.set(dst);
+            }
+#ifndef GALOIS_FULL_MIRRORING     
+          }
+#endif
         }
       }
     }
@@ -351,22 +349,10 @@ struct BFSSanityCheck {
     dgas.reset();
     dgm.reset();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      uint64_t sum;
-      uint32_t max;
-      BFSSanityCheck_masterNodes_cuda(sum, max, infinity, cuda_ctx);
-      dgas += sum;
-      dgm.update(max);
-#else
-      abort();
-#endif
-    } else {
-      galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                     _graph.masterNodesRange().end()),
-                     BFSSanityCheck(infinity, &_graph, dgas, dgm),
-                     galois::no_stats(), galois::loopname("BFSSanityCheck"));
-    }
+    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
+                                   _graph.masterNodesRange().end()),
+                   BFSSanityCheck(infinity, &_graph, dgas, dgm),
+                   galois::no_stats(), galois::loopname("BFSSanityCheck"));
 
     uint64_t num_visited  = dgas.reduce();
     uint32_t max_distance = dgm.reduce();
@@ -394,7 +380,7 @@ struct BFSSanityCheck {
 /* Make results */
 /******************************************************************************/
 
-std::vector<uint32_t> makeResultsCPU(std::unique_ptr<Graph>& hg) {
+std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
   std::vector<uint32_t> values;
 
   values.reserve(hg->numMasters());
@@ -403,34 +389,6 @@ std::vector<uint32_t> makeResultsCPU(std::unique_ptr<Graph>& hg) {
   }
 
   return values;
-}
-
-#ifdef GALOIS_ENABLE_GPU
-std::vector<uint32_t> makeResultsGPU(std::unique_ptr<Graph>& hg) {
-  std::vector<uint32_t> values;
-
-  values.reserve(hg->numMasters());
-  for (auto node : hg->masterNodesRange()) {
-    values.push_back(get_node_dist_current_cuda(cuda_ctx, node));
-  }
-
-  return values;
-}
-#else
-std::vector<uint32_t> makeResultsGPU(std::unique_ptr<Graph>& /*unused*/) {
-  abort();
-}
-#endif
-
-std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
-  switch (personality) {
-  case CPU:
-    return makeResultsCPU(hg);
-  case GPU_CUDA:
-    return makeResultsGPU(hg);
-  default:
-    abort();
-  }
 }
 
 /******************************************************************************/
@@ -457,30 +415,25 @@ int main(int argc, char** argv) {
   uint64_t* src_nodes = (uint64_t*) malloc(sizeof(uint64_t) * numRuns);
   std::mt19937 generator(rseed);
 
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
 
   StatTimer_total.start();
 
+
   std::unique_ptr<Graph> hg;
-#ifdef GALOIS_ENABLE_GPU
-  std::tie(hg, syncSubstrate) =
-      distGraphInitialization<NodeData, void>(&cuda_ctx);
-#else
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
-#endif
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t>();
+  hg->sortEdgesByDestination();
+  galois::runtime::getHostBarrier().wait();
 
   // bitset comm setup
   bitset_dist_current.resize(hg->size());
-
-  inst = std::make_unique<Instrument<Graph>>();
-  inst->init(net.ID, net.Num, hg);
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
   galois::DGReduceMax<uint32_t> m;
 
   // Get the src_nodes of the runs
-  galois::StatTimer StatTimer_select("VertexSelection", REGION_NAME);
+  galois::StatTimer StatTimer_select("VertexSelection", REGION_NAME.c_str());
   StatTimer_select.start();
   for (auto run = 0; run < numRuns; ++run) {
       uint64_t degree = 0;
@@ -507,15 +460,7 @@ int main(int argc, char** argv) {
     src_node = src_nodes[run];
     syncSubstrate->set_num_run(run);
       
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        bitset_dist_current_reset_cuda(cuda_ctx);
-#else
-        abort();
-#endif
-    } else {
-        bitset_dist_current.reset();
-    }
+    bitset_dist_current.reset();
   
     galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
@@ -523,10 +468,9 @@ int main(int argc, char** argv) {
     galois::runtime::getHostBarrier().wait();
 
     galois::gPrint("[", net.ID, "] BFS::go run ", run, " called\n");
-    inst->log_run(run);
     
     std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME.c_str());
 
     StatTimer_main.start();
     if (execution == Async) {
@@ -548,11 +492,8 @@ int main(int argc, char** argv) {
     }
 
   }
-  
-  inst.reset();
-  
-  StatTimer_total.stop();
 
+  StatTimer_total.stop();
 
   return 0;
 }

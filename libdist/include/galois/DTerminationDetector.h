@@ -43,35 +43,21 @@ namespace galois {
  */
 template <typename Ty>
 class DGTerminator {
-  galois::runtime::NetworkInterface& net =
-      galois::runtime::getSystemNetworkInterface();
+  galois::runtime::NetworkInterface& net = galois::runtime::getSystemNetworkInterface();
 
   galois::GAccumulator<Ty> mdata;
-  Ty local_mdata, global_mdata;
+  Ty local_mdata;
+  int local_active, global_active;
 
-  uint64_t prev_snapshot;
-  uint64_t snapshot;
-  uint64_t global_snapshot;
-  bool work_done;
-#ifndef GALOIS_USE_LCI
-  MPI_Request snapshot_request;
-#else
-  lc_colreq snapshot_request;
-#endif
+  MPI_Request reduce_request;
 
 public:
   //! Default constructor
   DGTerminator() {
-    reinitialize();
-    initiate_snapshot();
     reset();
-  }
-
-  void reinitialize() {
-    prev_snapshot   = 0;
-    snapshot        = 1;
-    global_snapshot = 1;
-    work_done       = false;
+    local_active = 0;
+    global_active = 0;
+    MPI_Iallreduce(&local_active, &global_active, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &reduce_request);
   }
 
   /**
@@ -117,86 +103,48 @@ public:
   }
 
   /**
-   * Read the value returned by the last reduce call.
-   * Should call reduce before calling this function if an up to date
-   * value is required
-   *
-   * @returns the value of the last reduce call
-   */
-  Ty read() { return global_mdata; }
-
-  /**
    * Reset the entire accumulator.
    *
    * @returns the value of the last reduce call
    */
-  Ty reset() {
-    Ty retval = global_mdata;
+  void reset() {
     mdata.reset();
-    local_mdata = global_mdata = 0;
-    return retval;
-  }
-
-  void initiate_snapshot() {
-#ifdef GALOIS_USE_LCI
-    lc_ialreduce(&snapshot, &global_snapshot, sizeof(Ty),
-                 &galois::runtime::internal::ompi_op_max<Ty>, lc_col_ep,
-                 &snapshot_request);
-#else
-    MPI_Iallreduce(&snapshot, &global_snapshot, 1, MPI_UNSIGNED_LONG, MPI_MAX,
-                   MPI_COMM_WORLD, &snapshot_request);
-#endif
+    local_mdata = 0;
   }
 
   bool terminate() {
-    bool active = (local_mdata != 0);
-    if (!active) {
-      active = net.anyPendingSends();
-    }
-    int snapshot_ended = 0;
-    if (!active) {
-#ifndef GALOIS_USE_LCI
-      MPI_Test(&snapshot_request, &snapshot_ended, MPI_STATUS_IGNORE);
-#else
-      lc_col_progress(&snapshot_request);
-      snapshot_ended = snapshot_request.flag;
-#endif
-    }
-    if (!active) { // check pending receives after checking snapshot
-      active = net.anyPendingReceives();
-      if (active)
-        galois::gDebug("[", net.ID, "] pending receive");
-    }
-    if (active) {
-      work_done = true;
-    } else {
-      if (snapshot_ended != 0) {
-        snapshot = global_snapshot;
-        if (work_done) {
-          work_done     = false;
-          prev_snapshot = snapshot;
-          ++snapshot;
-          galois::gDebug("[", net.ID, "] work done, taking snapshot ",
-                         snapshot);
-          initiate_snapshot();
-        } else if (prev_snapshot != snapshot) {
-          prev_snapshot = snapshot;
-          galois::gDebug("[", net.ID, "] no work done, taking snapshot ",
-                         snapshot);
-          initiate_snapshot();
-        } else {
-          galois::gDebug("[", net.ID, "] terminating ", snapshot);
-          // an explicit barrier may be required here
-          // so that the next async phase begins on all hosts at the same time
-          // however, this may add overheads when it is not required
-          // (depending on when the next async phase actually begins), so
-          // ASSUME: caller will call getHostBarrier().wait() if required
-          reinitialize(); // for next async phase
-          return true;
-        }
+      // make sure the previous reduce operation has finished
+      int reduce_received = 0;
+      while (reduce_received == 0) {
+          MPI_Test(&reduce_request, &reduce_received, MPI_STATUS_IGNORE);
       }
-    }
-    return false;
+      
+      if (local_mdata != 0) {
+          local_active = 1;
+      }
+      else {
+          local_active = 0;
+      }
+      global_active = 0;
+      
+      MPI_Iallreduce(&local_active, &global_active, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD, &reduce_request);
+
+      if (local_active != 0) {
+          return false;
+      }
+      else {
+          reduce_received = 0;
+          while (reduce_received == 0) {
+              MPI_Test(&reduce_request, &reduce_received, MPI_STATUS_IGNORE);
+          }
+
+          if (global_active != 0) {
+              return false;
+          }
+          else {
+              return true;
+          }
+      }
   }
 
   /**
@@ -209,30 +157,27 @@ public:
    * @returns The reduced value
    */
   Ty reduce(std::string runID = std::string()) {
-    std::string timer_str("ReduceDGAccum_" + runID);
+      std::string timer_str("ReduceDGAccum_" + runID);
+      galois::CondStatTimer<GALOIS_COMM_STATS> reduceTimer(timer_str.c_str(), "DGReducible");
+      reduceTimer.start();
 
-    galois::CondStatTimer<GALOIS_COMM_STATS> reduceTimer(timer_str.c_str(),
-                                                         "DGReducible");
-    reduceTimer.start();
+      if (local_mdata == 0)
+          local_mdata = mdata.reduce();
 
-    if (local_mdata == 0)
-      local_mdata = mdata.reduce();
+      bool halt = terminate();
+      reduceTimer.stop();
+      
+      if (halt) {
+          galois::runtime::evilPhase += 2; // one for reduce and one for broadcast
+          if (galois::runtime::evilPhase >= static_cast<uint32_t>(std::numeric_limits<int16_t>::max())) { // limit defined by MPI or LCI
+              galois::runtime::evilPhase = 1;
+          }
 
-    bool halt    = terminate();
-    global_mdata = !halt;
-    if (halt) {
-      galois::runtime::evilPhase += 2; // one for reduce and one for broadcast
-      if (galois::runtime::evilPhase >=
-          static_cast<uint32_t>(
-              std::numeric_limits<int16_t>::max())) { // limit defined by MPI or
-                                                      // LCI
-        galois::runtime::evilPhase = 1;
+          return false;
       }
-    }
-
-    reduceTimer.stop();
-
-    return global_mdata;
+      else {
+          return true;
+      }
   }
 };
 

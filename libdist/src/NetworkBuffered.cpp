@@ -575,7 +575,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           handleError(rv);
           if (flag) {
               if (m.tag == galois::runtime::terminationTag) {
-                  hostTermination[m.host] = true;
+                  hostTermination[m.host] += 1;
               }
               else if (m.tag == galois::runtime::remoteWorkTag) {
                   ++recvRemoteWork.inflightRecvs;
@@ -689,13 +689,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   
   std::atomic<size_t> inflightTermination;
   std::vector<std::atomic<bool>> sendTermination;
-  std::vector<std::atomic<bool>> hostTermination;
+  std::vector<std::atomic<uint32_t>> hostTermination;
   virtual void resetTermination() {
       for (unsigned i=0; i<Num; i++) {
           if (i == ID) {
               continue;
           }
-          hostTermination[i] = false;
+          hostTermination[i] -= 1;
       }
   }
 
@@ -704,7 +704,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           if (i == ID) {
               continue;
           }
-          if (hostTermination[i] == false) {
+          if (hostTermination[i] == 0) {
               return false;
           }
       }
@@ -741,10 +741,10 @@ public:
     for (unsigned i=0; i<Num; i++) {
         sendTermination[i] = false;
         if (i == ID) {
-            hostTermination[i] = true;
+            hostTermination[i] = 1;
         }
         else {
-            hostTermination[i] = false;
+            hostTermination[i] = 0;
         }
     }
     ready    = 2;
