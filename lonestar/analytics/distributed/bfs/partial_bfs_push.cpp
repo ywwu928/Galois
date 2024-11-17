@@ -44,9 +44,17 @@ static cll::opt<unsigned int> maxIterations("maxIterations",
                                                       "Default 1000"),
                                             cll::init(1000));
 
-static uint64_t src_node;
+enum selectionMode { randomValue, explicitValue };
 
+static cll::opt<selectionMode> srcSelection(
+    "srcSelection", cll::desc("Start Node Selection Mode"),
+    cll::values(clEnumVal(randomValue, "Selected by random number generator with seed"),
+                clEnumVal(explicitValue, "User explicitly specify the starting node ID")),
+    cll::init(explicitValue));
+
+static uint64_t src_node;
 static cll::opt<unsigned> rseed("rseed", cll::desc("The random seed for choosing the hosts (default value 0)"), cll::init(0));
+static cll::opt<uint64_t> startNode("startNode", cll::desc("ID of the start node"), cll::init(0));
 
 static cll::opt<uint32_t>
     delta("delta",
@@ -59,7 +67,7 @@ static cll::opt<Exec> execution(
     "exec", cll::desc("Distributed Execution Model (default value Async):"),
     cll::values(clEnumVal(Sync, "Bulk-synchronous Parallel (BSP)"),
                 clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
-    cll::init(Async));
+    cll::init(Sync));
 
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
@@ -408,12 +416,7 @@ int main(int argc, char** argv) {
   const auto& net = galois::runtime::getSystemNetworkInterface();
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
-    galois::runtime::reportParam(REGION_NAME, "Source Node ID", src_node);
   }
-
-  // Setup Seeding Information
-  uint64_t* src_nodes = (uint64_t*) malloc(sizeof(uint64_t) * numRuns);
-  std::mt19937 generator(rseed);
 
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
 
@@ -431,11 +434,14 @@ int main(int argc, char** argv) {
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
   galois::DGReduceMax<uint32_t> m;
-
-  // Get the src_nodes of the runs
-  galois::StatTimer StatTimer_select("VertexSelection", REGION_NAME.c_str());
-  StatTimer_select.start();
-  for (auto run = 0; run < numRuns; ++run) {
+  
+  if (srcSelection == randomValue) {
+      // Setup Seeding Information
+      std::mt19937 generator(rseed);
+      
+      // Get the src_nodes of the runs
+      galois::StatTimer StatTimer_select("VertexSelection", REGION_NAME.c_str());
+      StatTimer_select.start();
       uint64_t degree = 0;
       auto num_nodes = hg->globalSize();
       uint64_t cand = 0;
@@ -450,14 +456,17 @@ int main(int argc, char** argv) {
 
           degree = DGAccumulator_sum.reduce();
       }
-      src_nodes[run] = cand;
+      src_node = cand;
+      StatTimer_select.stop();
   }
-  StatTimer_select.stop();
+  else if (srcSelection == explicitValue) {
+      src_node = startNode;
+  }
+
 
   DGAccumulator_sum.reset();
     
   for (auto run = 0; run < numRuns; ++run) {
-    src_node = src_nodes[run];
     syncSubstrate->set_num_run(run);
       
     bitset_dist_current.reset();
