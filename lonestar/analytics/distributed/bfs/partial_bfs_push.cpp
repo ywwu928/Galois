@@ -207,6 +207,7 @@ struct BFS {
 
   void static go(Graph& _graph) {
     FirstItr_BFS<async>::go(_graph);
+    galois::runtime::getHostBarrier().wait();
 
     unsigned _num_iterations = 1;
 

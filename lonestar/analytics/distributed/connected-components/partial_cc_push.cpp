@@ -201,6 +201,8 @@ struct ConnectedComp {
     using namespace galois::worklists;
 
     FirstItr_ConnectedComp<async>::go(_graph);
+    galois::runtime::getHostBarrier().wait();
+
 
     unsigned _num_iterations = 1;
     DGTerminatorDetector dga;
