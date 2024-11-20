@@ -1054,12 +1054,14 @@ class FixedSizeBufferPool {
     std::vector<void*> regions;
     boost::lockfree::stack<uint8_t*> buffers;
     uint32_t factor;
+    bool alloc;
 
 public:
     FixedSizeBufferPool() {
         buffers.reserve(BufferCount);
         allocateRegions(1);
         factor = 1;
+        alloc = true;
     }
 
     ~FixedSizeBufferPool() {
@@ -1067,8 +1069,8 @@ public:
     }
 
     inline uint8_t* allocate() {
-        if (buffers.empty()) {
-            galois::gPrint("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
+        if (buffers.empty() && alloc) {
+            galois::gError("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
             allocateRegions(factor);
             factor = factor << 1;
         }
@@ -1092,7 +1094,8 @@ private:
         for (size_t i=0; i<pageCount; i++) {
             void* region = mmap(NULL, hugePageSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
             if (region == MAP_FAILED) {
-                GALOIS_SYS_DIE("Out of Memory");
+                alloc = false;
+                break;
             }
             regions.push_back(region);
 

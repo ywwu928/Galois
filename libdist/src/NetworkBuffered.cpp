@@ -58,15 +58,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   using NetworkInterface::ID;
   using NetworkInterface::Num;
 
-#ifdef GALOIS_NO_MIRRORING
-  static const size_t AGG_MSG_SIZE = 2 << 17;
-  static const size_t SEND_BUF_COUNT = 2 << 12;
-  static const size_t RECV_BUF_COUNT = 2 << 14;
-#else
   static const size_t AGG_MSG_SIZE = 2 << 14;
-  static const size_t SEND_BUF_COUNT = 2 << 10;
+  static const size_t SEND_BUF_COUNT = 2 << 13;
   static const size_t RECV_BUF_COUNT = 2 << 15;
-#endif
 
   std::vector<FixedSizeBufferAllocator<AGG_MSG_SIZE, SEND_BUF_COUNT>> sendAllocators;
   FixedSizeBufferAllocator<AGG_MSG_SIZE, RECV_BUF_COUNT> recvAllocator;
