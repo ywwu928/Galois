@@ -456,7 +456,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 template <typename NodeData, typename EdgeData, bool iterateOut = true,
           typename std::enable_if<iterateOut>::type* = nullptr>
 void graphMemOverheadSweep() {
-    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(inputFile, dataSizeRatio, highDegreeFactor, stopThreshold);
+    galois::cuspGraphMemOverheadSweep<NoCommunication, NodeData, EdgeData>(inputFile, highDegreeFactor, stopThreshold);
 }
 
 #endif
