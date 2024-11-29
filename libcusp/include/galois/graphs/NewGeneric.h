@@ -3463,6 +3463,7 @@ public:
         freeVector(mirrorCandidates);
         
         galois::gPrint("Host ", myID, " : finished\n");
+        galois::runtime::getHostBarrier().wait();
     }
 };
 
