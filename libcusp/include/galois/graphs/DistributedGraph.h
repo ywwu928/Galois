@@ -137,8 +137,10 @@ protected:
   
   //! Host ID = localHostVector[LID]
   std::vector<uint32_t> localHostVector;
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
   //! Remote LID = phantomLocalToRemote[LID]
   std::vector<uint64_t> phantomLocalToRemoteVector;
+#endif
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -618,6 +620,7 @@ public:
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
 
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
   inline void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
       phantomLocalToRemoteVector.resize(numNodes - numActualNodes);
 
@@ -631,6 +634,7 @@ public:
   inline uint32_t getPhantomRemoteLID(const uint32_t phantomLID) const {
       return phantomLocalToRemoteVector[phantomLID - numActualNodes];
   }
+#endif
 
   /**
    * Get data of a node.

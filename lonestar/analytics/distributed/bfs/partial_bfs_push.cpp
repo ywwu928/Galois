@@ -141,7 +141,11 @@ struct FirstItr_BFS {
 #ifndef GALOIS_FULL_MIRRORING     
             if (_graph.isPhantom(dst)) {
                 uint32_t new_dist = 1 + snode.dist_current;
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                 syncSubstrate->send_data_to_remote(_graph.getHostIDForLocal(dst), _graph.getPhantomRemoteLID(dst), new_dist);
+#else
+                syncSubstrate->send_data_to_remote(_graph.getHostIDForLocal(dst), _graph.getGID(dst), new_dist);
+#endif
             }
             else {
 #endif
@@ -317,7 +321,11 @@ struct BFS {
 #ifndef GALOIS_FULL_MIRRORING     
           if (graph->isPhantom(dst)) {
             uint32_t new_dist = 1 + snode.dist_current;
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
             syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
+#else
+            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), new_dist);
+#endif
           }
           else {
 #endif

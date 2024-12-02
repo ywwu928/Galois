@@ -274,7 +274,11 @@ struct PageRank {
         GNode dst       = graph->getEdgeDst(nbr);
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
             syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
+#else
+            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), _delta);
+#endif
         }
         else {
 #endif
