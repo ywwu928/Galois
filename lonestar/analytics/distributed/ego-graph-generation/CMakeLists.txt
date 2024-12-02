@@ -1,6 +1,1 @@
 app_dist(sseg single-source-ego-graph-generation)
-app_dist(ideal_sseg ideal-single-source-ego-graph-generation)
-app_dist(static_sseg static-single-source-ego-graph-generation)
-app_dist(bloom_sseg bloom-single-source-ego-graph-generation)
-app_dist(access_sseg access-single-source-ego-graph-generation)
-app_dist(workset_sseg workset-single-source-ego-graph-generation)
