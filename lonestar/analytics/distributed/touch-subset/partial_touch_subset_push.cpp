@@ -203,8 +203,8 @@ struct TouchSubset {
           for (auto nbr : graph->edges(src)) {
               GNode dst       = graph->getEdgeDst(nbr);
 #ifndef GALOIS_FULL_MIRRORING     
-              if (graph->isGhost(dst)) {
-                  syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGhostRemoteLID(dst), sdata.sum);
+              if (graph->isPhantom(dst)) {
+                  syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), sdata.sum);
               }
               else {
 #endif

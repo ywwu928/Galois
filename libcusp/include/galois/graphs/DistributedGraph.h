@@ -77,14 +77,14 @@ private:
   std::vector<uint32_t> masterRanges;
   //! represents split of mirror nodes among threads
   std::vector<uint32_t> mirrorRanges;
-  //! represents split of ghost nodes among threads
-  std::vector<uint32_t> ghostRanges;
+  //! represents split of phantom nodes among threads
+  std::vector<uint32_t> phantomRanges;
 #ifndef GALOIS_FULL_MIRRORING
   std::vector<uint32_t> allNodesRangesReserved;
   std::vector<uint32_t> presentNodesRangesReserved;
   std::vector<uint32_t> masterRangesReserved;
   std::vector<uint32_t> mirrorRangesReserved;
-  std::vector<uint32_t> ghostRangesReserved;
+  std::vector<uint32_t> phantomRangesReserved;
 #endif
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
@@ -107,7 +107,7 @@ protected:
   uint64_t numGlobalEdges; //!< Total edges in the global unpartitioned graph.
   uint32_t numNodes;       //!< Num nodes in this graph in total
   uint32_t numActualNodes; //!< Num actual existing nodes in this graph in total
-  uint32_t numGhostNodes;  //!< Num ghost nodes in this graph in total
+  uint32_t numPhantomNodes;  //!< Num phantom nodes in this graph in total
   uint64_t numEdges;       //!< Num edges in this graph in total
 
   const unsigned id;       //!< ID of the machine.
@@ -127,8 +127,8 @@ protected:
   std::vector<std::pair<uint64_t, uint64_t>> gid2host;
   //! Mirror nodes from different hosts. For reduce
   std::vector<std::vector<size_t>> mirrorNodes;
-  //! ghost nodes from different hosts
-  std::vector<std::vector<size_t>> ghostNodes;
+  //! phantom nodes from different hosts
+  std::vector<std::vector<size_t>> phantomNodes;
 
   //! GID = localToGlobalVector[LID]
   std::vector<uint64_t> localToGlobalVector;
@@ -137,8 +137,8 @@ protected:
   
   //! Host ID = localHostVector[LID]
   std::vector<uint32_t> localHostVector;
-  //! Remote LID = ghostLocalToRemote[LID]
-  std::vector<uint64_t> ghostLocalToRemoteVector;
+  //! Remote LID = phantomLocalToRemote[LID]
+  std::vector<uint64_t> phantomLocalToRemoteVector;
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -518,7 +518,7 @@ public:
   DistGraph(unsigned host, unsigned numHosts)
       : transposed(false), id(host), numHosts(numHosts) {
     mirrorNodes.resize(numHosts);
-    ghostNodes.resize(numHosts);
+    phantomNodes.resize(numHosts);
     numGlobalNodes = 0;
     numGlobalEdges = 0;
   }
@@ -541,24 +541,24 @@ public:
     return mirrorRangesVector;
   }
   
-  std::vector<std::pair<uint32_t, uint32_t>> getGhostRanges() const {
-    std::vector<std::pair<uint32_t, uint32_t>> ghostRangesVector;
+  std::vector<std::pair<uint32_t, uint32_t>> getPhantomRanges() const {
+    std::vector<std::pair<uint32_t, uint32_t>> phantomRangesVector;
     if (numActualNodes != numNodes) {
       assert(numActualNodes < numNodes);
-      ghostRangesVector.push_back(std::make_pair(numActualNodes, numNodes));
+      phantomRangesVector.push_back(std::make_pair(numActualNodes, numNodes));
     }
-    return ghostRangesVector;
+    return phantomRangesVector;
   }
 
   std::vector<std::vector<size_t>>& getMirrorNodes() { return mirrorNodes; }
-  std::vector<std::vector<size_t>>& getGhostNodes() { return ghostNodes; }
+  std::vector<std::vector<size_t>>& getPhantomNodes() { return phantomNodes; }
 
 private:
   virtual unsigned getHostIDImpl(uint64_t) const = 0;
   virtual bool isOwnedImpl(uint64_t) const       = 0;
   virtual bool isLocalImpl(uint64_t) const       = 0;
   virtual bool isPresentImpl(uint32_t) const       = 0;
-  virtual bool isGhostImpl(uint32_t) const       = 0;
+  virtual bool isPhantomImpl(uint32_t) const       = 0;
   virtual bool isVertexCutImpl() const           = 0;
   virtual std::pair<unsigned, unsigned> cartesianGridImpl() const {
     return std::make_pair(0u, 0u);
@@ -584,8 +584,8 @@ public:
   //! Determine if a node has a proxy on this host
   //! @returns True if passed in global id has a proxy on this host
   inline bool isPresent(uint32_t lid) const { return isPresentImpl(lid); }
-  //! Determine if a node is a ghost on this host
-  inline bool isGhost(uint32_t lid) const { return isGhostImpl(lid); }
+  //! Determine if a node is a phantom on this host
+  inline bool isPhantom(uint32_t lid) const { return isPhantomImpl(lid); }
   /**
    * Returns true if current partition is a vertex cut
    * @returns true if partition being stored in this graph is a vertex cut
@@ -618,18 +618,18 @@ public:
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
 
-  inline void constructGhostLocalToRemoteVector(std::vector<std::vector<size_t>>& ghostRemoteNodes) {
-      ghostLocalToRemoteVector.resize(numNodes - numActualNodes);
+  inline void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
+      phantomLocalToRemoteVector.resize(numNodes - numActualNodes);
 
       for (uint32_t i=0; i<numHosts; i++) {
-          for (size_t j=0; j<ghostRemoteNodes[i].size(); j++) {
-              ghostLocalToRemoteVector[ghostNodes[i][j] - numActualNodes] = ghostRemoteNodes[i][j];
+          for (size_t j=0; j<phantomRemoteNodes[i].size(); j++) {
+              phantomLocalToRemoteVector[phantomNodes[i][j] - numActualNodes] = phantomRemoteNodes[i][j];
           }
       }
   }
   
-  inline uint32_t getGhostRemoteLID(const uint32_t ghostLID) const {
-      return ghostLocalToRemoteVector[ghostLID - numActualNodes];
+  inline uint32_t getPhantomRemoteLID(const uint32_t phantomLID) const {
+      return phantomLocalToRemoteVector[phantomLID - numActualNodes];
   }
 
   /**
@@ -734,7 +734,7 @@ public:
   
   inline size_t numMirrors() const { return numActualNodes - numOwned; }
   
-  inline size_t numGhosts() const { return numNodes - numActualNodes; }
+  inline size_t numPhantoms() const { return numNodes - numActualNodes; }
 
   /**
    * Gets number of nodes with edges (may include nodes without edges)
@@ -799,12 +799,12 @@ public:
   }
   
   /**
-   * Returns a range object that encapsulates only ghost nodes in this
+   * Returns a range object that encapsulates only phantom nodes in this
    * graph.
    *
-   * @returns A range object that contains the ghost nodes in this graph
+   * @returns A range object that contains the phantom nodes in this graph
    */
-  inline const NodeRangeType& ghostNodesRange() const {
+  inline const NodeRangeType& phantomNodesRange() const {
     return specificRanges[4];
   }
   
@@ -844,12 +844,12 @@ public:
   }
   
   /**
-   * Returns a range object that encapsulates only ghost nodes in this
+   * Returns a range object that encapsulates only phantom nodes in this
    * graph.
    *
-   * @returns A range object that contains the ghost nodes in this graph
+   * @returns A range object that contains the phantom nodes in this graph
    */
-  inline const NodeRangeType& ghostNodesRangeReserved() const {
+  inline const NodeRangeType& phantomNodesRangeReserved() const {
     return specificRanges[9];
   }
 #endif
@@ -926,15 +926,15 @@ protected:
   }
   
   /**
-   * Determines the thread ranges for ghost nodes only and saves them to
+   * Determines the thread ranges for phantom nodes only and saves them to
    * the object.
    *
    * Only call after graph is constructed + only call once
    */
-  inline void determineThreadRangesGhost() {
+  inline void determineThreadRangesPhantom() {
     // make sure this hasn't been called before
-    assert(ghostRanges.size() == 0);
-    ghostRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numActualNodes, numNodes, 0);
+    assert(phantomRanges.size() == 0);
+    phantomRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numActualNodes, numNodes, 0);
   }
 
 #ifndef GALOIS_FULL_MIRRORING
@@ -958,9 +958,9 @@ protected:
     mirrorRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numOwned, numActualNodes, 0);
   }
   
-  inline void determineThreadRangesGhostReserved(uint32_t reserved) {
-    assert(ghostRangesReserved.size() != 0);
-    ghostRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numActualNodes, numNodes, 0);
+  inline void determineThreadRangesPhantomReserved(uint32_t reserved) {
+    assert(phantomRangesReserved.size() != 0);
+    phantomRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numActualNodes, numNodes, 0);
   }
 #endif
 
@@ -977,7 +977,7 @@ protected:
     assert(presentNodesRanges.size() != 0);
     assert(masterRanges.size() != 0);
     assert(mirrorRanges.size() != 0);
-    assert(ghostRanges.size() != 0);
+    assert(phantomRanges.size() != 0);
 
     // 0 is all nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
@@ -1002,7 +1002,7 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         mirrorRanges.data()));
 	
-    // 4 is ghost nodes
+    // 4 is phantom nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
@@ -1012,7 +1012,7 @@ protected:
     assert(presentNodesRangesReserved.size() != 0);
     assert(masterRangesReserved.size() != 0);
     assert(mirrorRangesReserved.size() != 0);
-    assert(ghostRangesReserved.size() != 0);
+    assert(phantomRangesReserved.size() != 0);
     
     // 5 is all nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
@@ -1037,7 +1037,7 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         mirrorRangesReserved.data()));
 	
-    // 9 is ghost nodes reserved
+    // 9 is phantom nodes reserved
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),

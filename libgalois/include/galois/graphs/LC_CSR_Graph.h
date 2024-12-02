@@ -164,7 +164,7 @@ protected:
 
   uint64_t numNodes;
   uint64_t numActualNodes;
-  uint64_t numGhostNodes;
+  uint64_t numPhantomNodes;
   uint64_t numEdges;
 
   typedef internal::EdgeSortIterator<
@@ -520,7 +520,7 @@ public:
   void allocateFrom(const FileGraph& graph) {
     numNodes = graph.size();
     numActualNodes = graph.size();
-    numGhostNodes = 0;
+    numPhantomNodes = 0;
     numEdges = graph.sizeEdges();
     if (UseNumaAlloc) {
       nodeData.allocateBlocked(numActualNodes);
@@ -540,7 +540,7 @@ public:
   void allocateFrom(uint32_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
     numActualNodes = nNodes;
-    numGhostNodes = 0;
+    numPhantomNodes = 0;
     numEdges = nEdges;
 
     if (UseNumaAlloc) {
@@ -561,7 +561,7 @@ public:
   void allocateFrom(uint32_t nTotalNodes, uint32_t nActualNodes, uint64_t nEdges) {
     numNodes = nTotalNodes;
     numActualNodes = nActualNodes;
-    numGhostNodes = nTotalNodes - nActualNodes;
+    numPhantomNodes = nTotalNodes - nActualNodes;
     numEdges = nEdges;
 
     if (UseNumaAlloc) {
@@ -582,7 +582,7 @@ public:
   void destroyAndAllocateFrom(uint32_t nNodes, uint64_t nEdges) {
     numNodes = nNodes;
     numActualNodes = nNodes;
-    numGhostNodes = 0;
+    numPhantomNodes = 0;
     numEdges = nEdges;
 
     deallocate();
