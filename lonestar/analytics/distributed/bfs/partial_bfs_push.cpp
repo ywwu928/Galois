@@ -175,9 +175,7 @@ struct FirstItr_BFS {
     galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
     StatTimer_comm.start();
-#ifdef GALOIS_FULL_MIRRORING     
-    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
-#elif defined(GALOIS_NO_MIRRORING)
+#ifdef GALOIS_NO_MIRRORING     
     syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
 #else
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
@@ -279,9 +277,7 @@ struct BFS {
       galois::substrate::getThreadPool().waitDedicated();
 #endif
 
-#ifdef GALOIS_FULL_MIRRORING     
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");
-#elif defined(GALOIS_NO_MIRRORING)
+#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
 #else
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current, async>("BFS");

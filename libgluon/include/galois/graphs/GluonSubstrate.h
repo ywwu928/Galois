@@ -534,7 +534,11 @@ public:
     // allocate send work buffer
     sendWorkBuffer.resize(numT, nullptr);
     for (unsigned t=0; t<numT; t++) {
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
+        void* ptr = malloc(sizeof(uint32_t) + sizeof(ValTy));
+#else
         void* ptr = malloc(sizeof(uint64_t) + sizeof(ValTy));
+#endif
         if (ptr == nullptr) {
             galois::gError("Failed to allocate memory for the thread send work buffer\n");
         }
@@ -2259,11 +2263,20 @@ public:
                 size_t offset = 0;
 
                 uint32_t lid;
+#ifndef GALOIS_EXCHANGE_PHANTOM_LID
+                uint64_t gid;
+#endif
                 ValTy val;
 
                 while (offset != bufLen) {
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                     std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                     offset += sizeof(uint32_t);
+#else
+                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
+                    offset += sizeof(uint64_t);
+                    lid = userGraph.getLID(gid);
+#endif
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
                     func(*(phantomMasterUpdateBuffer[lid]), val);
@@ -2379,7 +2392,11 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                             size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
+#else
+                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
+#endif
                             
                             uint32_t lid;
 #ifndef GALOIS_EXCHANGE_PHANTOM_LID
@@ -2396,8 +2413,6 @@ public:
                                 offset += sizeof(uint64_t);
                                 lid = userGraph.getLID(gid);
 #endif
-                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
-                                offset += sizeof(uint32_t);
                                 std::memcpy(&val, buf + offset, sizeof(val));
                                 offset += sizeof(val);
                                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
@@ -2437,7 +2452,11 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                             size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
+#else
+                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
+#endif
                             
                             uint32_t lid;
 #ifndef GALOIS_EXCHANGE_PHANTOM_LID

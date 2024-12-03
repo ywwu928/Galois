@@ -234,9 +234,7 @@ struct PageRank {
       syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
       galois::substrate::getThreadPool().waitDedicated();
 
-#ifdef GALOIS_FULL_MIRRORING     
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual, async>("PageRank");
-#elif defined(GALOIS_NO_MIRRORING)
+#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual, async>("PageRank");
@@ -433,6 +431,8 @@ int main(int argc, char** argv) {
   
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
@@ -445,6 +445,7 @@ int main(int argc, char** argv) {
 
   InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<float> DGA_sum;
   galois::DGAccumulator<float> DGA_sum_residual;
