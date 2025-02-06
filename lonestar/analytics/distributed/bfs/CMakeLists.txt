@@ -3,8 +3,3 @@ add_test_dist(bfs-push-dist rmat15 ${BASEINPUT}/scalefree/rmat15.gr -graphTransp
 
 app_dist(bfs_pull bfs-pull)
 add_test_dist(bfs-pull-dist rmat15 ${BASEINPUT}/scalefree/rmat15.gr -graphTranspose=${BASEINPUT}/scalefree/transpose/rmat15.tgr)
-
-app_dist(static_bfs_push static-bfs-push)
-app_dist(dynamic_bfs_push dynamic-bfs-push)
-app_dist(ideal_bfs_push ideal-bfs-push)
-app_dist(normal_bfs_push normal-bfs-push)
