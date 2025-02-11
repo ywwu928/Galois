@@ -1010,7 +1010,7 @@ protected:
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
-        mirrorRanges.data()));
+        phantomRanges.data()));
 #ifndef GALOIS_FULL_MIRRORING
     assert(allNodesRangesReserved.size() != 0);
     assert(presentNodesRangesReserved.size() != 0);
@@ -1045,7 +1045,7 @@ protected:
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
-        mirrorRangesReserved.data()));
+        phantomRangesReserved.data()));
 #endif
     assert(specificRanges.size() == 5);
   }
