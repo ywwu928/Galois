@@ -100,15 +100,6 @@ private:
   bool isCartCut;     //!< True if graph is a cartesian cut
   unsigned numT;
 
-  // bitvector status hasn't been maintained
-  //! Typedef used so galois::runtime::BITVECTOR_STATUS doesn't have to be
-  //! written
-  using BITVECTOR_STATUS = galois::runtime::BITVECTOR_STATUS;
-  //! A pointer set during syncOnDemand calls that points to the status
-  //! of a bitvector with regard to where data has been synchronized
-  //! @todo pass the flag as function paramater instead
-  BITVECTOR_STATUS* currentBVFlag;
-
   // memoization optimization
   //! Master nodes of mirrors on different hosts. For broadcast;
   std::vector<std::vector<size_t>> masterNodes;
@@ -497,7 +488,7 @@ public:
         transposed(_transposed), isVertexCut(userGraph.is_vertex_cut()),
         cartesianGrid(_cartesianGrid), partitionAgnostic(_partitionAgnostic),
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
-        num_round(0), currentBVFlag(nullptr),
+        num_round(0),
         mirrorNodes(userGraph.getMirrorNodes()),
         phantomNodes(userGraph.getPhantomNodes()),
         recvCommBufferOffset(0),
@@ -1589,40 +1580,14 @@ private:
 
     TsyncBroadcast.start();
 
-    bool use_bitset = true;
-
-    if (currentBVFlag != nullptr) {
-      if (readLocation == readSource &&
-          galois::runtime::src_invalid(*currentBVFlag)) {
-        use_bitset     = false;
-        *currentBVFlag = BITVECTOR_STATUS::NONE_INVALID;
-        currentBVFlag  = nullptr;
-      } else if (readLocation == readDestination &&
-                 galois::runtime::dst_invalid(*currentBVFlag)) {
-        use_bitset     = false;
-        *currentBVFlag = BITVECTOR_STATUS::NONE_INVALID;
-        currentBVFlag  = nullptr;
-      } else if (readLocation == readAny &&
-                 *currentBVFlag != BITVECTOR_STATUS::NONE_INVALID) {
-        // the bitvector flag being non-null means this call came from
-        // sync on demand; sync on demand will NEVER use readAny
-        // if location is read Any + one of src or dst is invalid
-        GALOIS_DIE("readAny + use of bitvector flag without none_invalid "
-                   "should never happen");
-      }
-    }
-
-      if (use_bitset) {
-        syncSend<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-                 BitsetFnTy, async>(loopName);
-      } else {
-        syncSend<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-                 galois::InvalidBitsetFnTy, async>(loopName);
-      }
-      syncRecv<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-               BitsetFnTy, async>(loopName);
+    syncSend<writeLocation, readLocation, syncBroadcast, BroadcastFnTy, BitsetFnTy, async>(loopName);
+    syncRecv<writeLocation, readLocation, syncBroadcast, BroadcastFnTy, BitsetFnTy, async>(loopName);
 
     TsyncBroadcast.stop();
+
+#ifndef GALOIS_FULL_MIRRORING     
+    poll_for_remote_work<ReduceFnTy>();
+#endif
   }
 
   /**
@@ -1867,234 +1832,6 @@ public:
         }
       }
     }
-
-    Tsync.stop();
-  }
-
-  ////////////////////////////////////////////////////////////////////////////////
-  // Sync on demand code (unmaintained, may not work)
-  ////////////////////////////////////////////////////////////////////////////////
-private:
-  /**
-   * Generic Sync on demand handler. Should NEVER get to this (hence
-   * the galois die).
-   */
-  template <ReadLocation rl, typename SyncFnTy, typename BitsetFnTy>
-  struct SyncOnDemandHandler {
-    // note this call function signature is diff. from specialized versions:
-    // will cause compile time error if this struct is used (which is what
-    // we want)
-    void call() { GALOIS_DIE("invalid read location for sync on demand"); }
-  };
-
-  /**
-   * Sync on demand handler specialized for read source.
-   *
-   * @tparam SyncFnTy sync structure for the field
-   * @tparam BitsetFnTy tells program what data needs to be sync'd
-   */
-  template <typename SyncFnTy, typename BitsetFnTy>
-  struct SyncOnDemandHandler<readSource, SyncFnTy, BitsetFnTy> {
-    /**
-     * Based on sync flags, handles syncs for cases when you need to read
-     * at source
-     *
-     * @param substrate sync substrate
-     * @param fieldFlags the flags structure specifying what needs to be
-     * sync'd
-     * @param loopName loopname used to name timers
-     * @param bvFlag Copy of the bitvector status (valid/invalid at particular
-     * locations)
-     */
-    static inline void call(GluonSubstrate* substrate,
-                            galois::runtime::FieldFlags& fieldFlags,
-                            std::string loopName, const BITVECTOR_STATUS&) {
-      if (fieldFlags.src_to_src() && fieldFlags.dst_to_src()) {
-        substrate->sync_any_to_src<SyncFnTy, BitsetFnTy>(loopName);
-      } else if (fieldFlags.src_to_src()) {
-        substrate->sync_src_to_src<SyncFnTy, BitsetFnTy>(loopName);
-      } else if (fieldFlags.dst_to_src()) {
-        substrate->sync_dst_to_src<SyncFnTy, BitsetFnTy>(loopName);
-      }
-
-      fieldFlags.clear_read_src();
-    }
-  };
-
-  /**
-   * Sync on demand handler specialized for read destination.
-   *
-   * @tparam SyncFnTy sync structure for the field
-   * @tparam BitsetFnTy tells program what data needs to be sync'd
-   */
-  template <typename SyncFnTy, typename BitsetFnTy>
-  struct SyncOnDemandHandler<readDestination, SyncFnTy, BitsetFnTy> {
-    /**
-     * Based on sync flags, handles syncs for cases when you need to read
-     * at destination
-     *
-     * @param substrate sync substrate
-     * @param fieldFlags the flags structure specifying what needs to be
-     * sync'd
-     * @param loopName loopname used to name timers
-     * @param bvFlag Copy of the bitvector status (valid/invalid at particular
-     * locations)
-     */
-    static inline void call(GluonSubstrate* substrate,
-                            galois::runtime::FieldFlags& fieldFlags,
-                            std::string loopName, const BITVECTOR_STATUS&) {
-      if (fieldFlags.src_to_dst() && fieldFlags.dst_to_dst()) {
-        substrate->sync_any_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-      } else if (fieldFlags.src_to_dst()) {
-        substrate->sync_src_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-      } else if (fieldFlags.dst_to_dst()) {
-        substrate->sync_dst_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-      }
-
-      fieldFlags.clear_read_dst();
-    }
-  };
-
-  /**
-   * Sync on demand handler specialized for read any.
-   *
-   * @tparam SyncFnTy sync structure for the field
-   * @tparam BitsetFnTy tells program what data needs to be sync'd
-   */
-  template <typename SyncFnTy, typename BitsetFnTy>
-  struct SyncOnDemandHandler<readAny, SyncFnTy, BitsetFnTy> {
-    /**
-     * Based on sync flags, handles syncs for cases when you need to read
-     * at both source and destination
-     *
-     * @param substrate sync substrate
-     * @param fieldFlags the flags structure specifying what needs to be
-     * sync'd
-     * @param loopName loopname used to name timers
-     * @param bvFlag Copy of the bitvector status (valid/invalid at particular
-     * locations)
-     */
-    static inline void call(GluonSubstrate* substrate,
-                            galois::runtime::FieldFlags& fieldFlags,
-                            std::string loopName,
-                            const BITVECTOR_STATUS& bvFlag) {
-      bool src_write = fieldFlags.src_to_src() || fieldFlags.src_to_dst();
-      bool dst_write = fieldFlags.dst_to_src() || fieldFlags.dst_to_dst();
-
-      if (!(src_write && dst_write)) {
-        // src or dst write flags aren't set (potentially both are not set),
-        // but it's NOT the case that both are set, meaning "any" isn't
-        // required in the "from"; can work at granularity of just src
-        // write or dst wrte
-
-        if (src_write) {
-          if (fieldFlags.src_to_src() && fieldFlags.src_to_dst()) {
-            if (bvFlag == BITVECTOR_STATUS::NONE_INVALID) {
-              substrate->sync_src_to_any<SyncFnTy, BitsetFnTy>(loopName);
-            } else if (galois::runtime::src_invalid(bvFlag)) {
-              // src invalid bitset; sync individually so it can be called
-              // without bitset
-              substrate->sync_src_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-              substrate->sync_src_to_src<SyncFnTy, BitsetFnTy>(loopName);
-            } else if (galois::runtime::dst_invalid(bvFlag)) {
-              // dst invalid bitset; sync individually so it can be called
-              // without bitset
-              substrate->sync_src_to_src<SyncFnTy, BitsetFnTy>(loopName);
-              substrate->sync_src_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-            } else {
-              GALOIS_DIE("invalid bitvector flag setting in syncOnDemand");
-            }
-          } else if (fieldFlags.src_to_src()) {
-            substrate->sync_src_to_src<SyncFnTy, BitsetFnTy>(loopName);
-          } else { // src to dst is set
-            substrate->sync_src_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-          }
-        } else if (dst_write) {
-          if (fieldFlags.dst_to_src() && fieldFlags.dst_to_dst()) {
-            if (bvFlag == BITVECTOR_STATUS::NONE_INVALID) {
-              substrate->sync_dst_to_any<SyncFnTy, BitsetFnTy>(loopName);
-            } else if (galois::runtime::src_invalid(bvFlag)) {
-              substrate->sync_dst_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-              substrate->sync_dst_to_src<SyncFnTy, BitsetFnTy>(loopName);
-            } else if (galois::runtime::dst_invalid(bvFlag)) {
-              substrate->sync_dst_to_src<SyncFnTy, BitsetFnTy>(loopName);
-              substrate->sync_dst_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-            } else {
-              GALOIS_DIE("invalid bitvector flag setting in syncOnDemand");
-            }
-          } else if (fieldFlags.dst_to_src()) {
-            substrate->sync_dst_to_src<SyncFnTy, BitsetFnTy>(loopName);
-          } else { // dst to dst is set
-            substrate->sync_dst_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-          }
-        }
-
-        // note the "no flags are set" case will enter into this block
-        // as well, and it is correctly handled by doing nothing since
-        // both src/dst_write will be false
-      } else {
-        // it is the case that both src/dst write flags are set, so "any"
-        // is required in the "from"; what remains to be determined is
-        // the use of src, dst, or any for the destination of the sync
-        bool src_read = fieldFlags.src_to_src() || fieldFlags.dst_to_src();
-        bool dst_read = fieldFlags.src_to_dst() || fieldFlags.dst_to_dst();
-
-        if (src_read && dst_read) {
-          if (bvFlag == BITVECTOR_STATUS::NONE_INVALID) {
-            substrate->sync_any_to_any<SyncFnTy, BitsetFnTy>(loopName);
-          } else if (galois::runtime::src_invalid(bvFlag)) {
-            substrate->sync_any_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-            substrate->sync_any_to_src<SyncFnTy, BitsetFnTy>(loopName);
-          } else if (galois::runtime::dst_invalid(bvFlag)) {
-            substrate->sync_any_to_src<SyncFnTy, BitsetFnTy>(loopName);
-            substrate->sync_any_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-          } else {
-            GALOIS_DIE("invalid bitvector flag setting in syncOnDemand");
-          }
-        } else if (src_read) {
-          substrate->sync_any_to_src<SyncFnTy, BitsetFnTy>(loopName);
-        } else { // dst_read
-          substrate->sync_any_to_dst<SyncFnTy, BitsetFnTy>(loopName);
-        }
-      }
-
-      fieldFlags.clear_read_src();
-      fieldFlags.clear_read_dst();
-    }
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////
-  // Public sync interface
-  ////////////////////////////////////////////////////////////////////////////////
-
-public:
-  /**
-   * Given a structure that contains flags signifying what needs to be
-   * synchronized, syncOnDemand will synchronize what is necessary based
-   * on the read location of the * field.
-   *
-   * @tparam readLocation Location in which field will need to be read
-   * @tparam SyncFnTy sync structure for the field
-   * @tparam BitsetFnTy struct which holds a bitset which can be used
-   * to control synchronization at a more fine grain level
-   * @param fieldFlags structure for field you are syncing
-   * @param loopName Name of loop this sync is for for naming timers
-   */
-  template <ReadLocation readLocation, typename SyncFnTy,
-            typename BitsetFnTy = galois::InvalidBitsetFnTy>
-  inline void syncOnDemand(galois::runtime::FieldFlags& fieldFlags,
-                           std::string loopName) {
-    std::string timer_str("Sync_" + get_run_identifier(loopName));
-    galois::StatTimer Tsync(timer_str.c_str(), RNAME);
-    Tsync.start();
-
-    currentBVFlag = &(fieldFlags.bitvectorStatus);
-
-    // call a template-specialized function depending on the read location
-    SyncOnDemandHandler<readLocation, SyncFnTy, BitsetFnTy>::call(
-        this, fieldFlags, loopName, *currentBVFlag);
-
-    currentBVFlag = nullptr;
 
     Tsync.stop();
   }
