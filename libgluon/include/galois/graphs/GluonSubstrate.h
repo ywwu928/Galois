@@ -1491,9 +1491,6 @@ private:
         host = ~0U;
         work = nullptr;
         do {
-#ifndef GALOIS_FULL_MIRRORING     
-          check_remote_work<SyncFnTy>();
-#endif
           success = net.receiveComm(host, work);
         } while (!success);
         Twait.stop();
@@ -1555,10 +1552,6 @@ private:
     syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy, async>(loopName);
 
     TsyncReduce.stop();
-
-#ifndef GALOIS_FULL_MIRRORING     
-    poll_for_remote_work<ReduceFnTy>();
-#endif
   }
 
   /**
@@ -1584,10 +1577,6 @@ private:
     syncRecv<writeLocation, readLocation, syncBroadcast, BroadcastFnTy, BitsetFnTy, async>(loopName);
 
     TsyncBroadcast.stop();
-
-#ifndef GALOIS_FULL_MIRRORING     
-    poll_for_remote_work<ReduceFnTy>();
-#endif
   }
 
   /**
@@ -1959,7 +1948,7 @@ public:
     }
 
     template<typename FnTy>
-    void poll_for_remote_work_dedicated(const ValTy (*func)(ValTy&, const ValTy&)) {
+    void poll_for_remote_work_dedicated() {
         bool success;
         uint8_t* buf;
         size_t bufLen;
@@ -2007,7 +1996,10 @@ public:
                 net.deallocateRecvBuffer(buf);
             }
         }
+    }
 
+    void stop_dedicated() {
+        stopDedicated = true;
     }
     
     template<typename FnTy>
@@ -2082,66 +2074,6 @@ public:
                     net.deallocateRecvBuffer(buf);
                 }
             }
-        }
-    }
-    
-    template<typename FnTy>
-    void check_remote_work() {
-        if (!terminateFlag) {
-            bool success = false;;
-            uint8_t* buf = nullptr;
-            size_t bufLen = 0;
-            do {
-                success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
-                
-                if (success) { // received message
-                    uint32_t msgCount;
-                    std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
-
-                    galois::on_each(
-                        [&](unsigned tid, unsigned numT) {
-                            unsigned quotient = msgCount / numT;
-                            unsigned remainder = msgCount % numT;
-                            unsigned start, size;
-                            if (tid < remainder) {
-                                start = tid * quotient + tid;
-                                size = quotient + 1;
-                            }
-                            else {
-                                start = tid * quotient + remainder;
-                                size = quotient;
-                            }
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-#else
-                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
-#endif
-                            
-                            uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                            uint64_t gid;
-#endif
-                            ValTy val;
-
-                            for (unsigned i=0; i<size; i++) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
-                                offset += sizeof(uint32_t);
-#else
-                                std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                                offset += sizeof(uint64_t);
-                                lid = userGraph.getLID(gid);
-#endif
-                                std::memcpy(&val, buf + offset, sizeof(val));
-                                offset += sizeof(val);
-                                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
-                            }
-                        }
-                    );
-
-                    net.deallocateRecvBuffer(buf);
-                }
-            } while (success);
         }
     }
 

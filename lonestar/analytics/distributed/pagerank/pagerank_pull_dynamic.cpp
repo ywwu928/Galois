@@ -120,17 +120,32 @@ struct InitializeGraph {
     // init graph
     ResetGraph::go(_graph);
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+#ifndef GALOIS_FULL_MIRRORING     
+    const auto& allNodes = _graph.allNodesRangeReserved();
+    std::function<void(void)> func = [&]() {
+            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_nout>();
+    };
+    galois::substrate::getThreadPool().runDedicated(func);
+#else
+    const auto& allNodes = _graph.allNodesRange();
+#endif
 
     // doing a local do all because we are looping over edges
     galois::do_all(
-        galois::iterate(nodesWithEdges), InitializeGraph{&_graph},
+        galois::iterate(allNodes), InitializeGraph{&_graph},
         galois::steal(), galois::no_stats(),
         galois::loopname(syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
 
-#ifdef GALOIS_NO_MIRRORING     
-    syncSubstrate->poll_for_remote_work<Reduce_add_nout>();
-#else
+#ifndef GALOIS_FULL_MIRRORING     
+      // inform all other hosts that this host has finished sending messages
+      // force all messages to be processed before continuing
+      syncSubstrate->net_flush();
+      syncSubstrate->stop_dedicated();
+      galois::substrate::getThreadPool().waitDedicated();
+      syncSubstrate->poll_for_remote_work<Reduce_add_nout>();
+#endif
+
+#ifndef GALOIS_NO_MIRRORING     
     syncSubstrate->sync<writeDestination, readAny, Reduce_add_nout, Bitset_nout>("InitializeGraph");
 #endif
   }
@@ -178,9 +193,9 @@ struct PageRank_delta {
         graph(_graph), active_vertices(_dga) {}
 
   void static go(Graph& _graph, DGTerminatorDetector& dga) {
-    const auto& allNodes = _graph.allNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
     galois::do_all(
-        galois::iterate(allNodes.begin(), allNodes.end()),
+        galois::iterate(presentNodes.begin(), presentNodes.end()),
         PageRank_delta{alpha, tolerance, &_graph, dga}, galois::no_stats(),
         galois::loopname(syncSubstrate->get_run_identifier("PageRank_delta").c_str()));
   }
@@ -216,7 +231,7 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
 
     // unsigned int reduced = 0;
@@ -229,7 +244,7 @@ struct PageRank {
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
 
       galois::do_all(
-          galois::iterate(nodesWithEdges), PageRank{&_graph}, galois::steal(),
+          galois::iterate(allNodes), PageRank{&_graph}, galois::steal(),
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
 
