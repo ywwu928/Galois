@@ -404,8 +404,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) =
-      distGraphInitialization<NodeData, void, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, DataType, false>();
 
   //hg->sortEdgesByDestination();
 
