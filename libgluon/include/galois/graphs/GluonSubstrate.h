@@ -2251,7 +2251,7 @@ public:
 #ifndef GALOIS_EXCHANGE_PHANTOM_LID
                 uint64_t gid;
 #endif
-                ValTy val;
+                typename FnTy::ValTy val;
 
                 while (offset != bufLen) {
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
@@ -2324,7 +2324,7 @@ public:
 #ifndef GALOIS_EXCHANGE_PHANTOM_LID
                             uint64_t gid;
 #endif
-                            ValTy val;
+                            typename FnTy::ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
