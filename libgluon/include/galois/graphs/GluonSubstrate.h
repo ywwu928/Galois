@@ -279,12 +279,12 @@ private:
     }
     
     // count the number of phantom masters and allocat memory for the update buffers
-    DynamicBitset bitset_masters;
+    galois::DynamicBitSet bitset_masters;
     bitset_masters.resize(userGraph.numMasters());
     phantomMasterCount = 0;
     for (uint32_t h = 0; h < numHosts; ++h) {
         for (size_t i=0; i<phantomMasterNodes[h].size(); i++) {
-            if (!bitset_masters.test(phantomMasterNodes[h][i]) {
+            if (!bitset_masters.test(phantomMasterNodes[h][i])) {
                 bitset_masters.set(phantomMasterNodes[h][i]);
                 phantomMasterCount++;
             }
@@ -737,7 +737,7 @@ private:
       getOffsetsFromBitset<syncType>(loopName);
     }
 
-    data_mode = get_data_mode(bit_set_count, indices.size());
+    data_mode = get_data_mode<ValTy>(bit_set_count, indices.size());
   }
 
   ////////////////////////////////////////////////////////////////////////////////

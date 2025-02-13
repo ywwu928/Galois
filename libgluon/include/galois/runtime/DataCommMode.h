@@ -54,6 +54,7 @@ extern DataCommMode enforcedDataMode;
  *
  * @returns an appropriate DataCommMode to use for synchronization
  */
+template<typename DataType>
 DataCommMode get_data_mode(size_t num_selected, size_t num_total) {
   DataCommMode data_mode = noData;
   if (enforcedDataMode != noData) {
