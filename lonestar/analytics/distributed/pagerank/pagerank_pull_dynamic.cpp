@@ -66,13 +66,18 @@ struct NodeData {
   float delta;
 };
 
+union DataType {
+    uint32_t u;
+    float f;
+};
+
 galois::DynamicBitSet bitset_residual;
 galois::DynamicBitSet bitset_nout;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, DataType>> syncSubstrate;
 
 #include "pagerank_pull_sync.hh"
 
