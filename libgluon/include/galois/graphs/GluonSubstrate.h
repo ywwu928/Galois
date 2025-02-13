@@ -130,9 +130,6 @@ private:
 
   uint32_t dataSizeRatio;
 
-  // double buffering storage to enforce synchronization for partial or no mirroring
-  std::vector<std::unique_ptr<ValTy>> phantomMasterUpdateBuffer;
-
   // Used for efficient comms
   DataCommMode data_mode;
   size_t bit_set_count;
@@ -291,12 +288,13 @@ private:
     }
     
     // count the number of phantom masters and allocat memory for the update buffers
+    DynamicBitset bitset_masters;
+    bitset_masters.resize(userGraph.numMasters());
     phantomMasterCount = 0;
-    phantomMasterUpdateBuffer.resize(userGraph.numMasters());
     for (uint32_t h = 0; h < numHosts; ++h) {
         for (size_t i=0; i<phantomMasterNodes[h].size(); i++) {
-            if (!phantomMasterUpdateBuffer[phantomMasterNodes[h][i]]) {
-                phantomMasterUpdateBuffer[phantomMasterNodes[h][i]] = std::make_unique<ValTy>();
+            if (!bitset_masters.test(phantomMasterNodes[h][i]) {
+                bitset_masters.set(phantomMasterNodes[h][i]);
                 phantomMasterCount++;
             }
         }
@@ -748,7 +746,7 @@ private:
       getOffsetsFromBitset<syncType>(loopName);
     }
 
-    data_mode = get_data_mode<ValTy>(bit_set_count, indices.size());
+    data_mode = get_data_mode(bit_set_count, indices.size());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -2212,28 +2210,15 @@ public:
 
 /* For Polling */
 private:
-    uint8_t stopUpdateBuffer = 0;
     bool stopDedicated = false;
     bool terminateFlag = false;
     std::vector<uint8_t*> sendWorkBuffer;
 
 public:
     void reset_termination() {
-        stopUpdateBuffer = 0;
         stopDedicated = false;
         terminateFlag = false;
         net.resetTermination();
-    }
-
-    void set_update_buf_to_identity(ValTy identity) {
-        galois::do_all(
-            galois::iterate((uint32_t)0, (uint32_t)phantomMasterUpdateBuffer.size()),
-            [&](uint32_t lid) {
-                if(phantomMasterUpdateBuffer[lid]) {
-                    *(phantomMasterUpdateBuffer[lid]) = identity;
-                }
-            },
-            galois::no_stats());
     }
 
     template<typename FnTy>
@@ -2241,52 +2226,6 @@ public:
         bool success;
         uint8_t* buf;
         size_t bufLen;
-        
-        while (stopUpdateBuffer == 0) {
-            success = false;
-            buf = nullptr;
-            bufLen = 0;
-            do {
-                if (stopUpdateBuffer == 1) {
-                    break;
-                }
-
-                success = net.receiveRemoteWork(buf, bufLen);
-                if (!success) {
-                    galois::substrate::asmPause();
-                }
-            } while (!success);
-            
-            if (success) { // received message
-                // dedicated thread does not care about the number of aggregated message count
-                bufLen -= sizeof(uint32_t);
-                size_t offset = 0;
-
-                uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                uint64_t gid;
-#endif
-                ValTy val;
-
-                while (offset != bufLen) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-                    std::memcpy(&lid, buf + offset, sizeof(uint32_t));
-                    offset += sizeof(uint32_t);
-#else
-                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                    offset += sizeof(uint64_t);
-                    lid = userGraph.getLID(gid);
-#endif
-                    std::memcpy(&val, buf + offset, sizeof(val));
-                    offset += sizeof(val);
-                    func(*(phantomMasterUpdateBuffer[lid]), val);
-                }
-
-                net.deallocateRecvBuffer(buf);
-            }
-        }
-
-        stopUpdateBuffer = 2;
         
         while (!stopDedicated) {
             success = false;
@@ -2332,23 +2271,6 @@ public:
             }
         }
 
-    }
-    
-    template<typename FnTy>
-    void sync_update_buf(ValTy identity) {
-        while (stopUpdateBuffer != 2) {}
-        galois::do_all(
-            galois::iterate((uint32_t)0, (uint32_t)phantomMasterUpdateBuffer.size()),
-            [&](uint32_t lid) {
-                if(phantomMasterUpdateBuffer[lid]) {
-                    if (*(phantomMasterUpdateBuffer[lid]) != identity) { // there is update
-                        FnTy::reduce_atomic(lid, userGraph.getData(lid), *(phantomMasterUpdateBuffer[lid]));
-                    }
-                }
-            },
-            galois::no_stats());
-
-        stopDedicated = true;
     }
     
     template<typename FnTy>
@@ -2489,7 +2411,6 @@ public:
     void net_flush() {
         net.flushRemoteWork();
         net.broadcastTermination();
-        stopUpdateBuffer = 1;
     }
 
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
