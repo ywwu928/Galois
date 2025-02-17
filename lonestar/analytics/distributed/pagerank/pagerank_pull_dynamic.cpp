@@ -62,7 +62,7 @@ static const float alpha = (1.0 - 0.85);
 struct NodeData {
   float value;
   std::atomic<uint32_t> nout;
-  float residual;
+  std::atomic<float> residual;
   float delta;
 };
 
@@ -148,6 +148,8 @@ struct InitializeGraph {
 #ifndef GALOIS_NO_MIRRORING     
     syncSubstrate->sync<writeDestination, readAny, Reduce_add_nout, Bitset_nout>("InitializeGraph");
 #endif
+      
+    syncSubstrate->reset_termination();
   }
 
   // Calculate "outgoing" edges for destination nodes (note we are using
@@ -158,9 +160,9 @@ struct InitializeGraph {
 #ifndef GALOIS_FULL_MIRRORING     
       if (graph->isPhantom(dst)) {
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
-          syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), (uint32_t)1);
+          syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), (uint32_t)1);
 #else
-          syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), (uint32_t)1);
+          syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getGID(dst), (uint32_t)1);
 #endif
       }
       else {
@@ -338,6 +340,10 @@ struct PageRankSanity {
                                   DGA_residual_over_tolerance, max_value,
                                   min_value, max_residual, min_residual),
                    galois::no_stats(), galois::loopname("PageRankSanity"));
+    
+    galois::gPrint("Host ", galois::runtime::getSystemNetworkInterface().ID, " : Max rank is ", max_value.read_local(), "\n");
+    galois::gPrint("Host ", galois::runtime::getSystemNetworkInterface().ID, " : Min rank is ", min_value.read_local(), "\n");
+    galois::gPrint("Host ", galois::runtime::getSystemNetworkInterface().ID, " : Rank sum is ", DGA_sum.read_local(), "\n");
 
     float max_rank          = max_value.reduce();
     float min_rank          = min_value.reduce();
@@ -349,14 +355,13 @@ struct PageRankSanity {
 
     // Only node 0 will print data
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Max rank is ", max_rank, "\n");
-      galois::gPrint("Min rank is ", min_rank, "\n");
-      galois::gPrint("Rank sum is ", rank_sum, "\n");
-      galois::gPrint("Residual sum is ", residual_sum, "\n");
-      galois::gPrint("# nodes with residual over ", tolerance,
-                     " (tolerance) is ", over_tolerance, "\n");
-      galois::gPrint("Max residual is ", max_res, "\n");
-      galois::gPrint("Min residual is ", min_res, "\n");
+      galois::gPrint("Total Max rank is ", max_rank, "\n");
+      galois::gPrint("Total Min rank is ", min_rank, "\n");
+      galois::gPrint("Total Rank sum is ", rank_sum, "\n");
+      //galois::gPrint("Residual sum is ", residual_sum, "\n");
+      //galois::gPrint("# nodes with residual over ", tolerance, " (tolerance) is ", over_tolerance, "\n");
+      //galois::gPrint("Max residual is ", max_res, "\n");
+      //galois::gPrint("Min residual is ", min_res, "\n");
     }
   }
 
@@ -365,12 +370,15 @@ struct PageRankSanity {
   void operator()(GNode src) const {
     NodeData& sdata = graph->getData(src);
 
-    max_value.update(sdata.value);
-    min_value.update(sdata.value);
+    //max_value.update(sdata.value);
+    //min_value.update(sdata.value);
+    max_value.update(sdata.nout);
+    min_value.update(sdata.nout);
     max_residual.update(sdata.residual);
     min_residual.update(sdata.residual);
 
-    DGAccumulator_sum += sdata.value;
+    //DGAccumulator_sum += sdata.value;
+    DGAccumulator_sum += sdata.nout;
     DGAccumulator_sum_residual += sdata.residual;
 
     if (sdata.residual > local_tolerance) {
@@ -413,7 +421,7 @@ int main(int argc, char** argv) {
     galois::runtime::reportParam(REGION_NAME, "Tolerance", ss.str());
   }
 
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
   StatTimer_preprocess.start();
@@ -448,9 +456,11 @@ int main(int argc, char** argv) {
 
     StatTimer_main.start();
     if (execution == Async) {
-      PageRank<true>::go(*hg);
+      //PageRank<true>::go(*hg);
+      InitializeGraph::go(*hg);
     } else {
-      PageRank<false>::go(*hg);
+      //PageRank<false>::go(*hg);
+      InitializeGraph::go(*hg);
     }
     StatTimer_main.stop();
 

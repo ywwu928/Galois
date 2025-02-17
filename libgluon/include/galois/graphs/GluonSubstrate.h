@@ -72,7 +72,7 @@ namespace graphs {
  *
  * @tparam GraphTy User graph to handle communication for
  */
-template <typename GraphTy, typename ValTy>
+template <typename GraphTy, typename AllocValTy>
 class GluonSubstrate : public galois::runtime::GlobalObject {
 private:
   //! Synchronization type
@@ -524,9 +524,9 @@ public:
     sendWorkBuffer.resize(numT, nullptr);
     for (unsigned t=0; t<numT; t++) {
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
-        void* ptr = malloc(sizeof(uint32_t) + sizeof(ValTy));
+        void* ptr = malloc(sizeof(uint32_t) + sizeof(AllocValTy));
 #else
-        void* ptr = malloc(sizeof(uint64_t) + sizeof(ValTy));
+        void* ptr = malloc(sizeof(uint64_t) + sizeof(AllocValTy));
 #endif
         if (ptr == nullptr) {
             galois::gError("Failed to allocate memory for the thread send work buffer\n");
@@ -555,7 +555,7 @@ public:
         sizeof(DataCommMode) +
         sizeof(size_t) +
         (maxSharedSize * sizeof(uint32_t)) + // syncOffsets or syncBitset
-        (maxSharedSize * sizeof(ValTy)); // dirty data
+        (maxSharedSize * sizeof(AllocValTy)); // dirty data
 
     // send buffer
     for (unsigned i=0; i<numHosts; i++) {
@@ -706,7 +706,7 @@ private:
    * @param data_mode OUTPUT: the way that this data should be communicated
    * based on how much data needs to be sent out
    */
-  template <SyncType syncType>
+  template <typename FnTy, SyncType syncType>
   void getBitsetAndOffsets(const std::string& loopName,
                            const std::vector<size_t>& indices,
                            const galois::DynamicBitSet& bitset_compute) {
@@ -737,7 +737,7 @@ private:
       getOffsetsFromBitset<syncType>(loopName);
     }
 
-    data_mode = get_data_mode<ValTy>(bit_set_count, indices.size());
+    data_mode = get_data_mode<typename FnTy::ValTy>(bit_set_count, indices.size());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1043,9 +1043,10 @@ private:
    * @param bitSetCount Number of nodes that will actually be sent
    * @param bitSetComm bitset used to send data
    */
+  template <typename SyncFnTy>
   void reportRedundantSize(std::string loopName, std::string syncTypeStr,
                            uint32_t totalToSend) {
-    size_t redundant_size = (totalToSend - bit_set_count) * sizeof(ValTy);
+    size_t redundant_size = (totalToSend - bit_set_count) * sizeof(typename SyncFnTy::ValTy);
     size_t bit_set_size = (syncBitsetLen * sizeof(uint8_t));
 
     if (redundant_size > bit_set_size) {
@@ -1072,7 +1073,7 @@ private:
    */
   /* Reduction extract resets the value afterwards */
   template <typename FnTy, SyncType syncType>
-  inline ValTy extractWrapper(size_t lid) {
+  inline typename FnTy::ValTy extractWrapper(size_t lid) {
     if (syncType == syncReduce) {
       auto val = FnTy::extract(lid, userGraph.getData(lid));
       FnTy::reset(lid, userGraph.getData(lid));
@@ -1123,7 +1124,7 @@ private:
             else
               offset = syncOffsets[n];
             size_t lid         = indices[offset];
-            ValTy val = extractWrapper<FnTy, syncType>(lid);
+            typename FnTy::ValTy val = extractWrapper<FnTy, syncType>(lid);
             size_t threadOffset = bufOffset + n * sizeof(val);
             std::memcpy(bufPtr + threadOffset, &val, sizeof(val));
           },
@@ -1132,7 +1133,7 @@ private:
 #endif
           galois::no_stats());
       
-      bufOffset += size * sizeof(ValTy);
+      bufOffset += size * sizeof(typename FnTy::ValTy);
     } else { // non-parallel version
       for (unsigned n = 0; n < size; ++n) {
         unsigned int offset;
@@ -1142,7 +1143,7 @@ private:
           offset = syncOffsets[n];
 
         size_t lid         = indices[offset];
-        ValTy val = extractWrapper<FnTy, syncType>(lid);
+        typename FnTy::ValTy val = extractWrapper<FnTy, syncType>(lid);
         std::memcpy(bufPtr + bufOffset, &val, sizeof(val));
         bufOffset += sizeof(val);
       }
@@ -1165,7 +1166,7 @@ private:
    * if reduction causes a change
    */
   template <typename FnTy, SyncType syncType, bool async>
-  inline void setWrapper(size_t lid, ValTy val,
+  inline void setWrapper(size_t lid, typename FnTy::ValTy val,
                          galois::DynamicBitSet& bit_set_compute) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
@@ -1221,7 +1222,7 @@ private:
             else
               offset = syncOffsets[n];
             auto lid = indices[offset];
-            ValTy val;
+            typename FnTy::ValTy val;
             size_t threadOffset = recvCommBufferOffset + n * sizeof(val);
             std::memcpy(&val, bufPtr + threadOffset, sizeof(val));
             setWrapper<FnTy, syncType, async>(lid, val, bit_set_compute);
@@ -1231,7 +1232,7 @@ private:
 #endif
           galois::no_stats());
 
-      recvCommBufferOffset += size * sizeof(ValTy);
+      recvCommBufferOffset += size * sizeof(typename FnTy::ValTy);
     } else {
       for (unsigned int n = 0; n < size; ++n) {
         unsigned int offset;
@@ -1240,7 +1241,7 @@ private:
         else
           offset = syncOffsets[n];
         auto lid = indices[offset];
-        ValTy val;
+        typename FnTy::ValTy val;
         std::memcpy(&val, bufPtr + recvCommBufferOffset, sizeof(val));
         recvCommBufferOffset += sizeof(val);
         setWrapper<FnTy, syncType, async>(lid, val, bit_set_compute);
@@ -1286,7 +1287,7 @@ private:
         const galois::DynamicBitSet& bit_set_compute = BitsetFnTy::get();
         bit_set_count = 0;
 
-        getBitsetAndOffsets<syncType>(loopName, indices, bit_set_compute);
+        getBitsetAndOffsets<SyncFnTy, syncType>(loopName, indices, bit_set_compute);
 
         serializeMessage<async, syncType>(loopName, from_id);
         if (data_mode == onlyData) {
@@ -1295,7 +1296,7 @@ private:
         } else if (data_mode != noData) { // bitsetData or offsetsData
             extractSubset<SyncFnTy, syncType, false, true>(loopName, from_id, indices, bit_set_count);
         }
-        reportRedundantSize(loopName, syncTypeStr, num);
+        reportRedundantSize<SyncFnTy>(loopName, syncTypeStr, num);
     } else {
         data_mode = noData;
         if (!async) {
@@ -2044,9 +2045,9 @@ public:
                                 size = quotient;
                             }
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
+                            size_t offset = start * (sizeof(uint32_t) + sizeof(typename FnTy::ValTy));
 #else
-                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
+                            size_t offset = start * (sizeof(uint64_t) + sizeof(typename FnTy::ValTy));
 #endif
                             
                             uint32_t lid;
@@ -2081,11 +2082,12 @@ public:
         net.flushRemoteWork();
         net.broadcastTermination();
     }
-
+    
+    template <typename FnTy>
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
-    void send_data_to_remote(unsigned dst, uint32_t lid, ValTy val) {
+    void send_data_to_remote(unsigned dst, uint32_t lid, typename FnTy::ValTy val) {
 #else
-    void send_data_to_remote(unsigned dst, uint64_t gid, ValTy val) {
+    void send_data_to_remote(unsigned dst, uint64_t gid, typename FnTy::ValTy val) {
 #endif
         unsigned tid = galois::substrate::ThreadPool::getTID();
         
@@ -2107,8 +2109,8 @@ public:
 
 };
 
-template <typename GraphTy, typename ValTy>
-constexpr const char* const galois::graphs::GluonSubstrate<GraphTy, ValTy>::RNAME;
+template <typename GraphTy, typename AllocValTy>
+constexpr const char* const galois::graphs::GluonSubstrate<GraphTy, AllocValTy>::RNAME;
 } // end namespace graphs
 } // end namespace galois
 
