@@ -418,17 +418,40 @@ struct PageRankOEC {
 
   // Pull deltas from neighbor nodes, then add to self-residual
   void operator()(GNode src) const {
-    auto& sdata = graph->getData(src);
+    // source node can be master, mirror or phantom
+    if (graph->isPhantom(src)) {
+        // create register for phantom node data
+        float sresidual = 0;
+        
+        for (auto nbr : graph->edges(src)) {
+            GNode dst   = graph->getEdgeDst(nbr);
+            // destination node must be masters
+            auto& ddata = graph->getData(dst);
 
-    for (auto nbr : graph->edges(src)) {
-      GNode dst   = graph->getEdgeDst(nbr);
-      auto& ddata = graph->getData(dst);
+            if (ddata.delta > 0) {
+                galois::add(sresidual, ddata.delta);
+            }
+        }
 
-      if (ddata.delta > 0) {
-        galois::add(sdata.residual, ddata.delta);
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
+          syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+#else
+          syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(src), graph->getGID(src), sresidual);
+#endif
+    } else {
+        auto& sdata = graph->getData(src);
 
-        bitset_residual.set(src);
-      }
+        for (auto nbr : graph->edges(src)) {
+            GNode dst   = graph->getEdgeDst(nbr);
+            // destination node must be masters
+            auto& ddata = graph->getData(dst);
+
+            if (ddata.delta > 0) {
+                galois::add(sdata.residual, ddata.delta);
+
+                bitset_residual.set(src);
+            }
+        }
     }
   }
 };
