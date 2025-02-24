@@ -137,7 +137,6 @@ struct InitializeGraph {
     // inform all other hosts that this host has finished sending messages
     // force all messages to be processed before continuing
     syncSubstrate->net_flush();
-    syncSubstrate->stop_dedicated();
     galois::substrate::getThreadPool().waitDedicated();
     syncSubstrate->poll_for_remote_work<Reduce_add_nout>();
 
@@ -274,11 +273,11 @@ struct PageRank {
       StatTimer_compute.start();
       PageRank_delta<async>::go(_graph, dga);
 
-    // dedicate a thread to poll for remote messages
-    std::function<void(void)> func = [&]() {
-            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
-    };
-    galois::substrate::getThreadPool().runDedicated(func);
+      // dedicate a thread to poll for remote messages
+      std::function<void(void)> func = [&]() {
+          syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
+      };
+      galois::substrate::getThreadPool().runDedicated(func);
 
       // launch all other threads to compute
       galois::do_all(
@@ -370,11 +369,12 @@ struct PageRankOEC {
       StatTimer_compute.start();
       PageRank_delta<async>::go(_graph, dga);
 
-    // dedicate a thread to poll for remote messages
-    std::function<void(void)> func = [&]() {
-            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
-    };
-    galois::substrate::getThreadPool().runDedicated(func);
+      syncSubstrate->set_update_buf_to_identity<Reduce_add_residual>(0);
+      // dedicate a thread to poll for remote messages
+      std::function<void(void)> func = [&]() {
+          syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
+      };
+      galois::substrate::getThreadPool().runDedicated(func);
 
       // launch all other threads to compute
       galois::do_all(
@@ -392,10 +392,10 @@ struct PageRankOEC {
 
       StatTimer_comm.start();
       galois::substrate::getThreadPool().waitDedicated();
+      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
 
-#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-#else
+#ifndef GALOIS_NO_MIRRORING     
       syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOEC");
 #endif
       StatTimer_comm.stop();
