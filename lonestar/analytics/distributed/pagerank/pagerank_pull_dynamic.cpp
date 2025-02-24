@@ -122,11 +122,19 @@ struct InitializeGraph {
     // init graph
     ResetGraph::go(_graph);
 
-    const auto& allNodes = _graph.allNodesRangeReserved();
-    std::function<void(void)> func = [&]() {
+    bool isOEC = false;
+    if (partitionScheme == OEC) {
+        isOEC = true;
+    }
+
+    auto& allNodes = isOEC ? _graph.allNodesRange() : _graph.allNodesRangeReserved();
+    
+    if (partitionScheme == IEC) {
+        std::function<void(void)> func = [&]() {
             syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_nout, false>();
-    };
-    galois::substrate::getThreadPool().runDedicated(func);
+        };
+        galois::substrate::getThreadPool().runDedicated(func);
+    }
 
     // doing a local do all because we are looping over edges
     galois::do_all(
@@ -134,65 +142,43 @@ struct InitializeGraph {
         galois::steal(), galois::no_stats(),
         galois::loopname(syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
 
-    // inform all other hosts that this host has finished sending messages
-    // force all messages to be processed before continuing
-    syncSubstrate->net_flush();
-    galois::substrate::getThreadPool().waitDedicated();
-    syncSubstrate->poll_for_remote_work<Reduce_add_nout>();
+    if (partitionScheme == IEC) {
+        // inform all other hosts that this host has finished sending messages
+        // force all messages to be processed before continuing
+        syncSubstrate->net_flush();
+        galois::substrate::getThreadPool().waitDedicated();
+        syncSubstrate->poll_for_remote_work<Reduce_add_nout>();
 
 #ifndef GALOIS_NO_MIRRORING     
-    syncSubstrate->sync<writeDestination, readAny, Reduce_add_nout, Bitset_nout>("InitializeGraph");
+        syncSubstrate->sync<writeDestination, readAny, Reduce_add_nout, Bitset_nout>("InitializeGraph");
 #endif
-      
-    syncSubstrate->reset_termination();
-  }
-
-  // Calculate "outgoing" edges for destination nodes (note we are using
-  // the tranpose graph for pull algorithms)
-  void operator()(GNode src) const {
-    for (auto nbr : graph->edges(src)) {
-      GNode dst   = graph->getEdgeDst(nbr);
-      if (graph->isPhantom(dst)) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-          syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), (uint32_t)1);
-#else
-          syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getGID(dst), (uint32_t)1);
-#endif
-      }
-      else {
-          auto& ddata = graph->getData(dst);
-          galois::atomicAdd(ddata.nout, (uint32_t)1);
-          bitset_nout.set(dst);
-      }
+          
+        syncSubstrate->reset_termination();
     }
   }
-};
-
-struct InitializeGraphOEC {
-  Graph* graph;
-
-  InitializeGraphOEC(Graph* _graph) : graph(_graph) {}
-
-  void static go(Graph& _graph) {
-    // init graph
-    ResetGraph::go(_graph);
-
-    const auto& allNodes = _graph.allNodesRange();
-
-    // doing a local do all because we are looping over edges
-    galois::do_all(
-        galois::iterate(allNodes), InitializeGraphOEC{&_graph},
-        galois::steal(), galois::no_stats(),
-        galois::loopname(syncSubstrate->get_run_identifier("InitializeGraphOEC").c_str()));
-  }
 
   // Calculate "outgoing" edges for destination nodes (note we are using
   // the tranpose graph for pull algorithms)
   void operator()(GNode src) const {
     for (auto nbr : graph->edges(src)) {
       GNode dst   = graph->getEdgeDst(nbr);
-      auto& ddata = graph->getData(dst);
-      galois::atomicAdd(ddata.nout, (uint32_t)1);
+      if (partitionScheme == OEC) {
+          auto& ddata = graph->getData(dst);
+          galois::atomicAdd(ddata.nout, (uint32_t)1);
+      } else if (partitionScheme == IEC) {
+          if (graph->isPhantom(dst)) {
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
+              syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), (uint32_t)1);
+#else
+              syncSubstrate->send_data_to_remote<Reduce_add_nout>(graph->getHostIDForLocal(dst), graph->getGID(dst), (uint32_t)1);
+#endif
+          }
+          else {
+              auto& ddata = graph->getData(dst);
+              galois::atomicAdd(ddata.nout, (uint32_t)1);
+              bitset_nout.set(dst);
+          }
+      }
     }
   }
 };
@@ -604,11 +590,7 @@ int main(int argc, char** argv) {
   bitset_nout.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
-  if (partitionScheme == OEC) {
-      InitializeGraphOEC::go(*hg);
-  } else {
-      InitializeGraph::go(*hg);
-  }
+  InitializeGraph::go(*hg);
 
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
@@ -654,11 +636,7 @@ int main(int argc, char** argv) {
 
       syncSubstrate->set_num_run(run + 1);
       galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
-      if (partitionScheme == OEC) {
-          InitializeGraphOEC::go(*hg);
-      } else {
-          InitializeGraph::go(*hg);
-      }
+      InitializeGraph::go(*hg);
       galois::runtime::getHostBarrier().wait();
     }
   }
