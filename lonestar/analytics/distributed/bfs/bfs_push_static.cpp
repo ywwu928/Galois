@@ -162,7 +162,9 @@ struct FirstItr_BFS {
     syncSubstrate->net_flush();
     StatTimer_compute.stop();
 
+#ifdef GALOIS_PRINT_PROCESS
     galois::gPrint("Host ", net.ID, " : iteration 0\n");
+#endif
     syncSubstrate->set_num_round(0);
     
     std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(0));
@@ -222,7 +224,9 @@ struct BFS {
     do {
       priority += delta;
 
+#ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+#endif
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       work_edges.reset();

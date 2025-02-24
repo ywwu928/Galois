@@ -103,7 +103,9 @@ struct FirstItr_ConnectedComp {
     
     auto& net = galois::runtime::getSystemNetworkInterface();
     
+#ifdef GALOIS_PRINT_PROCESS
     galois::gPrint("Host ", net.ID, " : iteration 0\n");
+#endif
     syncSubstrate->set_num_round(0);
     
     std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(0));
@@ -201,7 +203,9 @@ struct ConnectedComp {
     auto& net = galois::runtime::getSystemNetworkInterface();
 
     do {
+#ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+#endif
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       

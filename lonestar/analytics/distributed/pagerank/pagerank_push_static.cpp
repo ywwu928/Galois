@@ -191,7 +191,9 @@ struct PageRank {
     auto& net = galois::runtime::getSystemNetworkInterface();
 
     do {
+#ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+#endif
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       // reset residual on mirrors
