@@ -193,7 +193,6 @@ struct InitializeGraphOEC {
       GNode dst   = graph->getEdgeDst(nbr);
       auto& ddata = graph->getData(dst);
       galois::atomicAdd(ddata.nout, (uint32_t)1);
-      bitset_nout.set(dst);
     }
   }
 };
