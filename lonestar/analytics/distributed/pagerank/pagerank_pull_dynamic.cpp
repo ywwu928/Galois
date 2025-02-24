@@ -29,6 +29,7 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <variant>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -66,10 +67,11 @@ struct NodeData {
   float delta;
 };
 
-union DataType {
+union UnionDataType {
     uint32_t u;
     float f;
 };
+typedef std::variant<uint32_t, float> VariantDataType;
 
 galois::DynamicBitSet bitset_residual;
 galois::DynamicBitSet bitset_nout;
@@ -77,7 +79,7 @@ galois::DynamicBitSet bitset_nout;
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph, DataType>> syncSubstrate;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, UnionDataType, VariantDataType>> syncSubstrate;
 
 #include "pagerank_pull_sync.hh"
 
@@ -128,7 +130,7 @@ struct InitializeGraph {
 
     const auto& allNodes = _graph.allNodesRangeReserved();
     std::function<void(void)> func = [&]() {
-            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_nout>();
+            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_nout, false>();
     };
     galois::substrate::getThreadPool().runDedicated(func);
 
@@ -252,7 +254,7 @@ struct PageRank {
 
     // dedicate a thread to poll for remote messages
     std::function<void(void)> func = [&]() {
-            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>();
+            syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
     };
     galois::substrate::getThreadPool().runDedicated(func);
 
@@ -457,7 +459,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, DataType, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, UnionDataType, VariantDataType, false>();
 
   //hg->sortEdgesByDestination();
 

@@ -78,50 +78,9 @@ void DistBenchStart(int argc, char** argv, const char* app,
 template <typename NodeData, typename EdgeData>
 using DistGraphPtr =
     std::unique_ptr<galois::graphs::DistGraph<NodeData, EdgeData>>;
-template <typename NodeData, typename EdgeData, typename ValTy>
+template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy>
 using DistSubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<
-    galois::graphs::DistGraph<NodeData, EdgeData>, ValTy>>;
-
-#ifdef GALOIS_ENABLE_GPU
-// in internal namespace because this function shouldn't be called elsewhere
-namespace internal {
-void heteroSetup(std::vector<unsigned>& scaleFactor);
-}; // namespace internal
-
-/**
- * Given a loaded graph, marshal it over to the GPU device for use
- * on the GPU.
- *
- * @param gluonSubstrate Gluon substrate containing info needed to marshal
- * to GPU
- * @param cuda_ctx the CUDA context of the currently running program
- */
-template <typename NodeData, typename EdgeData>
-static void
-marshalGPUGraph(DistSubstratePtr<NodeData, EdgeData>& gluonSubstrate,
-                struct CUDA_Context** cuda_ctx) {
-  auto& net                 = galois::runtime::getSystemNetworkInterface();
-  const unsigned my_host_id = galois::runtime::getHostID();
-
-  galois::StatTimer marshalTimer("TIMER_GRAPH_MARSHAL", "DistBench");
-
-  marshalTimer.start();
-
-  if (personality == GPU_CUDA) {
-    *cuda_ctx = get_CUDA_context(my_host_id);
-
-    if (!init_CUDA_context(*cuda_ctx, gpudevice)) {
-      GALOIS_DIE("failed to initialize CUDA context");
-    }
-
-    MarshalGraph m;
-    (*gluonSubstrate).getMarshalGraph(m);
-    load_graph_CUDA(*cuda_ctx, m, net.Num);
-  }
-
-  marshalTimer.stop();
-}
-#endif
+    galois::graphs::DistGraph<NodeData, EdgeData>, UnionValTy, VariantValTy>>;
 
 /**
  * Loads a graph into memory. Details/partitioning will be handled in the
@@ -215,19 +174,19 @@ loadSymmetricDistGraph(std::vector<unsigned>& scaleFactor) {
  *
  * @returns Pointer to the loaded graph and Gluon substrate
  */
-template <typename NodeData, typename EdgeData, typename ValTy, bool iterateOutEdges = true>
+template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy, bool iterateOutEdges = true>
 std::pair<DistGraphPtr<NodeData, EdgeData>,
-          DistSubstratePtr<NodeData, EdgeData, ValTy>>
+          DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy>>
 #ifdef GALOIS_ENABLE_GPU
 distGraphInitialization(struct CUDA_Context** cuda_ctx) {
 #else
 distGraphInitialization() {
 #endif
   using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
-  using Substrate = galois::graphs::GluonSubstrate<Graph, ValTy>;
+  using Substrate = galois::graphs::GluonSubstrate<Graph, UnionValTy, VariantValTy>;
   std::vector<unsigned> scaleFactor;
   DistGraphPtr<NodeData, EdgeData> g;
-  DistSubstratePtr<NodeData, EdgeData, ValTy> s;
+  DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy> s;
 
 #ifdef GALOIS_ENABLE_GPU
   internal::heteroSetup(scaleFactor);
@@ -263,19 +222,19 @@ void distGraphMemOverheadSweep() {
  *
  * @returns Pointer to the loaded symmetric graph
  */
-template <typename NodeData, typename EdgeData, typename ValTy>
+template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy>
 std::pair<DistGraphPtr<NodeData, EdgeData>,
-          DistSubstratePtr<NodeData, EdgeData, ValTy>>
+          DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy>>
 #ifdef GALOIS_ENABLE_GPU
 symmetricDistGraphInitialization(struct CUDA_Context** cuda_ctx) {
 #else
 symmetricDistGraphInitialization() {
 #endif
   using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
-  using Substrate = galois::graphs::GluonSubstrate<Graph, ValTy>;
+  using Substrate = galois::graphs::GluonSubstrate<Graph, UnionValTy, VariantValTy>;
   std::vector<unsigned> scaleFactor;
   DistGraphPtr<NodeData, EdgeData> g;
-  DistSubstratePtr<NodeData, EdgeData, ValTy> s;
+  DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy> s;
 
 #ifdef GALOIS_ENABLE_GPU
   internal::heteroSetup(scaleFactor);
