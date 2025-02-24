@@ -113,9 +113,7 @@ extern cll::opt<bool> saveLocalGraph;
 //! file specifying blocking of masters
 extern cll::opt<std::string> mastersFile;
 
-#ifdef GALOIS_FULL_MIRRORING
-extern int mirrorThreshold;
-#elif defined(GALOIS_NO_MIRRORING)
+#ifdef GALOIS_NO_MIRRORING
 extern int mirrorThreshold;
 #else
 extern cll::opt<int> mirrorThreshold;

@@ -8,9 +8,6 @@ target_include_directories(galois_cusp INTERFACE
   $<INSTALL_INTERFACE:include>
 )
     
-if(GALOIS_FULL_MIRRORING)
-    target_compile_definitions(galois_cusp INTERFACE GALOIS_FULL_MIRRORING=1)
-endif()
 if(GALOIS_EXCHANGE_PHANTOM_LID)
     target_compile_definitions(galois_cusp INTERFACE GALOIS_EXCHANGE_PHANTOM_LID=1)
 endif()

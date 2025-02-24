@@ -79,13 +79,13 @@ private:
   std::vector<uint32_t> mirrorRanges;
   //! represents split of phantom nodes among threads
   std::vector<uint32_t> phantomRanges;
-#ifndef GALOIS_FULL_MIRRORING
+  
   std::vector<uint32_t> allNodesRangesReserved;
   std::vector<uint32_t> presentNodesRangesReserved;
   std::vector<uint32_t> masterRangesReserved;
   std::vector<uint32_t> mirrorRangesReserved;
   std::vector<uint32_t> phantomRangesReserved;
-#endif
+  
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
 
@@ -812,7 +812,6 @@ public:
     return specificRanges[4];
   }
   
-#ifndef GALOIS_FULL_MIRRORING
   inline const NodeRangeType& allNodesRangeReserved() const {
     return specificRanges[5];
   }
@@ -856,7 +855,6 @@ public:
   inline const NodeRangeType& phantomNodesRangeReserved() const {
     return specificRanges[9];
   }
-#endif
   
   /**
    * Returns a vector object that contains the global IDs (in order) of
@@ -941,7 +939,6 @@ protected:
     phantomRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numActualNodes, numNodes, 0);
   }
 
-#ifndef GALOIS_FULL_MIRRORING
   inline void determineThreadRangesReserved(uint32_t reserved) {
     assert(allNodesRangesReserved.size() != 0);
     allNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum());
@@ -966,7 +963,6 @@ protected:
     assert(phantomRangesReserved.size() != 0);
     phantomRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numActualNodes, numNodes, 0);
   }
-#endif
 
   /**
    * Initializes the 5 range objects that a user can access to iterate
@@ -1011,7 +1007,7 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
         phantomRanges.data()));
-#ifndef GALOIS_FULL_MIRRORING
+    
     assert(allNodesRangesReserved.size() != 0);
     assert(presentNodesRangesReserved.size() != 0);
     assert(masterRangesReserved.size() != 0);
@@ -1046,7 +1042,7 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
         phantomRangesReserved.data()));
-#endif
+    
     assert(specificRanges.size() == 5);
   }
 

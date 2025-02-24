@@ -82,9 +82,7 @@ cll::opt<std::string> mastersFile("mastersFile",
                                   cll::desc("File specifying masters blocking"),
                                   cll::init(""), cll::Hidden);
 
-#ifdef GALOIS_FULL_MIRRORING
-int mirrorThreshold = 0;
-#elif defined(GALOIS_NO_MIRRORING)
+#ifdef GALOIS_NO_MIRRORING
 int mirrorThreshold = -1;
 #else
 cll::opt<int> mirrorThreshold("mirrorThreshold",

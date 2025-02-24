@@ -185,11 +185,7 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-#ifndef GALOIS_FULL_MIRRORING     
     const auto& masterNodes = _graph.masterNodesRangeReserved();
-#else
-    const auto& masterNodes = _graph.masterNodesRange();
-#endif
     DGTerminatorDetector dga;
   
     auto& net = galois::runtime::getSystemNetworkInterface();
@@ -207,24 +203,21 @@ struct PageRank {
       StatTimer_compute.start();
       PageRank_delta::go(_graph);
 
-#ifndef GALOIS_FULL_MIRRORING     
       syncSubstrate->set_update_buf_to_identity(0);
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
               syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>(galois::add<float>);
       };
       galois::substrate::getThreadPool().runDedicated(func);
-#endif
+      
       // launch all other threads to compute
       galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                      galois::no_stats(), galois::steal(),
                      galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
-#endif
       StatTimer_compute.stop();
       
       std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
@@ -270,7 +263,6 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-#ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
             syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
@@ -279,15 +271,12 @@ struct PageRank {
 #endif
         }
         else {
-#endif
             NodeData& ddata = graph->getData(dst);
 
             galois::atomicAdd(ddata.residual, _delta);
 
             bitset_residual.set(dst);
-#ifndef GALOIS_FULL_MIRRORING     
         }
-#endif
       }
     }
   }

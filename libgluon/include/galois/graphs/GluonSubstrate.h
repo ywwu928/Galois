@@ -234,7 +234,6 @@ private:
           galois::no_stats());
     }
     
-#ifndef GALOIS_FULL_MIRRORING     
     // send off the phantom nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -335,8 +334,6 @@ private:
     incrementEvilPhase();
 
     userGraph.constructPhantomLocalToRemoteVector(phantomRemoteNodes);
-#endif
-
 #endif
   }
 

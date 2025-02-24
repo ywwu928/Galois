@@ -138,7 +138,6 @@ struct FirstItr_BFS {
         snode.dist_old  = snode.dist_current;
         for (auto jj : _graph.edges(src)) {
             GNode dst         = _graph.getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
             if (_graph.isPhantom(dst)) {
                 uint32_t new_dist = 1 + snode.dist_current;
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
@@ -148,24 +147,19 @@ struct FirstItr_BFS {
 #endif
             }
             else {
-#endif
                 auto& dnode       = _graph.getData(dst);
                 uint32_t new_dist = 1 + snode.dist_current;
                 uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
                 if (old_dist > new_dist) {
                     bitset_dist_current.set(dst);
                 }
-#ifndef GALOIS_FULL_MIRRORING     
             }
-#endif
         }
     }
 
-#ifndef GALOIS_FULL_MIRRORING     
     // inform all other hosts that this host has finished sending messages
     // force all messages to be processed before continuing
     syncSubstrate->net_flush();
-#endif
     StatTimer_compute.stop();
 
     galois::gPrint("Host ", net.ID, " : iteration 0\n");
@@ -213,11 +207,7 @@ struct BFS {
 
     unsigned _num_iterations = 1;
 
-#ifndef GALOIS_FULL_MIRRORING     
     const auto& masterNodes = _graph.masterNodesRangeReserved();
-#else
-    const auto& masterNodes = _graph.masterNodesRange();
-#endif
 
     uint32_t priority;
     if (delta == 0)
@@ -241,14 +231,12 @@ struct BFS {
       galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
       StatTimer_compute.start();
-#ifndef GALOIS_FULL_MIRRORING     
       syncSubstrate->set_update_buf_to_identity(UINT32_MAX);
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
               syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_dist_current>(galois::min<uint32_t>);
       };
       galois::substrate::getThreadPool().runDedicated(func);
-#endif
 
       // launch all other threads to compute
       galois::do_all(
@@ -261,21 +249,17 @@ struct BFS {
           galois::no_stats(),
           galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
-#endif
       StatTimer_compute.stop();
      
       std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
       galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       StatTimer_comm.start();
-#ifndef GALOIS_FULL_MIRRORING     
       syncSubstrate->sync_update_buf<Reduce_min_dist_current>(UINT32_MAX);
       galois::substrate::getThreadPool().waitDedicated();
-#endif
 
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
@@ -314,7 +298,6 @@ struct BFS {
 		  work_edges += 1;
 
           GNode dst         = graph->getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
           if (graph->isPhantom(dst)) {
             uint32_t new_dist = 1 + snode.dist_current;
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID
@@ -324,7 +307,6 @@ struct BFS {
 #endif
           }
           else {
-#endif
             auto& dnode       = graph->getData(dst);     
             uint32_t new_dist = 1 + snode.dist_current;
             uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
@@ -332,9 +314,7 @@ struct BFS {
             if (old_dist > new_dist) {
               bitset_dist_current.set(dst);
             }
-#ifndef GALOIS_FULL_MIRRORING     
           }
-#endif
         }
       }
     }

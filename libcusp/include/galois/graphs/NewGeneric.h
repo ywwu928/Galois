@@ -374,13 +374,13 @@ public:
     base_DistGraph::determineThreadRangesMaster();
     base_DistGraph::determineThreadRangesMirror();
     base_DistGraph::determineThreadRangesPhantom();
-#ifndef GALOIS_FULL_MIRRORING
+    
     base_DistGraph::determineThreadRangesReserved(1);
     base_DistGraph::determineThreadRangesPresentReserved(1);
     base_DistGraph::determineThreadRangesMasterReserved(1);
     base_DistGraph::determineThreadRangesMirrorReserved(1);
     base_DistGraph::determineThreadRangesPhantomReserved(1);
-#endif
+    
     base_DistGraph::initializeSpecificRanges();
     Tthread_ranges.stop();
 

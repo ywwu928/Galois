@@ -3,9 +3,6 @@ target_include_directories(distbench PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
-if(GALOIS_FULL_MIRRORING)
-    target_compile_definitions(distbench PRIVATE GALOIS_FULL_MIRRORING=1)
-endif()
 if(GALOIS_NO_MIRRORING)
     target_compile_definitions(distbench PRIVATE GALOIS_NO_MIRRORING=1)
 endif()
