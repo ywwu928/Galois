@@ -8,6 +8,7 @@ target_sources(galois_gluon PRIVATE
         src/SyncStructures.cpp
         src/GlobalObj.cpp
         src/GluonSubstrate.cpp
+        src/Cache.cpp
 )
 
 target_link_libraries(galois_gluon PUBLIC galois_dist_async)

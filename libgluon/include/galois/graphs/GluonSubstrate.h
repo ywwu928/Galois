@@ -38,6 +38,7 @@
 #include "galois/runtime/SyncStructures.h"
 #include "galois/runtime/DataCommMode.h"
 #include "galois/DynamicBitset.h"
+#include "galois/graphs/Cache.h"
 
 // TODO find a better way to do this without globals
 //! Specifies what format to send metadata in
@@ -494,7 +495,8 @@ public:
         mirrorNodes(userGraph.getMirrorNodes()),
         phantomNodes(userGraph.getPhantomNodes()),
         recvCommBufferOffset(0),
-        dataSizeRatio(dataSizeRatio) {
+        dataSizeRatio(dataSizeRatio),
+        cache(cacheEntry) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
       GALOIS_ASSERT(cartesianGrid.first * cartesianGrid.second == numHosts,
                     "Cartesian split doesn't equal number of hosts");
@@ -1957,9 +1959,17 @@ public:
         galois::do_all(
             galois::iterate(phantomMasterList),
             [&](uint32_t lid) {
-                if(phantomMasterBuffer[lid]) {
-                    *(phantomMasterBuffer[lid]) = identity;
-                }
+                *(phantomMasterBuffer[lid]) = identity;
+            },
+            galois::no_stats());
+    }
+    
+    template<typename FnTy>
+    void set_update_buf_to_node_data() {
+        galois::do_all(
+            galois::iterate(phantomMasterList),
+            [&](uint32_t lid) {
+                *(phantomMasterBuffer[lid]) = FnTy::extract(userGraph.getData(lid));
             },
             galois::no_stats());
     }
@@ -2066,11 +2076,9 @@ public:
         galois::do_all(
             galois::iterate(phantomMasterList),
             [&](uint32_t lid) {
-                if(phantomMasterBuffer[lid]) {
-                    typename FnTy::ValTy bufferedValue = std::get<typename FnTy::ValTy>(*(phantomMasterBuffer[lid]));
-                    if (bufferedValue != identity) { // there is update
-                        FnTy::reduce_atomic(userGraph.getData(lid), bufferedValue);
-                    }
+                typename FnTy::ValTy bufferedValue = std::get<typename FnTy::ValTy>(*(phantomMasterBuffer[lid]));
+                if (bufferedValue != identity) { // there is update
+                    FnTy::reduce_atomic(userGraph.getData(lid), bufferedValue);
                 }
             },
             galois::no_stats());
@@ -2180,6 +2188,26 @@ public:
         offset += sizeof(val);
 
         net.sendWork(tid, dst, bufferPtr, offset);
+    }
+
+/* For Dynamic Caching */
+private:
+    Cache<uint32_t, VariantValTy> cache;
+
+public:
+    template <typename FnTy>
+    typename FnTy::ValTy read_data_from_cache(uint32_t lid) {
+        bool hit = cache.find(lid);
+
+        if (hit) {
+            VariantValTy entryData = cache.get(lid);
+            return std::get<typename FnTy::ValTy>(entryData);
+        } else {
+        }
+    }
+
+    void clear_cache() {
+        cache.clear();
     }
 
 };

@@ -500,7 +500,7 @@ public:
   struct Reduce_add_##fieldname {                                              \
     typedef fieldtype ValTy;                                                   \
                                                                                \
-    static ValTy extract(uint32_t, const struct NodeData& node) {              \
+    static ValTy extract(const struct NodeData& node) {              \
       return node.fieldname;                                                   \
     }                                                                          \
                                                                                \
@@ -1226,7 +1226,7 @@ public:
   struct Reduce_min_##fieldname {                                              \
     typedef fieldtype ValTy;                                                   \
                                                                                \
-    static ValTy extract(uint32_t, const struct NodeData& node) {              \
+    static ValTy extract(const struct NodeData& node) {              \
       return node.fieldname;                                                   \
     }                                                                          \
                                                                                \
@@ -1399,7 +1399,7 @@ public:
   struct Reduce_max_##fieldname {                                              \
     typedef fieldtype ValTy;                                                   \
                                                                                \
-    static ValTy extract(uint32_t node_id, const struct NodeData& node) {      \
+    static ValTy extract(const struct NodeData& node) {      \
       return node.fieldname;                                                   \
     }                                                                          \
                                                                                \
