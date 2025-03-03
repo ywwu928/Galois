@@ -38,7 +38,8 @@ enum { CPU, GPU_CUDA };
 int personality = CPU;
 #endif
 
-constexpr static const char* const REGION_NAME = "PageRank";
+static std::string REGION_NAME = "PageRank";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -102,7 +103,7 @@ struct ResetGraph {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("ResetGraph_" +
                            (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
+      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME.c_str());
       StatTimer_cuda.start();
       ResetGraph_allNodes_cuda(alpha, cuda_ctx);
       StatTimer_cuda.stop();
@@ -136,15 +137,15 @@ struct InitializeGraph {
     // init graph
     ResetGraph::go(_graph);
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& allNodes = _graph.allNodesRange();
 
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("InitializeGraph_" +
                            (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
+      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME.c_str());
       StatTimer_cuda.start();
-      InitializeGraph_nodesWithEdges_cuda(cuda_ctx);
+      InitializeGraph_allNodes_cuda(cuda_ctx);
       StatTimer_cuda.stop();
 #else
       abort();
@@ -152,7 +153,7 @@ struct InitializeGraph {
     } else if (personality == CPU) {
       // doing a local do all because we are looping over edges
       galois::do_all(
-          galois::iterate(nodesWithEdges), InitializeGraph{&_graph},
+          galois::iterate(allNodes), InitializeGraph{&_graph},
           galois::steal(), galois::no_stats(),
           galois::loopname(
               syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
@@ -198,7 +199,7 @@ struct PageRank_delta {
     if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
       std::string impl_str("PageRank_" + (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
+      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME.c_str());
       StatTimer_cuda.start();
       unsigned int __retval = 0;
       PageRank_delta_allNodes_cuda(__retval, alpha, tolerance, cuda_ctx);
@@ -247,42 +248,54 @@ struct PageRank {
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
 
     // unsigned int reduced = 0;
+    auto& net = galois::runtime::getSystemNetworkInterface();
 
     do {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
-      PageRank_delta<async>::go(_graph, dga);
       // reset residual on mirrors
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      
+      std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_compute.start();
+      PageRank_delta<async>::go(_graph, dga);
 
       if (personality == GPU_CUDA) {
 #ifdef GALOIS_ENABLE_GPU
         std::string impl_str("PageRank_" +
                              (syncSubstrate->get_run_identifier()));
-        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
+        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME.c_str());
         StatTimer_cuda.start();
-        PageRank_nodesWithEdges_cuda(cuda_ctx);
+        PageRank_allNodes_cuda(cuda_ctx);
         StatTimer_cuda.stop();
 #else
         abort();
 #endif
       } else if (personality == CPU) {
         galois::do_all(
-            galois::iterate(nodesWithEdges), PageRank{&_graph}, galois::steal(),
+            galois::iterate(allNodes), PageRank{&_graph}, galois::steal(),
             galois::no_stats(),
             galois::loopname(
                 syncSubstrate->get_run_identifier("PageRank").c_str()));
       }
+      StatTimer_compute.stop();
 
+      std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_comm.start();
       syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
+      StatTimer_comm.stop();
 
       galois::runtime::reportStat_Tsum(
-          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
+          REGION_NAME.c_str(), "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
           (unsigned long)_graph.sizeEdges());
 
       ++_num_iterations;
@@ -290,7 +303,7 @@ struct PageRank {
              dga.reduce(syncSubstrate->get_run_identifier()));
 
     galois::runtime::reportStat_Tmax(
-        REGION_NAME,
+        REGION_NAME.c_str(),
         "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
         (unsigned long)_num_iterations);
   }
@@ -488,13 +501,13 @@ int main(int argc, char** argv) {
   auto& net = galois::runtime::getSystemNetworkInterface();
 
   if (net.ID == 0) {
-    galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
+    galois::runtime::reportParam(REGION_NAME.c_str(), "Max Iterations", maxIterations);
     std::ostringstream ss;
     ss << tolerance;
-    galois::runtime::reportParam(REGION_NAME, "Tolerance", ss.str());
+    galois::runtime::reportParam(REGION_NAME.c_str(), "Tolerance", ss.str());
   }
 
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
 
   StatTimer_total.start();
 
@@ -524,9 +537,10 @@ int main(int argc, char** argv) {
   galois::DGReduceMin<float> min_residual;
 
   for (auto run = 0; run < numRuns; ++run) {
+    REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     StatTimer_main.start();
     if (execution == Async) {
@@ -535,6 +549,7 @@ int main(int argc, char** argv) {
       PageRank<false>::go(*hg);
     }
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     // sanity check
     PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,
