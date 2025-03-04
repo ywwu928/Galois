@@ -211,6 +211,14 @@ private:
    * report the statistics.
    */
   void sendInfoToHost() {
+    uint64_t host_master_nodes = userGraph.numMasters();
+    uint64_t host_mirror_nodes = userGraph.numMirrors();
+
+    std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+
     auto& net = galois::runtime::getSystemNetworkInterface();
 
     uint64_t global_total_mirror_nodes =
