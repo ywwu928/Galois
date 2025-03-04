@@ -258,7 +258,9 @@ struct PageRank {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
       // reset residual on mirrors
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      if (partitionScheme == OEC) {
+          syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      }
       
       std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
