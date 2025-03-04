@@ -226,14 +226,14 @@ struct PageRank_delta {
 };
 
 template <bool async>
-struct PageRank {
+struct PageRankIEC {
   Graph* graph;
 
   using DGTerminatorDetector =
       typename std::conditional<async, galois::DGTerminator<unsigned int>,
                                 galois::DGAccumulator<unsigned int>>::type;
 
-  PageRank(Graph* _graph) : graph(_graph) {}
+  PageRankIEC(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
@@ -249,11 +249,6 @@ struct PageRank {
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
 
-#ifndef GALOIS_NO_MIRRORING     
-      // reset residual on mirrors
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-#endif
-      
       std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
@@ -268,9 +263,9 @@ struct PageRank {
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(allNodes), PageRank{&_graph}, galois::steal(),
+          galois::iterate(allNodes), PageRankIEC{&_graph}, galois::steal(),
           galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
+          galois::loopname(syncSubstrate->get_run_identifier("PageRankIEC").c_str()));
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
@@ -286,7 +281,7 @@ struct PageRank {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #else
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRank");
+      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankIEC");
 #endif
       StatTimer_comm.stop();
       
@@ -618,9 +613,9 @@ int main(int argc, char** argv) {
         }
     } else {
         if (execution == Async) {
-            PageRank<true>::go(*hg);
+            PageRankIEC<true>::go(*hg);
         } else {
-            PageRank<false>::go(*hg);
+            PageRankIEC<false>::go(*hg);
         }
     }
     StatTimer_main.stop();
