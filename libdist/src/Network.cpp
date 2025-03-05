@@ -33,15 +33,17 @@
 
 using namespace galois::runtime;
 
-uint32_t galois::runtime::evilPhase = 3; // 0, 1 and 2 is reserved
+uint32_t galois::runtime::evilPhase = 4; // 0, 1, 2 and 3 is reserved
 uint32_t galois::runtime::remoteWorkTag = 0; // 0 is reserved for remote work
-uint32_t galois::runtime::terminationTag = 1; // 1 is reserved for remote termination message
+uint32_t galois::runtime::workTerminationTag = 1; // 1 is reserved for remote work termination message
 uint32_t galois::runtime::communicationTag = 2; // 2 is reserved for communication phase
+uint32_t galois::runtime::dataTerminationTag = 3; // 3 is reserved for remote data termination message
 
 uint32_t galois::runtime::NetworkInterface::ID  = 0;
 uint32_t galois::runtime::NetworkInterface::Num = 1;
 
 uint32_t galois::runtime::getHostID() { return NetworkInterface::ID; }
+uint32_t galois::runtime::getHostNum() { return NetworkInterface::Num; }
 
 galois::runtime::NetworkIO::~NetworkIO() {}
 

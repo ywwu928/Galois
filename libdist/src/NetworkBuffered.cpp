@@ -268,9 +268,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       
       sendBufferData() : ptok(messages), flush(0) {}
       
-      void setFlush() {
-          flush += 1;
-      }
+      void setFlush() {}
     
       bool checkFlush() {
           return flush > 0;
@@ -311,9 +309,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       
       sendBufferCommunication() : ptok(messages), flush(0) {}
       
-      void setFlush() {
-          flush += 1;
-      }
+      void setFlush() {}
     
       bool checkFlush() {
           return flush > 0;
@@ -480,8 +476,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               int rv  = MPI_Test(&f.req, &flag, &status);
               handleError(rv);
               if (flag) {
-                  if (f.tag == galois::runtime::terminationTag) {
-                      --inflightTermination;
+                  if (f.tag == galois::runtime::workTerminationTag) {
+                      --inflightWorkTermination;
                   }
                   else if (f.tag == galois::runtime::remoteWorkTag) {
                     --sendRemoteWork[f.host][t].inflightSends;
@@ -490,6 +486,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   }
                   else if (f.tag == galois::runtime::communicationTag) {
                     --sendCommunication[f.host].inflightSends;
+                  }
+                  else if (f.tag == galois::runtime::dataTerminationTag) {
+                      --inflightDataTermination;
                   }
                   else {
                     --sendData[f.host].inflightSends;
@@ -568,8 +567,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
           handleError(rv);
           if (flag) {
-              if (m.tag == galois::runtime::terminationTag) {
-                  hostTermination[m.host] += 1;
+              if (m.tag == galois::runtime::workTerminationTag) {
+                  hostWorkTermination[m.host] += 1;
               }
               else if (m.tag == galois::runtime::remoteWorkTag) {
                   ++recvRemoteWork.inflightRecvs;
@@ -578,6 +577,9 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               else if (m.tag == galois::runtime::communicationTag) {
                   ++recvCommunication.inflightRecvs;
                   recvCommunication.add(m.host, m.buf);
+              }
+              else if (m.tag == galois::runtime::dataTerminationTag) {
+                  hostDataTermination[m.host] += 1;
               }
               else {
                   ++recvData[m.host].inflightRecvs;
@@ -618,7 +620,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               if (i != ID) {
                   // handle send queue
                   // 1. remote work
-                  bool hostEmpty = true;
+                  bool hostWorkEmpty = true;
                   for (unsigned t=0; t<numT; t++) {
                       // push progress forward on the network IO
                       sendComplete();
@@ -626,7 +628,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           
                       auto& srw = sendRemoteWork[i][t];
                       if (srw.checkFlush()) {
-                          hostEmpty = false;
+                          hostWorkEmpty = false;
                           
                           uint8_t* work = nullptr;
                           size_t workLen = 0;
@@ -638,13 +640,13 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       }
                   }
 
-                  if(hostEmpty) { // wait until all works are sent
-                      // 2. termination
-                      if (sendTermination[i]) {
-                          ++inflightTermination;
+                  if(hostWorkEmpty) { // wait until all works are sent
+                      // 2. work termination
+                      if (sendWorkTermination[i]) {
+                          ++inflightWorkTermination;
                           // put it on the last thread to make sure it is sent last after all the work are sent
-                          send(numT - 1, i, sendMessage(galois::runtime::terminationTag));
-                          sendTermination[i] = false;
+                          send(numT - 1, i, sendMessage(galois::runtime::workTerminationTag));
+                          sendWorkTermination[i] = false;
                       }
                   }
                   
@@ -662,13 +664,27 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                   }
                   
                   // 4. data
+                  bool hostDataEmpty = true;
                   auto& sd = sendData[i];
                   if (sd.checkFlush()) {
+                      hostDataEmpty = false;
+
                       sendMessage msg = sd.pop();
                       
                       if (msg.tag != ~0U) {
                           // put it on the first thread
                           send(0, i, std::move(msg));
+                      }
+                  }
+
+                  if(hostDataEmpty) { // wait until all data are sent
+                      // 5. data termination
+                      if (sendDataTermination[i]) {
+                          ++inflightDataTermination;
+                          // put it on the last thread to make sure it is sent last after all the work are sent
+                          send(numT - 1, i, sendMessage(galois::runtime::dataTerminationTag));
+                          sendDataTermination[i] = false;
+                          
                       }
                   }
               }
@@ -681,24 +697,50 @@ class NetworkInterfaceBuffered : public NetworkInterface {
   std::thread worker;
   std::atomic<int> ready;
   
-  std::atomic<size_t> inflightTermination;
-  std::vector<std::atomic<bool>> sendTermination;
-  std::vector<std::atomic<uint32_t>> hostTermination;
-  virtual void resetTermination() {
+  std::atomic<size_t> inflightWorkTermination;
+  std::vector<std::atomic<bool>> sendWorkTermination;
+  std::vector<std::atomic<uint32_t>> hostWorkTermination;
+  
+  std::atomic<size_t> inflightDataTermination;
+  std::vector<std::atomic<bool>> sendDataTermination;
+  std::vector<std::atomic<uint32_t>> hostDataTermination;
+  
+  virtual void resetWorkTermination() {
       for (unsigned i=0; i<Num; i++) {
           if (i == ID) {
               continue;
           }
-          hostTermination[i] -= 1;
+          hostWorkTermination[i] -= 1;
       }
   }
 
-  bool checkTermination() {
+  bool checkWorkTermination() {
       for (unsigned i=0; i<Num; i++) {
           if (i == ID) {
               continue;
           }
-          if (hostTermination[i] == 0) {
+          if (hostWorkTermination[i] == 0) {
+              return false;
+          }
+      }
+      return true;
+  }
+  
+  virtual void resetDataTermination() {
+      for (unsigned i=0; i<Num; i++) {
+          if (i == ID) {
+              continue;
+          }
+          hostDataTermination[i] -= 1;
+      }
+  }
+
+  bool checkDataTermination() {
+      for (unsigned i=0; i<Num; i++) {
+          if (i == ID) {
+              continue;
+          }
+          if (hostDataTermination[i] == 0) {
               return false;
           }
       }
@@ -708,7 +750,8 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 public:
   NetworkInterfaceBuffered() {
     ready               = 0;
-    inflightTermination = 0;
+    inflightWorkTermination = 0;
+    inflightDataTermination = 0;
     anyReceivedMessages = false;
     worker = std::thread(&NetworkInterfaceBuffered::workerThread, this);
     numT = galois::getActiveThreads();
@@ -730,15 +773,26 @@ public:
             sendRemoteWork[i][t].setTID(t);
         }
     }
-    sendTermination = decltype(sendTermination)(Num);
-    hostTermination = decltype(hostTermination)(Num);
+    sendWorkTermination = decltype(sendWorkTermination)(Num);
+    hostWorkTermination = decltype(hostWorkTermination)(Num);
     for (unsigned i=0; i<Num; i++) {
-        sendTermination[i] = false;
+        sendWorkTermination[i] = false;
         if (i == ID) {
-            hostTermination[i] = 1;
+            hostWorkTermination[i] = 1;
         }
         else {
-            hostTermination[i] = 0;
+            hostWorkTermination[i] = 0;
+        }
+    }
+    sendDataTermination = decltype(sendDataTermination)(Num);
+    hostDataTermination = decltype(hostDataTermination)(Num);
+    for (unsigned i=0; i<Num; i++) {
+        sendDataTermination[i] = false;
+        if (i == ID) {
+            hostDataTermination[i] = 1;
+        }
+        else {
+            hostDataTermination[i] = 0;
         }
     }
     ready    = 2;
@@ -805,6 +859,52 @@ public:
       return std::optional<std::pair<uint32_t, RecvBuffer>>();
   }
   
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
+      tag += phase;
+
+      for (unsigned h=0; h<Num; h++) {
+          if (h == ID) {
+              continue;
+          }
+
+          auto& rq = recvData[h];
+          if (rq.hasMsg(tag)) {
+              auto buf = rq.tryPopMsg(tag);
+              if (buf.has_value()) {
+                  anyReceivedMessages = true;
+                  return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf.value())));
+              }
+          }
+      }
+      
+      if (checkDataTermination()) {
+          terminateFlag = true;
+      }
+
+      return std::optional<std::pair<uint32_t, RecvBuffer>>();
+  }
+  
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint32_t tag, int phase) {
+      tag += phase;
+
+      auto& rq = recvData[host];
+      if (rq.hasMsg(tag)) {
+          auto buf = rq.tryPopMsg(tag);
+          if (buf.has_value()) {
+              anyReceivedMessages = true;
+              return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf.value())));
+          }
+      }
+      
+      if (hostDataTermination[host] > 0) {
+          terminateFlag = true;
+      }
+
+      return std::optional<std::pair<uint32_t, RecvBuffer>>();
+  }
+  
   virtual bool receiveRemoteWork(uint8_t*& work, size_t& workLen) {
       bool success = recvRemoteWork.tryPopMsg(work, workLen);
       return success;
@@ -818,7 +918,7 @@ public:
           anyReceivedMessages = true;
       }
       else {
-          if (checkTermination()) {
+          if (checkWorkTermination()) {
               terminateFlag = true;
           }
       }
@@ -859,19 +959,26 @@ public:
     }
   }
 
-  virtual void broadcastTermination() {
+  virtual void broadcastWorkTermination() {
       for (unsigned i=0; i<Num; i++) {
           if (i == ID) {
               continue;
           }
           else {
-              sendTermination[i] = true;
+              sendWorkTermination[i] = true;
           }
       }
   }
+  
+  virtual void signalDataTermination(uint32_t dest) {
+      sendDataTermination[dest] = true;
+  }
 
   virtual bool anyPendingSends() {
-      if (inflightTermination > 0) {
+      if (inflightWorkTermination > 0) {
+          return true;
+      }
+      if (inflightDataTermination > 0) {
           return true;
       }
       for (unsigned i=0; i<Num; i++) {

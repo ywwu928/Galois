@@ -2214,7 +2214,7 @@ public:
         stopUpdateBuffer = 0;
         stopDedicated = false;
         terminateFlag = false;
-        net.resetTermination();
+        net.resetWorkTermination();
     }
 
     void set_update_buf_to_identity(ValTy identity) {
@@ -2480,8 +2480,9 @@ public:
 
     void net_flush() {
         net.flushRemoteWork();
-        net.broadcastTermination();
-        stopUpdateBuffer = 1;
+        net.broadcastWorkTermination();
+        stopUpdateBuffer = true;
+        stopDedicated = true;
     }
 
 #ifdef GALOIS_EXCHANGE_PHANTOM_LID

@@ -300,10 +300,14 @@ void addToStat(const Str& region, const Str& category, const T& val,
 }
 
 private:
-void combineAtHost_0_helper(void);
-void combineAtHost_0_helper2(void);
-void receiveAtHost_0_helper(void);
-void receiveAtHost_0_helper2(void);
+void combineAtHost_0_helper_total(void);
+void combineAtHost_0_helper_int(void);
+void combineAtHost_0_helper_fp(void);
+void combineAtHost_0_helper_str(void);
+void receiveAtHost_0_helper_total(void);
+void receiveAtHost_0_helper_int(void);
+void receiveAtHost_0_helper_fp(void);
+void receiveAtHost_0_helper_str(void);
 void combineAtHost_0(void);
 StatTotal::Type findHostTotalTy(const Str& region, const Str& category,
                                 const StatTotal::Type& thrdTotalTy) const;
