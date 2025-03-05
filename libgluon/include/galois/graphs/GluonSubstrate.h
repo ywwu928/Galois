@@ -1951,7 +1951,7 @@ public:
         stopBuffer = false;
         stopDedicated = false;
         terminateFlag = false;
-        net.resetTermination();
+        net.resetWorkTermination();
     }
 
     template<typename FnTy>
@@ -2161,7 +2161,7 @@ public:
 
     void net_flush() {
         net.flushRemoteWork();
-        net.broadcastTermination();
+        net.broadcastWorkTermination();
         stopBuffer = true;
         stopDedicated = true;
     }

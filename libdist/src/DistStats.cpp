@@ -93,24 +93,32 @@ void DistStatManager::mergeStats(void) {
   combineAtHost_0();
 }
 
-void DistStatManager::combineAtHost_0_helper(void) {
+void DistStatManager::combineAtHost_0_helper_total(void) {
   const bool IS_HOST0 = getHostID() == 0;
 
-  const auto& hTotalMap = hostTotalTypes.mergedMap();
-
-  size_t syncTypePhase = 0;
   if (!IS_HOST0) {
+    auto& net = getSystemNetworkInterface();
+
+    const auto& hTotalMap = hostTotalTypes.mergedMap();
+    
     for (auto i = hTotalMap.cbegin(), end_i = hTotalMap.cend(); i != end_i;
          ++i) {
       SendBuffer b;
       gSerialize(b, hTotalMap.region(i), hTotalMap.category(i),
                  hTotalMap.stat(i).totalTy());
-      getSystemNetworkInterface().sendTagged(0, galois::runtime::evilPhase, b,
-                                             syncTypePhase);
+      net.sendTagged(0, galois::runtime::evilPhase, b, 0);
     }
-  }
 
-  ++syncTypePhase;
+    net.flushData();
+    net.signalDataTermination(0);
+  }
+}
+
+void DistStatManager::combineAtHost_0_helper_int(void) {
+  const bool IS_HOST0 = getHostID() == 0;
+    
+  auto& net = getSystemNetworkInterface();
+
   for (auto i = Base::intBegin(), end_i = Base::intEnd(); i != end_i; ++i) {
     Str ln;
     Str cat;
@@ -126,16 +134,22 @@ void DistStatManager::combineAtHost_0_helper(void) {
     } else {
       SendBuffer b;
       gSerialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
-      getSystemNetworkInterface().sendTagged(0, galois::runtime::evilPhase, b,
-                                             syncTypePhase);
+      net.sendTagged(0, galois::runtime::evilPhase, b, 1);
     }
+  }
+    
+  if (!IS_HOST0) {
+    net.flushData();
+    net.signalDataTermination(0);
   }
 }
 
-void DistStatManager::combineAtHost_0_helper2(void) {
-  const bool IS_HOST0 = getHostID() == 0;
 
-  size_t syncTypePhase = 0;
+void DistStatManager::combineAtHost_0_helper_fp(void) {
+  const bool IS_HOST0 = getHostID() == 0;
+    
+  auto& net = getSystemNetworkInterface();
+
   for (auto i = Base::fpBegin(), end_i = Base::fpEnd(); i != end_i; ++i) {
     Str ln;
     Str cat;
@@ -151,12 +165,21 @@ void DistStatManager::combineAtHost_0_helper2(void) {
     } else {
       SendBuffer b;
       gSerialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
-      getSystemNetworkInterface().sendTagged(0, galois::runtime::evilPhase, b,
-                                             syncTypePhase);
+      net.sendTagged(0, galois::runtime::evilPhase, b, 2);
     }
   }
+    
+  if (!IS_HOST0) {
+    net.flushData();
+    net.signalDataTermination(0);
+  }
+}
 
-  ++syncTypePhase;
+void DistStatManager::combineAtHost_0_helper_str(void) {
+  const bool IS_HOST0 = getHostID() == 0;
+    
+  auto& net = getSystemNetworkInterface();
+  
   for (auto i = Base::paramBegin(), end_i = Base::paramEnd(); i != end_i; ++i) {
     Str ln;
     Str cat;
@@ -172,111 +195,155 @@ void DistStatManager::combineAtHost_0_helper2(void) {
     } else {
       SendBuffer b;
       gSerialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
-      getSystemNetworkInterface().sendTagged(0, galois::runtime::evilPhase, b,
-                                             syncTypePhase);
+      net.sendTagged(0, galois::runtime::evilPhase, b, 3);
     }
   }
-}
-
-void DistStatManager::receiveAtHost_0_helper(void) {
-  size_t syncTypePhase = 0;
-  {
-    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
-    do {
-      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
-
-      if (p) {
-        RecvBuffer& b = p->second;
-
-        galois::gstl::Str region;
-        galois::gstl::Str category;
-        StatTotal::Type totalTy;
-        gDeserialize(b, region, category, totalTy);
-
-        StatRecvHelper::recvAtHost_0_hostTotalTy(region, category, totalTy);
-      }
-    } while (p);
-  }
-
-  ++syncTypePhase;
-  {
-    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
-    do {
-      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
-
-      if (p) {
-        uint32_t hostID = p->first;
-        RecvBuffer& b   = p->second;
-
-        Str ln;
-        Str cat;
-        int64_t thrdTotal;
-        StatTotal::Type totalTy;
-        galois::gstl::Vector<int64_t> thrdVals;
-        gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
-
-        StatRecvHelper::recvAtHost_0_int(hostID, ln, cat, thrdTotal, totalTy,
-                                         thrdVals);
-      }
-    } while (p);
+    
+  if (!IS_HOST0) {
+    net.flushData();
+    net.signalDataTermination(0);
   }
 }
 
-void DistStatManager::receiveAtHost_0_helper2(void) {
-  size_t syncTypePhase = 0;
-  {
-    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
-    do {
-      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
+void DistStatManager::receiveAtHost_0_helper_total(void) {
+  auto& net = getSystemNetworkInterface();
+  
+  for (uint32_t h = 1; h < getHostNum(); h++) {
+      bool terminateFlag = false; 
+        
+      decltype(net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 0)) p;
+      while (true) {
+          do {
+              p = net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 0);
 
-      if (p) {
-        uint32_t hostID = p->first;
-        RecvBuffer& b   = p->second;
+              if (p) {
+                  RecvBuffer& b = p->second;
 
-        Str ln;
-        Str cat;
-        double thrdTotal;
-        StatTotal::Type totalTy;
-        galois::gstl::Vector<double> thrdVals;
-        gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
+                  galois::gstl::Str region;
+                  galois::gstl::Str category;
+                  StatTotal::Type totalTy;
+                  gDeserialize(b, region, category, totalTy);
 
-        StatRecvHelper::recvAtHost_0_fp(hostID, ln, cat, thrdTotal, totalTy,
-                                        thrdVals);
+                  StatRecvHelper::recvAtHost_0_hostTotalTy(region, category, totalTy);
+              }
+          } while (p);
+
+          if (terminateFlag) {
+              break;
+          }
       }
-    } while (p);
   }
+}
 
-  ++syncTypePhase;
-  {
-    decltype(getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase)) p;
-    do {
-      p = getSystemNetworkInterface().receiveTagged(galois::runtime::evilPhase, syncTypePhase);
+void DistStatManager::receiveAtHost_0_helper_int(void) {
+  auto& net = getSystemNetworkInterface();
+  
+  for (uint32_t h = 1; h < getHostNum(); h++) {
+      bool terminateFlag = false; 
+        
+      decltype(net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 1)) p;
+      while (true) {
+          do {
+              p = net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 1);
 
-      if (p) {
-        uint32_t hostID = p->first;
-        RecvBuffer& b   = p->second;
+              if (p) {
+                  uint32_t hostID = p->first;
+                  RecvBuffer& b   = p->second;
 
-        Str ln;
-        Str cat;
-        Str thrdTotal;
-        StatTotal::Type totalTy;
-        galois::gstl::Vector<Str> thrdVals;
-        gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
+                  Str ln;
+                  Str cat;
+                  int64_t thrdTotal;
+                  StatTotal::Type totalTy;
+                  galois::gstl::Vector<int64_t> thrdVals;
+                  gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
 
-        StatRecvHelper::recvAtHost_0_str(hostID, ln, cat, thrdTotal, totalTy,
-                                         thrdVals);
+                  StatRecvHelper::recvAtHost_0_int(hostID, ln, cat, thrdTotal, totalTy,
+                                                 thrdVals);
+              }
+          } while (p);
+
+          if (terminateFlag) {
+              break;
+          }
       }
-    } while (p);
+  }
+}
+
+void DistStatManager::receiveAtHost_0_helper_fp(void) {
+  auto& net = getSystemNetworkInterface();
+  
+  for (uint32_t h = 1; h < getHostNum(); h++) {
+      bool terminateFlag = false; 
+        
+      decltype(net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 2)) p;
+      while (true) {
+          do {
+              p = net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 2);
+
+              if (p) {
+                  uint32_t hostID = p->first;
+                  RecvBuffer& b   = p->second;
+
+                  Str ln;
+                  Str cat;
+                  double thrdTotal;
+                  StatTotal::Type totalTy;
+                  galois::gstl::Vector<double> thrdVals;
+                  gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
+
+                  StatRecvHelper::recvAtHost_0_fp(hostID, ln, cat, thrdTotal, totalTy,
+                                                 thrdVals);
+              }
+          } while (p);
+
+          if (terminateFlag) {
+              break;
+          }
+      }
+  }
+}
+
+void DistStatManager::receiveAtHost_0_helper_str(void) {
+  auto& net = getSystemNetworkInterface();
+  
+  for (uint32_t h = 1; h < getHostNum(); h++) {
+      bool terminateFlag = false; 
+        
+      decltype(net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 3)) p;
+      while (true) {
+          do {
+              p = net.receiveTaggedFromHost(h, terminateFlag, galois::runtime::evilPhase, 3);
+
+              if (p) {
+                  uint32_t hostID = p->first;
+                  RecvBuffer& b   = p->second;
+
+                  Str ln;
+                  Str cat;
+                  Str thrdTotal;
+                  StatTotal::Type totalTy;
+                  galois::gstl::Vector<Str> thrdVals;
+                  gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
+
+                  StatRecvHelper::recvAtHost_0_str(hostID, ln, cat, thrdTotal, totalTy,
+                                                 thrdVals);
+              }
+          } while (p);
+
+          if (terminateFlag) {
+              break;
+          }
+      }
   }
 }
 
 void DistStatManager::combineAtHost_0(void) {
+  auto& net = getSystemNetworkInterface();
   galois::DGTerminator<unsigned int> td;
 
   // host 0 reads stats from Base class
   // other hosts send stats to host 0
-  combineAtHost_0_helper();
-  getSystemNetworkInterface().flush();
+  combineAtHost_0_helper_total();
 
   // work done before check
   td += 1;
@@ -286,7 +353,8 @@ void DistStatManager::combineAtHost_0(void) {
     td.reset();
     if (getHostID() == 0) {
       // receive from other hosts
-      receiveAtHost_0_helper();
+      receiveAtHost_0_helper_total();
+      net.resetDataTermination();
     }
   }
 
@@ -296,8 +364,7 @@ void DistStatManager::combineAtHost_0(void) {
 
   // host 0 reads stats from Base class
   // other hosts send stats to host 0
-  combineAtHost_0_helper2();
-  getSystemNetworkInterface().flush();
+  combineAtHost_0_helper_int();
 
   td += 1;
 
@@ -307,7 +374,50 @@ void DistStatManager::combineAtHost_0(void) {
 
     if (getHostID() == 0) {
       // receive from other hosts
-      receiveAtHost_0_helper2();
+      receiveAtHost_0_helper_int();
+      net.resetDataTermination();
+    }
+  }
+
+  // explicit barrier after logical barrier is required
+  // as next async phase begins immediately
+  getHostBarrier().wait();
+
+  // host 0 reads stats from Base class
+  // other hosts send stats to host 0
+  combineAtHost_0_helper_fp();
+
+  td += 1;
+
+  // barrier
+  while (td.reduce()) {
+    td.reset();
+
+    if (getHostID() == 0) {
+      // receive from other hosts
+      receiveAtHost_0_helper_fp();
+      net.resetDataTermination();
+    }
+  }
+
+  // explicit barrier after logical barrier is required
+  // as next async phase begins immediately
+  getHostBarrier().wait();
+
+  // host 0 reads stats from Base class
+  // other hosts send stats to host 0
+  combineAtHost_0_helper_str();
+
+  td += 1;
+
+  // barrier
+  while (td.reduce()) {
+    td.reset();
+
+    if (getHostID() == 0) {
+      // receive from other hosts
+      receiveAtHost_0_helper_str();
+      net.resetDataTermination();
     }
   }
 

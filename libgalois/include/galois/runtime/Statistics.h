@@ -24,6 +24,7 @@
 #include <map>
 #include <string>
 #include <type_traits>
+#include <iostream>
 
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -364,6 +365,7 @@ private:
 
     void addToStat(const Str& region, const Str& category, const T& val,
                    const StatTotal::Type& type) {
+      //std::cout << "region: " << region << ", category: " << category << ", value: " << val << std::endl;
       perThreadManagers.getLocal()->addToStat(region, category, val, type);
     }
 
@@ -379,6 +381,7 @@ private:
 
         for (auto i = manager->cbegin(), end_i = manager->cend(); i != end_i;
              ++i) {
+          //std::cout << "region: " << manager->region(i) << ", category: " << manager->category(i) << std::endl;
           result.addToStat(manager->region(i), manager->category(i),
                            T(manager->stat(i)), manager->stat(i).totalTy());
         }

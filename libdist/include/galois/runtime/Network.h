@@ -140,13 +140,21 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(uint32_t tag, int type = 0) = 0;
   
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0) = 0;
+  
+  virtual std::optional<std::pair<uint32_t, RecvBuffer>>
+  receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint32_t tag, int type = 0) = 0;
+  
   virtual bool receiveRemoteWork(uint8_t*& work, size_t& workLen) = 0;
   
   virtual bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) = 0;
   
   virtual bool receiveComm(uint32_t& host, uint8_t*& work) = 0;
   
-  virtual void resetTermination() = 0;
+  virtual void resetWorkTermination() = 0;
+
+  virtual void resetDataTermination() = 0;
   
   //! move send buffers out to network
   virtual void flush() = 0;
@@ -157,7 +165,9 @@ public:
   
   virtual void flushComm() = 0;
   
-  virtual void broadcastTermination() = 0;
+  virtual void broadcastWorkTermination() = 0;
+  
+  virtual void signalDataTermination(uint32_t dest) = 0;
 
   //! @returns true if any send is in progress or is pending to be enqueued
   virtual bool anyPendingSends() = 0;
@@ -172,10 +182,12 @@ extern uint32_t evilPhase;
 
 //! Reserved tag for remote work
 extern uint32_t remoteWorkTag;
-//! Reserved tag for remote termination message
-extern uint32_t terminationTag;
+//! Reserved tag for remote work termination message
+extern uint32_t workTerminationTag;
 //! Reserved tag for communication
 extern uint32_t communicationTag;
+//! Reserved tag for remote data termination message
+extern uint32_t dataTerminationTag;
 
 //! Get the network interface
 //! @returns network interface
@@ -189,6 +201,10 @@ void destroySystemNetworkInterface();
 //! Gets this host's ID
 //! @returns ID of this host
 uint32_t getHostID();
+
+//! Gets the number of hosts
+//! @returns number of hosts
+uint32_t getHostNum();
 
 //! Returns a BufferedNetwork interface
 NetworkInterface& makeNetworkBuffered();
