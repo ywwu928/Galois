@@ -189,9 +189,7 @@ struct PageRank_delta {
   cll::opt<float>& local_tolerance;
   Graph* graph;
 
-  using DGTerminatorDetector =
-      typename std::conditional<async, galois::DGTerminator<unsigned int>,
-                                galois::DGAccumulator<unsigned int>>::type;
+  using DGTerminatorDetector = typename std::conditional<async, galois::DGTerminator<unsigned int>, galois::DGAccumulator<unsigned int>>::type;
 
   DGTerminatorDetector& active_vertices;
 
@@ -229,9 +227,7 @@ template <bool async>
 struct PageRankIEC {
   Graph* graph;
 
-  using DGTerminatorDetector =
-      typename std::conditional<async, galois::DGTerminator<unsigned int>,
-                                galois::DGAccumulator<unsigned int>>::type;
+  using DGTerminatorDetector = typename std::conditional<async, galois::DGTerminator<unsigned int>, galois::DGAccumulator<unsigned int>>::type;
 
   PageRankIEC(Graph* _graph) : graph(_graph) {}
 
@@ -318,15 +314,177 @@ struct PageRankIEC {
   }
 };
 
+struct PageRankOECPresent {
+  Graph* graph;
+
+  PageRankOECPresent(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+      const auto& presentNodes = _graph.presentNodesRangeReserved();
+      // launch all other threads to compute
+      galois::do_all(
+          galois::iterate(presentNodes), PageRankOECPresent{&_graph}, galois::steal(),
+          galois::no_stats(),
+          galois::loopname(syncSubstrate->get_run_identifier("PageRankOECPresent").c_str()));
+  }
+
+  // Pull deltas from neighbor nodes, then add to self-residual
+  void operator()(GNode src) const {
+    // source node must be master or mirror
+    auto& sdata = graph->getData(src);
+
+    for (auto nbr : graph->edges(src)) {
+        GNode dst   = graph->getEdgeDst(nbr);
+        // destination node must be masters
+        auto& ddata = graph->getData(dst);
+
+        if (ddata.delta > 0) {
+            galois::add(sdata.residual, ddata.delta);
+
+            bitset_residual.set(src);
+        }
+    }
+  }
+};
+
+struct PageRankOECPhantom {
+  Graph* graph;
+
+  PageRankOECPhantom(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+      const auto& phantomNodes = _graph.phantomNodesRangeReserved();
+
+      // launch all other threads to compute
+      galois::do_all(
+          galois::iterate(phantomNodes), PageRankOECPhantom{&_graph}, galois::steal(),
+          galois::no_stats(),
+          galois::loopname(syncSubstrate->get_run_identifier("PageRankOEC").c_str()));
+
+      // inform all other hosts that this host has finished sending messages
+      // force all messages to be processed before continuing
+      syncSubstrate->net_flush();
+  }
+
+  // Pull deltas from neighbor nodes, then add to self-residual
+  void operator()(GNode src) const {
+    // source node must be phantom
+    // create register for phantom node data
+    float sresidual = 0;
+    
+    for (auto nbr : graph->edges(src)) {
+        GNode dst   = graph->getEdgeDst(nbr);
+        // destination node must be masters
+        auto& ddata = graph->getData(dst);
+
+        if (ddata.delta > 0) {
+            galois::add(sresidual, ddata.delta);
+        }
+    }
+
+#ifdef GALOIS_EXCHANGE_PHANTOM_LID
+    syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+#else
+    syncSubstrate->send_data_to_remote<Reduce_add_residual>(graph->getHostIDForLocal(src), graph->getGID(src), sresidual);
+#endif
+  }
+};
+
 template <bool async>
 struct PageRankOEC {
+  Graph* graph;
+
+  using DGTerminatorDetector = typename std::conditional<async, galois::DGTerminator<unsigned int>, galois::DGAccumulator<unsigned int>>::type;
+
+  PageRankOEC(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    unsigned _num_iterations   = 0;
+    DGTerminatorDetector dga;
+  
+    auto& net = galois::runtime::getSystemNetworkInterface();
+
+    do {
+#ifdef GALOIS_PRINT_PROCESS
+      galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+#endif
+      syncSubstrate->set_num_round(_num_iterations);
+      dga.reset();
+
+#ifndef GALOIS_NO_MIRRORING     
+      // reset residual on mirrors
+      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+#endif
+      
+      std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      
+      StatTimer_compute.start();
+      PageRank_delta<async>::go(_graph, dga);
+
+      syncSubstrate->set_update_buf_to_identity<Reduce_add_residual>(0);
+      
+      // dedicate a thread to poll for remote messages
+      std::function<void(void)> func = [&]() {
+          syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual, true>();
+      };
+      galois::substrate::getThreadPool().runDedicated(func);
+
+      PageRankOECPresent::go(_graph);
+      PageRankOECPhantom::go(_graph);
+      StatTimer_compute.stop();
+      
+      std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string wait_str("Host_" + std::to_string(net.ID) + "_Wait_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_wait(wait_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string sync_str("Host_" + std::to_string(net.ID) + "_Sync_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string poll_str("Host_" + std::to_string(net.ID) + "_Poll_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_poll(poll_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_comm.start();
+      StatTimer_wait.start();
+      galois::substrate::getThreadPool().waitDedicated();
+      StatTimer_wait.stop();
+      StatTimer_sync.start();
+      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
+      StatTimer_sync.stop();
+
+      StatTimer_poll.start();
+      syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
+#ifndef GALOIS_NO_MIRRORING     
+      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOEC");
+#endif
+      StatTimer_poll.stop();
+      StatTimer_comm.stop();
+      
+      syncSubstrate->reset_termination();
+
+      galois::runtime::reportStat_Tsum(
+          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
+          (unsigned long)_graph.sizeEdges());
+
+      ++_num_iterations;
+    } while ((async || (_num_iterations < maxIterations)) &&
+             dga.reduce(syncSubstrate->get_run_identifier()));
+
+    galois::runtime::reportStat_Tmax(
+        REGION_NAME,
+        "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
+        (unsigned long)_num_iterations);
+  }
+};
+
+template <bool async>
+struct PageRankOECOld {
   Graph* graph;
 
   using DGTerminatorDetector =
       typename std::conditional<async, galois::DGTerminator<unsigned int>,
                                 galois::DGAccumulator<unsigned int>>::type;
 
-  PageRankOEC(Graph* _graph) : graph(_graph) {}
+  PageRankOECOld(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
@@ -362,9 +520,9 @@ struct PageRankOEC {
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(allNodes), PageRankOEC{&_graph}, galois::steal(),
+          galois::iterate(allNodes), PageRankOECOld{&_graph}, galois::steal(),
           galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("PageRankOEC").c_str()));
+          galois::loopname(syncSubstrate->get_run_identifier("PageRankOECOld").c_str()));
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
@@ -373,15 +531,27 @@ struct PageRankOEC {
       
       std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
       galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string wait_str("Host_" + std::to_string(net.ID) + "_Wait_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_wait(wait_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string sync_str("Host_" + std::to_string(net.ID) + "_Sync_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string poll_str("Host_" + std::to_string(net.ID) + "_Poll_Round_" + std::to_string(_num_iterations));
+      galois::StatTimer StatTimer_poll(poll_str.c_str(), REGION_NAME_RUN.c_str());
 
       StatTimer_comm.start();
+      StatTimer_wait.start();
       galois::substrate::getThreadPool().waitDedicated();
+      StatTimer_wait.stop();
+      StatTimer_sync.start();
       syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
+      StatTimer_sync.stop();
 
+      StatTimer_poll.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #ifndef GALOIS_NO_MIRRORING     
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOEC");
+      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOECOld");
 #endif
+      StatTimer_poll.stop();
       StatTimer_comm.stop();
       
       syncSubstrate->reset_termination();
