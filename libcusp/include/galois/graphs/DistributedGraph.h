@@ -883,8 +883,7 @@ protected:
    */
   inline void determineThreadRanges() {
     assert(allNodesRanges.size() != 0);
-    allNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(
-        galois::getActiveThreads(), graph.getEdgePrefixSum());
+    allNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum());
   }
 
   /**
@@ -896,9 +895,7 @@ protected:
   inline void determineThreadRangesPresent() {
     // make sure this hasn't been called before
     assert(presentNodesRanges.size() == 0);
-    presentNodesRanges = galois::graphs::determineUnitRangesFromGraph(
-        graph, galois::getActiveThreads(), beginMaster,
-        numActualNodes, 0);
+    presentNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
   }
 
   /**
@@ -910,9 +907,7 @@ protected:
   inline void determineThreadRangesMaster() {
     // make sure this hasn't been called before
     assert(masterRanges.size() == 0);
-    masterRanges = galois::graphs::determineUnitRangesFromGraph(
-        graph, galois::getActiveThreads(), beginMaster,
-        beginMaster + numOwned, 0);
+    masterRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
   }
   
   /**
@@ -924,7 +919,7 @@ protected:
   inline void determineThreadRangesMirror() {
     // make sure this hasn't been called before
     assert(mirrorRanges.size() == 0);
-    mirrorRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numOwned, numActualNodes, 0);
+    mirrorRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
   }
   
   /**
@@ -936,7 +931,7 @@ protected:
   inline void determineThreadRangesPhantom() {
     // make sure this hasn't been called before
     assert(phantomRanges.size() == 0);
-    phantomRanges = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads(), numActualNodes, numNodes, 0);
+    phantomRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
 
   inline void determineThreadRangesReserved(uint32_t reserved) {
@@ -946,22 +941,22 @@ protected:
   
   inline void determineThreadRangesPresentReserved(uint32_t reserved) {
     assert(presentNodesRangesReserved.size() != 0);
-    presentNodesRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, beginMaster, numActualNodes, 0);
+    presentNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
   }
   
   inline void determineThreadRangesMasterReserved(uint32_t reserved) {
     assert(masterRangesReserved.size() != 0);
-    masterRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, beginMaster, beginMaster + numOwned, 0);
+    masterRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
   }
   
   inline void determineThreadRangesMirrorReserved(uint32_t reserved) {
     assert(mirrorRangesReserved.size() != 0);
-    mirrorRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numOwned, numActualNodes, 0);
+    mirrorRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
   }
   
   inline void determineThreadRangesPhantomReserved(uint32_t reserved) {
     assert(phantomRangesReserved.size() != 0);
-    phantomRangesReserved = galois::graphs::determineUnitRangesFromGraph(graph, galois::getActiveThreads() - reserved, numActualNodes, numNodes, 0);
+    phantomRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
 
   /**

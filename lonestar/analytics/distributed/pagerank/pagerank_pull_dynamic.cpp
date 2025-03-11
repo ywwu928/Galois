@@ -779,7 +779,7 @@ int main(int argc, char** argv) {
         if (execution == Async) {
             PageRankOEC<true>::go(*hg);
         } else {
-            PageRankOEC<false>::go(*hg);
+            PageRankOECOld<false>::go(*hg);
         }
     } else {
         if (execution == Async) {
