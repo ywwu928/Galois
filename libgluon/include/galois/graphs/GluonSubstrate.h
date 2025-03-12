@@ -215,9 +215,9 @@ private:
     uint64_t host_mirror_nodes = userGraph.numMirrors();
 
     std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
     std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
 
     auto& net = galois::runtime::getSystemNetworkInterface();
 
@@ -312,7 +312,7 @@ private:
         continue;
       std::string master_nodes_str =
           "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
+      galois::runtime::reportStatCond_Tsum<GALOIS_HOST_STATS>(
           RNAME, master_nodes_str, masterNodes[x].size());
       if (masterNodes[x].size() > maxSharedSize) {
         maxSharedSize = masterNodes[x].size();
@@ -324,7 +324,7 @@ private:
         continue;
       std::string mirror_nodes_str =
           "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(
+      galois::runtime::reportStatCond_Tsum<GALOIS_HOST_STATS>(
           RNAME, mirror_nodes_str, mirrorNodes[x].size());
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
@@ -354,10 +354,10 @@ private:
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor",
                                        replication_factor);
 
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(
-        RNAME, "TotalNodes", userGraph.globalSize());
-    galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(
-        RNAME, "TotalGlobalMirrorNodes", global_total_mirror_nodes);
+    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(
+        RNAME, "TotalMasterNodes", userGraph.globalSize());
+    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(
+        RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -464,9 +464,6 @@ public:
     Tgraph_construct_comm.start();
     setupCommunication();
     Tgraph_construct_comm.stop();
-	
-	std::string master_nodes_str = "NumMasterNodesOf_" + std::to_string(id);
-	galois::runtime::reportStatCond_Single<MORE_DIST_STATS>(RNAME, master_nodes_str, userGraph.numMasters());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -751,7 +748,7 @@ private:
     std::string statSendBytes_str(syncTypeStr + "SendBytes_" +
                                   get_run_identifier(loopName));
 
-    galois::runtime::reportStat_Tsum(RNAME, statSendBytes_str, b.size());
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, statSendBytes_str, b.size());
   }
   template <
       SyncType syncType, typename SyncFnTy, typename BitsetFnTy, typename VecTy,
@@ -768,7 +765,7 @@ private:
     std::string statSendBytes_str(syncTypeStr + "SendBytesVector_" +
                                   get_run_identifier(loopName));
 
-    galois::runtime::reportStat_Tsum(RNAME, statSendBytes_str, b.size());
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, statSendBytes_str, b.size());
   }
 
   /**
@@ -2171,7 +2168,7 @@ private:
       reset_bitset(syncType, &BitsetFnTy::reset_range);
     }
 
-    galois::runtime::reportStat_Tsum(RNAME, statNumMessages_str, numMessages);
+    galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, statNumMessages_str, numMessages);
   }
 
   /**
@@ -3055,11 +3052,6 @@ public:
             typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy,
             bool async = false>
   inline void sync(std::string loopName) {
-    std::string timer_str("Sync_" + loopName + "_" + get_run_identifier());
-    galois::StatTimer Tsync(timer_str.c_str(), RNAME);
-
-    Tsync.start();
-
     if (partitionAgnostic) {
       sync_any_to_any<SyncFnTy, BitsetFnTy, async>(loopName);
     } else {
@@ -3089,8 +3081,6 @@ public:
         }
       }
     }
-
-    Tsync.stop();
   }
 
   ////////////////////////////////////////////////////////////////////////////////

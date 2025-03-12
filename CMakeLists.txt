@@ -25,6 +25,7 @@ endif()
 set(GALOIS_ENABLE_DIST OFF CACHE BOOL "Enable distributed features")
 set(GALOIS_CUDA_CAPABILITY "" CACHE STRING "Semi-colon list of CUDA compute capability version numbers to enable GPU features") # e.g., "3.7;6.1"
 set(GALOIS_COMM_STATS OFF CACHE BOOL "Report more detailed statistics of communication")
+set(GALOIS_HOST_STATS ON CACHE BOOL "Report more Detailed statistics of host partitions")
 ###### General features ######
 set(GALOIS_ENABLE_PAPI OFF CACHE BOOL "Use PAPI counters for profiling")
 set(GALOIS_ENABLE_VTUNE OFF CACHE BOOL "Use VTune for profiling")
