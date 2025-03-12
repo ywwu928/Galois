@@ -55,6 +55,14 @@ static cll::opt<Exec> execution(
                 clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
     cll::init(Async));
 
+enum IterMode { All, Separate };
+
+static cll::opt<IterMode> iterMode(
+    "iterMode", cll::desc("Iterate Mode (default value All):"),
+    cll::values(clEnumVal(All, "iterate through all nodes"),
+                clEnumVal(Separate, "iterate through present nodes first and then phantom nodes")),
+    cll::init(All));
+
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
@@ -391,12 +399,12 @@ struct PageRankOECPhantom {
 };
 
 template <bool async>
-struct PageRankOEC {
+struct PageRankOECSep {
   Graph* graph;
 
   using DGTerminatorDetector = typename std::conditional<async, galois::DGTerminator<unsigned int>, galois::DGAccumulator<unsigned int>>::type;
 
-  PageRankOEC(Graph* _graph) : graph(_graph) {}
+  PageRankOECSep(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
@@ -454,7 +462,7 @@ struct PageRankOEC {
       StatTimer_poll.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #ifndef GALOIS_NO_MIRRORING     
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOEC");
+      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOECSep");
 #endif
       StatTimer_poll.stop();
       StatTimer_comm.stop();
@@ -477,14 +485,14 @@ struct PageRankOEC {
 };
 
 template <bool async>
-struct PageRankOECOld {
+struct PageRankOECAll {
   Graph* graph;
 
   using DGTerminatorDetector =
       typename std::conditional<async, galois::DGTerminator<unsigned int>,
                                 galois::DGAccumulator<unsigned int>>::type;
 
-  PageRankOECOld(Graph* _graph) : graph(_graph) {}
+  PageRankOECAll(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
     unsigned _num_iterations   = 0;
@@ -520,9 +528,9 @@ struct PageRankOECOld {
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(allNodes), PageRankOECOld{&_graph}, galois::steal(),
+          galois::iterate(allNodes), PageRankOECAll{&_graph}, galois::steal(),
           galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("PageRankOECOld").c_str()));
+          galois::loopname(syncSubstrate->get_run_identifier("PageRankOECAll").c_str()));
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
@@ -549,7 +557,7 @@ struct PageRankOECOld {
       StatTimer_poll.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #ifndef GALOIS_NO_MIRRORING     
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOECOld");
+      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual, async>("PageRankOECAll");
 #endif
       StatTimer_poll.stop();
       StatTimer_comm.stop();
@@ -777,9 +785,17 @@ int main(int argc, char** argv) {
     StatTimer_main.start();
     if (partitionScheme == OEC) {
         if (execution == Async) {
-            PageRankOEC<true>::go(*hg);
+            if (iterMode == All) {
+                PageRankOECAll<true>::go(*hg);
+            } else {
+                PageRankOECSep<true>::go(*hg);
+            }
         } else {
-            PageRankOECOld<false>::go(*hg);
+            if (iterMode == All) {
+                PageRankOECAll<false>::go(*hg);
+            } else {
+                PageRankOECSep<false>::go(*hg);
+            }
         }
     } else {
         if (execution == Async) {
