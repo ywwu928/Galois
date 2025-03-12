@@ -27,7 +27,7 @@
 #ifndef GALOIS_RUNTIME_DIST_STATS_H
 #define GALOIS_RUNTIME_DIST_STATS_H
 
-#define MORE_DIST_STATS 1
+#define MORE_DIST_STATS 0
 
 //! Turn on if you want more distributed stats to be printed
 #ifndef MORE_DIST_STATS
@@ -36,6 +36,10 @@
 //! Turn on if you want more communication statistics to be printed
 #ifndef GALOIS_COMM_STATS
 #define GALOIS_COMM_STATS 0
+#endif
+//! Turn on if you want more host partition statistics to be printed
+#ifndef GALOIS_HOST_STATS
+#define GALOIS_HOST_STATS 0
 #endif
 //! Turn on if you want per-bulk-synchronous parallel timers to be printed
 //! (otherwise all rounds are under 1 timer)
