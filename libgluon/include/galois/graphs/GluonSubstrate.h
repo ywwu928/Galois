@@ -3533,8 +3533,7 @@ public:
         galois::do_all(
             galois::iterate(r.first, r.second),
             [&](uint32_t lid) { FnTy::reset(lid, userGraph.getData(lid)); },
-            galois::no_stats(),
-            galois::loopname(get_run_identifier("RESET:MIRRORS").c_str()));
+            galois::no_stats());
       }
     }
   }
