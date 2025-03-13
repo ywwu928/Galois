@@ -458,11 +458,21 @@ private:
 
     Tcomm_setup.stop();
 
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
+
     maxSharedSize = 0;
     // report masters/mirrors/phantoms to/from other hosts as statistics
     for (auto x = 0U; x < masterNodes.size(); ++x) {
       if (x == id)
         continue;
+      std::string master_nodes_str =
+          "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, master_nodes_str, masterNodes[x].size());
       if (masterNodes[x].size() > maxSharedSize) {
         maxSharedSize = masterNodes[x].size();
       }
@@ -471,6 +481,10 @@ private:
     for (auto x = 0U; x < mirrorNodes.size(); ++x) {
       if (x == id)
         continue;
+      std::string mirror_nodes_str =
+          "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, mirror_nodes_str, mirrorNodes[x].size());
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
       }
