@@ -137,10 +137,8 @@ protected:
   
   //! Host ID = localHostVector[LID]
   std::vector<uint32_t> localHostVector;
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
   //! Remote LID = phantomLocalToRemote[LID]
-  std::vector<uint64_t> phantomLocalToRemoteVector;
-#endif
+  std::vector<uint32_t> phantomLocalToRemoteVector;
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -574,7 +572,7 @@ public:
   inline unsigned getHostID(uint64_t gid) const { return getHostIDImpl(gid); }
   //! Determines which host has the master for a particular local node
   //! @returns Host id of local node in question
-  inline unsigned getHostIDForLocal(uint32_t lid) const {
+  inline uint32_t& getHostIDForLocal(uint32_t lid) {
       return localHostVector[lid];
   }
   //! Determine if a node has a master on this host.
@@ -620,7 +618,6 @@ public:
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
 
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
   inline void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
       phantomLocalToRemoteVector.resize(numNodes - numActualNodes);
 
@@ -631,10 +628,9 @@ public:
       }
   }
   
-  inline uint32_t getPhantomRemoteLID(const uint32_t phantomLID) const {
+  inline uint32_t& getPhantomRemoteLID(const uint32_t phantomLID) {
       return phantomLocalToRemoteVector[phantomLID - numActualNodes];
   }
-#endif
 
   /**
    * Get data of a node.

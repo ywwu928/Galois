@@ -30,6 +30,8 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <chrono>
+#include <sstream>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -311,21 +313,43 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
+        std::ostringstream temp;
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
-#else
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), _delta);
-#endif
+            auto start = std::chrono::high_resolution_clock::now();
+            uint32_t& hostID = graph->getHostIDForLocal(dst);
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            temp << "getHostIDForLocal() takes " << duration.count() << " ns" << std::endl;
+
+            start = std::chrono::high_resolution_clock::now();
+            uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
+            end = std::chrono::high_resolution_clock::now();
+            duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            temp << "getPhantomRemoteLID() takes " << duration.count() << " ns" << std::endl;
+
+            start = std::chrono::high_resolution_clock::now();
+            syncSubstrate->send_data_to_remote(hostID, remoteLID, _delta);
+            end = std::chrono::high_resolution_clock::now();
+            duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            temp << "send_data_to_remote() takes " << duration.count() << " ns" << std::endl;
+
+            //syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
+
+            std::cout << temp.str();
         }
         else {
 #endif
+            auto start = std::chrono::high_resolution_clock::now();
             NodeData& ddata = graph->getData(dst);
 
             galois::atomicAdd(ddata.residual, _delta);
 
             bitset_residual.set(dst);
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            temp << "present node operation takes " << duration.count() << " ns" << std::endl;
+            std::cout << temp.str();
 #ifndef GALOIS_FULL_MIRRORING     
         }
 #endif

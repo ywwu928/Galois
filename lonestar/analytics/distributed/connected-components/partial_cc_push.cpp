@@ -167,11 +167,7 @@ struct FirstItr_ConnectedComp {
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
             syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
-#else
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), new_dist);
-#endif
         }
         else {
 #endif
@@ -296,11 +292,7 @@ struct ConnectedComp {
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
             syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
-#else
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getGID(dst), new_dist);
-#endif
         }
         else {
 #endif

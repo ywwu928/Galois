@@ -31,6 +31,8 @@
 #include <cstdint>
 #include <algorithm>
 #include <vector>
+#include <chrono>
+#include <sstream>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
@@ -314,7 +316,6 @@ private:
           galois::no_stats());
     }
 
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID    
     // send off the phantom master nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -346,7 +347,6 @@ private:
     incrementEvilPhase();
 
     userGraph.constructPhantomLocalToRemoteVector(phantomRemoteNodes);
-#endif
 
 #endif
   }
@@ -560,11 +560,8 @@ public:
     // allocate send work buffer
     sendWorkBuffer.resize(numT, nullptr);
     for (unsigned t=0; t<numT; t++) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
         void* ptr = malloc(sizeof(uint32_t) + sizeof(ValTy));
-#else
-        void* ptr = malloc(sizeof(uint64_t) + sizeof(ValTy));
-#endif
+        
         if (ptr == nullptr) {
             galois::gError("Failed to allocate memory for the thread send work buffer\n");
         }
@@ -2281,20 +2278,12 @@ public:
                 size_t offset = 0;
 
                 uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                uint64_t gid;
-#endif
+                
                 ValTy val;
 
                 while (offset != bufLen) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                     std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                     offset += sizeof(uint32_t);
-#else
-                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                    offset += sizeof(uint64_t);
-                    lid = userGraph.getLID(gid);
-#endif
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
                     func(*(phantomMasterUpdateBuffer[lid]), val);
@@ -2327,20 +2316,11 @@ public:
                 size_t offset = 0;
 
                 uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                uint64_t gid;
-#endif
                 ValTy val;
 
                 while (offset != bufLen) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                     std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                     offset += sizeof(uint32_t);
-#else
-                    std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                    offset += sizeof(uint64_t);
-                    lid = userGraph.getLID(gid);
-#endif
                     std::memcpy(&val, buf + offset, sizeof(val));
                     offset += sizeof(val);
                     FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
@@ -2410,27 +2390,14 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                             size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-#else
-                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
-#endif
                             
                             uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                            uint64_t gid;
-#endif
                             ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                                 std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                                 offset += sizeof(uint32_t);
-#else
-                                std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                                offset += sizeof(uint64_t);
-                                lid = userGraph.getLID(gid);
-#endif
                                 std::memcpy(&val, buf + offset, sizeof(val));
                                 offset += sizeof(val);
                                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
@@ -2470,27 +2437,14 @@ public:
                                 start = tid * quotient + remainder;
                                 size = quotient;
                             }
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                             size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-#else
-                            size_t offset = start * (sizeof(uint64_t) + sizeof(ValTy));
-#endif
                             
                             uint32_t lid;
-#ifndef GALOIS_EXCHANGE_PHANTOM_LID
-                            uint64_t gid;
-#endif
                             ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
                                 std::memcpy(&lid, buf + offset, sizeof(uint32_t));
                                 offset += sizeof(uint32_t);
-#else
-                                std::memcpy(&gid, buf + offset, sizeof(uint64_t));
-                                offset += sizeof(uint64_t);
-                                lid = userGraph.getLID(gid);
-#endif
                                 std::memcpy(&val, buf + offset, sizeof(val));
                                 offset += sizeof(val);
                                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
@@ -2511,27 +2465,28 @@ public:
         stopDedicated = true;
     }
 
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
-    void send_data_to_remote(unsigned dst, uint32_t lid, ValTy val) {
-#else
-    void send_data_to_remote(unsigned dst, uint64_t gid, ValTy val) {
-#endif
+    void send_data_to_remote(uint32_t& dst, uint32_t& lid, ValTy val) {
         unsigned tid = galois::substrate::ThreadPool::getTID();
         
         // serialize
         uint8_t* bufferPtr = sendWorkBuffer[tid];
         size_t offset = 0;
-#ifdef GALOIS_EXCHANGE_PHANTOM_LID
+        auto start = std::chrono::high_resolution_clock::now();
         std::memcpy(bufferPtr, &lid, sizeof(lid));
         offset += sizeof(lid);
-#else
-        std::memcpy(bufferPtr, &gid, sizeof(gid));
-        offset += sizeof(gid);
-#endif
         std::memcpy(bufferPtr + offset, &val, sizeof(val));
         offset += sizeof(val);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        std::ostringstream temp;
+        temp << "memcpy takes " << duration.count() << " ns" << std::endl;
 
+        start = std::chrono::high_resolution_clock::now();
         net.sendWork(tid, dst, bufferPtr, offset);
+        end = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        temp << "sendWork takes " << duration.count() << " ns" << std::endl;
+        std::cout << temp.str();
     }
 
 };
