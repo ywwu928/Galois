@@ -360,14 +360,20 @@ private:
     uint64_t host_mirror_nodes = userGraph.numMirrors();
     uint64_t host_phantom_nodes = userGraph.numPhantoms();
   
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
+
     std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
     std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
     std::string phantom_nodes_str = "PhantomNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, phantom_nodes_str, host_phantom_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_nodes_str, host_phantom_nodes);
     std::string phantom_master_nodes_str = "PhantomMasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, phantom_master_nodes_str, phantomMasterCount);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_master_nodes_str, phantomMasterCount);
         
     if (net.ID == 0) {
         uint64_t global_total_mirror_nodes = host_mirror_nodes;
@@ -421,11 +427,17 @@ private:
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor", replication_factor);
     float memory_overhead = (float)(dataSizeRatio * (userGraph.globalSize() + global_total_mirror_nodes + global_total_phantom_master_nodes) + userGraph.globalSizeEdges()) / (float)(dataSizeRatio * userGraph.globalSize() + userGraph.globalSizeEdges());
     galois::runtime::reportStat_Single(RNAME, "AggregatedMemoryOverhead", memory_overhead);
+  
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
 
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, "TotalMasterNodes", userGraph.globalSize());
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, "TotalPhantomNodes", global_total_phantom_nodes);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, "TotalEdges", userGraph.globalSizeEdges());
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, "TotalMasterNodes", userGraph.globalSize());
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, "TotalPhantomNodes", global_total_phantom_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, "TotalEdges", userGraph.globalSizeEdges());
   }
 
   /**
