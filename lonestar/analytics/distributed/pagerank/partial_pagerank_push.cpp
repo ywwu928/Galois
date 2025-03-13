@@ -221,7 +221,9 @@ struct PageRank {
       std::string termination_reset_str("Host_" + std::to_string(net.ID) + "_TerminationReset_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_termination_reset(termination_reset_str.c_str(), REGION_NAME_RUN.c_str());
 
+#ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+#endif
 
       syncSubstrate->set_num_round(_num_iterations);
       dga.reset();
