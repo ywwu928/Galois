@@ -214,10 +214,16 @@ private:
     uint64_t host_master_nodes = userGraph.numMasters();
     uint64_t host_mirror_nodes = userGraph.numMirrors();
 
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
+
     std::string master_nodes_str = "MasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
     std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
 
     auto& net = galois::runtime::getSystemNetworkInterface();
 
@@ -305,6 +311,12 @@ private:
 
     Tcomm_setup.stop();
 
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
+
     maxSharedSize = 0;
     // report masters/mirrors to/from other hosts as statistics
     for (auto x = 0U; x < masterNodes.size(); ++x) {
@@ -312,7 +324,7 @@ private:
         continue;
       std::string master_nodes_str =
           "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
-      galois::runtime::reportStatCond_Tsum<GALOIS_HOST_STATS>(
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, master_nodes_str, masterNodes[x].size());
       if (masterNodes[x].size() > maxSharedSize) {
         maxSharedSize = masterNodes[x].size();
@@ -324,7 +336,7 @@ private:
         continue;
       std::string mirror_nodes_str =
           "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
-      galois::runtime::reportStatCond_Tsum<GALOIS_HOST_STATS>(
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, mirror_nodes_str, mirrorNodes[x].size());
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
@@ -354,9 +366,15 @@ private:
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor",
                                        replication_factor);
 
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(
+#ifdef GALOIS_HOST_STATS
+    constexpr bool HOST_STATS = true;
+#else
+    constexpr bool HOST_STATS = false;
+#endif
+
+    galois::runtime::reportStatCond_Single<HOST_STATS>(
         RNAME, "TotalMasterNodes", userGraph.globalSize());
-    galois::runtime::reportStatCond_Single<GALOIS_HOST_STATS>(
+    galois::runtime::reportStatCond_Single<HOST_STATS>(
         RNAME, "TotalMirrorNodes", global_total_mirror_nodes);
   }
 
