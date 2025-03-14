@@ -359,6 +359,18 @@ class NetworkInterfaceBuffered : public NetworkInterface {
 
       void setNet(NetworkInterfaceBuffered* _net) {
           net = _net;
+          
+          if (buf == nullptr) {
+              // allocate new buffer
+              do {
+                  buf = net->sendAllocators[tid].allocate();
+                  
+                  if (buf == nullptr) {
+                      galois::substrate::asmPause();
+                  }
+              } while (buf == nullptr);
+          }
+          
       }
       
       void setTID(unsigned _tid) {
@@ -405,17 +417,6 @@ class NetworkInterfaceBuffered : public NetworkInterface {
       }
 
       void add(uint32_t* lid, void* val, size_t valLen) {
-          if (buf == nullptr) {
-              // allocate new buffer
-              do {
-                  buf = net->sendAllocators[tid].allocate();
-                  
-                  if (buf == nullptr) {
-                      galois::substrate::asmPause();
-                  }
-              } while (buf == nullptr);
-          }
-          
           size_t workLen = sizeof(uint32_t) + valLen;
           if (bufLen + workLen + sizeof(uint32_t) > AGG_MSG_SIZE) {
               // put number of message count at the very last
