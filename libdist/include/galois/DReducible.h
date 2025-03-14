@@ -30,7 +30,6 @@
 #include "galois/Galois.h"
 #include "galois/Reduction.h"
 #include "galois/AtomicHelpers.h"
-#include "galois/runtime/LWCI.h"
 #include "galois/runtime/DistStats.h"
 
 namespace galois {
@@ -49,15 +48,6 @@ class DGAccumulator {
   galois::GAccumulator<Ty> mdata;
   Ty local_mdata, global_mdata;
 
-#ifdef GALOIS_USE_LCI
-  /**
-   * Sum reduction using LWCI
-   */
-  inline void reduce_lwci() {
-    lc_alreduce(&local_mdata, &global_mdata, sizeof(Ty),
-                &galois::runtime::internal::ompi_op_sum<Ty>, lc_col_ep);
-  }
-#else
   /**
    * Sum reduction using MPI
    */
@@ -88,7 +78,6 @@ class DGAccumulator {
                     "Type of DGAccumulator not supported for MPI reduction");
     }
   }
-#endif
 
 public:
   //! Default constructor
@@ -176,11 +165,7 @@ public:
     if (local_mdata == 0)
       local_mdata = mdata.reduce();
 
-#ifdef GALOIS_USE_LCI
-    reduce_lwci();
-#else
     reduce_mpi();
-#endif
 
     reduceTimer.stop();
 
@@ -204,15 +189,6 @@ class DGReduceMax {
   galois::GReduceMax<Ty> mdata; // local max reducer
   Ty local_mdata, global_mdata;
 
-#ifdef GALOIS_USE_LCI
-  /**
-   * Use LWCI to reduce max across hosts
-   */
-  inline void reduce_lwci() {
-    lc_alreduce(&local_mdata, &global_mdata, sizeof(Ty),
-                &galois::runtime::internal::ompi_op_max<Ty>, lc_col_ep);
-  }
-#else
   /**
    * Use MPI to reduce max across hosts
    */
@@ -243,7 +219,6 @@ class DGReduceMax {
                           "reduction");
     }
   }
-#endif
 
 public:
   /**
@@ -312,11 +287,8 @@ public:
     if (local_mdata == 0)
       local_mdata = mdata.reduce();
 
-#ifdef GALOIS_USE_LCI
-    reduce_lwci();
-#else
     reduce_mpi();
-#endif
+    
     reduceTimer.stop();
 
     return global_mdata;
@@ -339,15 +311,6 @@ class DGReduceMin {
   galois::GReduceMin<Ty> mdata; // local min reducer
   Ty local_mdata, global_mdata;
 
-#ifdef GALOIS_USE_LCI
-  /**
-   * Use LWCI to reduce min across hosts
-   */
-  inline void reduce_lwci() {
-    lc_alreduce(&local_mdata, &global_mdata, sizeof(Ty),
-                &galois::runtime::internal::ompi_op_min<Ty>, lc_col_ep);
-  }
-#else
   /**
    * Use MPI to reduce min across hosts
    */
@@ -378,7 +341,6 @@ class DGReduceMin {
                           "reduction");
     }
   }
-#endif
 
 public:
   /**
@@ -448,11 +410,8 @@ public:
     if (local_mdata == std::numeric_limits<Ty>::max())
       local_mdata = mdata.reduce();
 
-#ifdef GALOIS_USE_LCI
-    reduce_lwci();
-#else
     reduce_mpi();
-#endif
+    
     reduceTimer.stop();
 
     return global_mdata;

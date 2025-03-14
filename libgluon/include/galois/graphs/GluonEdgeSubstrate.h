@@ -305,17 +305,6 @@ private:
     if (bare_mpi == noBareMPI)
       return;
 
-#ifdef GALOIS_USE_LCI
-    // sanity check of ranks
-    int taskRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &taskRank);
-    if ((unsigned)taskRank != id)
-      GALOIS_DIE("mismatch in MPI rank");
-    int numTasks;
-    MPI_Comm_size(MPI_COMM_WORLD, &numTasks);
-    if ((unsigned)numTasks != numHosts)
-      GALOIS_DIE("mismatch in MPI rank");
-#endif
     // group setup
     MPI_Group world_group;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);

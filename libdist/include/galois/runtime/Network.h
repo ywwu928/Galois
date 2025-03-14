@@ -209,9 +209,6 @@ uint32_t getHostNum();
 //! Returns a BufferedNetwork interface
 NetworkInterface& makeNetworkBuffered();
 
-//! Returns a LCINetwork interface
-NetworkInterface& makeNetworkLCI();
-
 //! Returns a host barrier, which is a regular MPI-Like Barrier for all hosts.
 //! @warning Should not be called within a parallel region; assumes only one
 //! thread is calling it

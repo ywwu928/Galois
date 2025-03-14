@@ -31,7 +31,6 @@
 #include "galois/runtime/Substrate.h"
 #include "galois/substrate/CompilerSpecific.h"
 #include "galois/runtime/Network.h"
-#include "galois/runtime/LWCI.h"
 
 #include <cstdlib>
 #include <cstdio>
@@ -96,11 +95,7 @@ public:
 
   //! Control-flow barrier across distributed hosts
   virtual void wait() {
-#ifdef GALOIS_USE_LCI
-    lc_barrier(lc_col_ep);
-#else
     MPI_Barrier(MPI_COMM_WORLD); // assumes MPI_THREAD_MULTIPLE
-#endif
   }
 };
 

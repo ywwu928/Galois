@@ -61,17 +61,6 @@ endfunction(add_test_gpu)
 
 
 if(GALOIS_ENABLE_DIST)
-  if (GALOIS_USE_LCI)
-    add_definitions(-DGALOIS_USE_LCI)
-    set(LCI_ROOT "${CMAKE_BINARY_DIR}/libdist/external/src/lci")
-    set(LCI_INCLUDE "${LCI_ROOT}/include")
-    set(LCI_LIBRARY "${LCI_ROOT}/liblci.a")
-
-    include(ExternalProject)
-    # do not clone submodules for external projects
-    cmake_policy(SET CMP0097 NEW)
-  endif(GALOIS_USE_LCI)
-
   add_subdirectory(libdistbench)
     
   if(GALOIS_ENABLE_GPU)

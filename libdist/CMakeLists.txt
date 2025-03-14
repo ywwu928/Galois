@@ -10,7 +10,6 @@ target_sources(galois_dist_async PRIVATE
         src/Network.cpp
         src/NetworkBuffered.cpp
         src/NetworkIOMPI.cpp
-        src/NetworkLCI.cpp
 )
 
 target_include_directories(galois_dist_async PUBLIC
@@ -26,34 +25,6 @@ target_compile_definitions(galois_dist_async PRIVATE GALOIS_SUPPORT_ASYNC=1)
 if (GALOIS_USE_BARE_MPI)
   target_compile_definitions(galois_dist_async PRIVATE GALOIS_USE_BARE_MPI=1)
 endif()
-
-if (GALOIS_USE_LCI)
-  add_definitions(-DGALOIS_USE_LCI)
-  set(LCI_ROOT "${CMAKE_BINARY_DIR}/libdist/external/src/lci")
-  set(LCI_INCLUDE "${LCI_ROOT}/include")
-  set(LCI_LIBRARY "${LCI_ROOT}/liblci.a")
-
-  include(ExternalProject)
-  # do not clone submodules for external projects
-  cmake_policy(SET CMP0097 NEW)
-
-  ExternalProject_Add(lci
-    PREFIX external
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ""
-    INSTALL_COMMAND ""
-    LOG_OUTPUT_ON_FAILURE 1
-    GIT_REPOSITORY "https://github.com/uiuc-hpc/LC.git"
-    GIT_SUBMODULES ""
-    GIT_TAG "9bf912829339879e1132614c6d24cd032c32366b")
-
-  add_dependencies(galois_dist_async lci)
-  target_link_libraries(galois_dist_async PRIVATE ${LCI_LIBRARY} -lpsm2)
-  target_include_directories(galois_dist_async PUBLIC 
-    $<BUILD_INTERFACE:${LCI_INCLUDE}>
-    $<INSTALL_INTERFACE:include>
-  )
-endif(GALOIS_USE_LCI)
 
 if(GALOIS_FULL_MIRRORING)
     target_compile_definitions(galois_dist_async PRIVATE GALOIS_FULL_MIRRORING=1)

@@ -625,15 +625,6 @@ int main(int argc, char** argv) {
   galois::setActiveThreads(threadsToUse);
 
 // need to initialize MPI if using LWCI (else already initialized)
-#ifdef GALOIS_USE_LCI
-  int initResult;
-  MPICheck(MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &initResult));
-
-  if (initResult < MPI_THREAD_MULTIPLE) {
-    GALOIS_DIE("unable to init mpi with thread multiple");
-  }
-#endif
-
   if (cleanCheck) {
     convertMode = gr2cgr;
   }
@@ -681,10 +672,6 @@ int main(int argc, char** argv) {
   default:
     abort();
   }
-
-#ifdef GALOIS_USE_LCI
-  MPICheck(MPI_Finalize());
-#endif
 
   return 0;
 }

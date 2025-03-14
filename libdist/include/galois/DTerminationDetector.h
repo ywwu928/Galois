@@ -30,7 +30,6 @@
 #include "galois/Galois.h"
 #include "galois/Reduction.h"
 #include "galois/AtomicHelpers.h"
-#include "galois/runtime/LWCI.h"
 #include "galois/runtime/DistStats.h"
 
 namespace galois {

@@ -133,11 +133,7 @@ void NetworkInterface::handleReceives() {
 }
 
 NetworkInterface& galois::runtime::getSystemNetworkInterface() {
-#ifndef GALOIS_USE_LCI
   return makeNetworkBuffered();
-#else
-  return makeNetworkLCI();
-#endif
 }
 
 void galois::runtime::internal::destroySystemNetworkInterface() {
