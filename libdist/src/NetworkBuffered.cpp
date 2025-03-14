@@ -404,7 +404,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           return success;
       }
 
-      void add(uint8_t* work, size_t workLen) {
+      void add(uint32_t* lid, void* val, size_t valLen) {
           if (buf == nullptr) {
               // allocate new buffer
               do {
@@ -416,6 +416,7 @@ class NetworkInterfaceBuffered : public NetworkInterface {
               } while (buf == nullptr);
           }
           
+          size_t workLen = sizeof(uint32_t) + valLen;
           if (bufLen + workLen + sizeof(uint32_t) > AGG_MSG_SIZE) {
               // put number of message count at the very last
               std::memcpy(buf + bufLen, &msgCount, sizeof(uint32_t));
@@ -430,8 +431,10 @@ class NetworkInterfaceBuffered : public NetworkInterface {
                       galois::substrate::asmPause();
                   }
               } while (buf == nullptr);
-              std::memcpy(buf, work, workLen);
-              bufLen = workLen;
+              std::memcpy(buf, lid, sizeof(uint32_t));
+              bufLen = sizeof(uint32_t);
+              std::memcpy(buf + bufLen, val, valLen);
+              bufLen += valLen;
               msgCount = 1;
 
               ++inflightSends;
@@ -439,8 +442,10 @@ class NetworkInterfaceBuffered : public NetworkInterface {
           }
           else {
               // aggregate message
-              std::memcpy(buf + bufLen, work, workLen);
-              bufLen += workLen;
+              std::memcpy(buf + bufLen, lid, sizeof(uint32_t));
+              bufLen += sizeof(uint32_t);
+              std::memcpy(buf + bufLen, val, valLen);
+              bufLen += valLen;
               msgCount += 1;
           }
       }
@@ -829,8 +834,8 @@ public:
     sendData[dest].push(tag, std::move(buf.getVec()));
   }
   
-  virtual void sendWork(unsigned tid, uint32_t dest, uint8_t* bufPtr, size_t len) {
-    sendRemoteWork[dest][tid].add(bufPtr, len);
+  virtual void sendWork(unsigned tid, uint32_t dest, uint32_t* lid, void* val, size_t valLen) {
+    sendRemoteWork[dest][tid].add(lid, val, valLen);
   }
   
   virtual void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {

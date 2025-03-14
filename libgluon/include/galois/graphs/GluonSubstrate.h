@@ -557,17 +557,6 @@ public:
 
     numT = galois::getActiveThreads();
 
-    // allocate send work buffer
-    sendWorkBuffer.resize(numT, nullptr);
-    for (unsigned t=0; t<numT; t++) {
-        void* ptr = malloc(sizeof(uint32_t) + sizeof(ValTy));
-        
-        if (ptr == nullptr) {
-            galois::gError("Failed to allocate memory for the thread send work buffer\n");
-        }
-        sendWorkBuffer[t] = static_cast<uint8_t*>(ptr);
-    }
-
     // allocate communication buffer
     sendCommBuffer.resize(numHosts, nullptr);
     sendCommBufferLen.resize(numHosts, 0);
@@ -609,12 +598,6 @@ public:
   }
 
   ~GluonSubstrate() {
-      for (unsigned t=0; t<numT; t++) {
-          if (sendWorkBuffer[t] != nullptr) {
-              free(sendWorkBuffer[t]);
-          }
-      }
-      
       for (unsigned i=0; i<numHosts; i++) {
           if (sendCommBuffer[i] != nullptr) {
               free(sendCommBuffer[i]);
@@ -2230,7 +2213,6 @@ private:
     uint8_t stopUpdateBuffer = 0;
     bool stopDedicated = false;
     bool terminateFlag = false;
-    std::vector<uint8_t*> sendWorkBuffer;
 
 public:
     void reset_termination() {
@@ -2468,21 +2450,8 @@ public:
     void send_data_to_remote(uint32_t& dst, uint32_t& lid, ValTy val) {
         unsigned tid = galois::substrate::ThreadPool::getTID();
         
-        // serialize
-        uint8_t* bufferPtr = sendWorkBuffer[tid];
-        size_t offset = 0;
-        //auto start = std::chrono::high_resolution_clock::now();
-        std::memcpy(bufferPtr, &lid, sizeof(lid));
-        offset += sizeof(lid);
-        std::memcpy(bufferPtr + offset, &val, sizeof(val));
-        offset += sizeof(val);
-        //auto end = std::chrono::high_resolution_clock::now();
-        //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        //std::ostringstream temp;
-        //temp << "memcpy takes " << duration.count() << " ns" << std::endl;
-
         //start = std::chrono::high_resolution_clock::now();
-        net.sendWork(tid, dst, bufferPtr, offset);
+        net.sendWork(tid, dst, &lid, &val, sizeof(val));
         //end = std::chrono::high_resolution_clock::now();
         //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
         //temp << "sendWork takes " << duration.count() << " ns" << std::endl;

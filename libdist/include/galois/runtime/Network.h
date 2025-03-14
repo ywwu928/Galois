@@ -112,7 +112,7 @@ public:
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0) = 0;
   
-  virtual void sendWork(unsigned tid, uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
+  virtual void sendWork(unsigned tid, uint32_t dest, uint32_t* lid, void* val, size_t valLen) = 0;
   
   virtual void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
 
