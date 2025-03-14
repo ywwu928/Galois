@@ -2471,22 +2471,22 @@ public:
         // serialize
         uint8_t* bufferPtr = sendWorkBuffer[tid];
         size_t offset = 0;
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
         std::memcpy(bufferPtr, &lid, sizeof(lid));
         offset += sizeof(lid);
         std::memcpy(bufferPtr + offset, &val, sizeof(val));
         offset += sizeof(val);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        std::ostringstream temp;
-        temp << "memcpy takes " << duration.count() << " ns" << std::endl;
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        //std::ostringstream temp;
+        //temp << "memcpy takes " << duration.count() << " ns" << std::endl;
 
-        start = std::chrono::high_resolution_clock::now();
+        //start = std::chrono::high_resolution_clock::now();
         net.sendWork(tid, dst, bufferPtr, offset);
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        temp << "sendWork takes " << duration.count() << " ns" << std::endl;
-        std::cout << temp.str();
+        //end = std::chrono::high_resolution_clock::now();
+        //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        //temp << "sendWork takes " << duration.count() << " ns" << std::endl;
+        //std::cout << temp.str();
     }
 
 };
