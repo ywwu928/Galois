@@ -26,6 +26,7 @@
 
 #include "galois/runtime/Tracer.h"
 #include "galois/runtime/Network.h"
+#include "galois/runtime/NetworkBuffered.h"
 #include "galois/runtime/NetworkIO.h"
 
 #include <iostream>

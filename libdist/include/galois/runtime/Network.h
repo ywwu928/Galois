@@ -87,10 +87,6 @@ public:
    * Destructor destroys MPI (if it exists).
    */
   virtual ~NetworkInterface();
-  
-  virtual void allocateRecvCommBuffer(size_t alloc_size) = 0;
-  
-  virtual void deallocateRecvBuffer(uint8_t* buf) = 0;
 
   //! Send a message to a given (dest) host.  A message is simply a
   //! landing pad (recv, funciton pointer) and some data (buf)
@@ -111,10 +107,6 @@ public:
   //! buf is invalidated by this operation
   virtual void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0) = 0;
-  
-  virtual void sendWork(unsigned tid, uint32_t dest, uint32_t* lid, void* val, size_t valLen) = 0;
-  
-  virtual void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) = 0;
 
   //! Send a message to all hosts.  A message is simply a
   //! landing pad (recv) and some data (buf)
@@ -146,29 +138,13 @@ public:
   virtual std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint32_t tag, int type = 0) = 0;
   
-  virtual bool receiveRemoteWork(uint8_t*& work, size_t& workLen) = 0;
-  
-  virtual bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) = 0;
-  
-  virtual bool receiveComm(uint32_t& host, uint8_t*& work) = 0;
-  
-  virtual void resetWorkTermination() = 0;
-
-  virtual void resetDataTermination() = 0;
-  
   //! move send buffers out to network
   virtual void flush() = 0;
-  
   virtual void flushData() = 0;
   
-  virtual void flushRemoteWork() = 0;
-  
-  virtual void flushComm() = 0;
-  
-  virtual void broadcastWorkTermination() = 0;
-  
+  virtual void resetDataTermination() = 0;
   virtual void signalDataTermination(uint32_t dest) = 0;
-
+  
   //! @returns true if any send is in progress or is pending to be enqueued
   virtual bool anyPendingSends() = 0;
 
@@ -205,9 +181,6 @@ uint32_t getHostID();
 //! Gets the number of hosts
 //! @returns number of hosts
 uint32_t getHostNum();
-
-//! Returns a BufferedNetwork interface
-NetworkInterface& makeNetworkBuffered();
 
 //! Returns a host barrier, which is a regular MPI-Like Barrier for all hosts.
 //! @warning Should not be called within a parallel region; assumes only one
