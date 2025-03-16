@@ -646,7 +646,7 @@ public:
    * @param mflag access flag for node data
    * @returns A node data object
    */
-  typename GraphTy::node_data_reference
+  inline typename GraphTy::node_data_reference
   getData(GraphNode N,
           galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getData(N, mflag);
@@ -660,7 +660,7 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  typename GraphTy::edge_data_reference
+  inline typename GraphTy::edge_data_reference
   getEdgeData(edge_iterator ni,
               galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getEdgeData(ni, mflag);
@@ -709,7 +709,7 @@ public:
    *
    * @param N node to get edges iterator over
    */
-  galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
+  inline galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
   edges(GraphNode N) {
     return galois::graphs::internal::make_no_deref_range(edge_begin(N),
                                                          edge_end(N));
