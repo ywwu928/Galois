@@ -34,7 +34,6 @@
 #include <chrono>
 #include <sstream>
 
-#include "galois/runtime/NetworkBuffered.h"
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
 #include "galois/runtime/SyncStructures.h"
@@ -89,7 +88,7 @@ private:
 
   //! The graph to handle communication for
   GraphTy& userGraph;
-  galois::runtime::NetworkInterfaceBuffered& net;
+  galois::runtime::NetworkInterface& net;
   const unsigned id; //!< Copy of net.ID, which is the ID of the machine.
   bool transposed;   //!< Marks if passed in graph is transposed or not.
   bool isVertexCut;  //!< Marks if passed in graph's partitioning is vertex cut.
@@ -522,7 +521,7 @@ public:
       std::pair<unsigned, unsigned> _cartesianGrid = std::make_pair(0u, 0u),
       bool _partitionAgnostic                      = false,
       DataCommMode _enforcedDataMode               = DataCommMode::noData)
-      : galois::runtime::GlobalObject(this), userGraph(_userGraph), net(galois::runtime::getSystemNetworkInterfaceBuffered()), id(host),
+      : galois::runtime::GlobalObject(this), userGraph(_userGraph), net(galois::runtime::getSystemNetworkInterface()), id(host),
         transposed(_transposed), isVertexCut(userGraph.is_vertex_cut()),
         cartesianGrid(_cartesianGrid), partitionAgnostic(_partitionAgnostic),
         substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),

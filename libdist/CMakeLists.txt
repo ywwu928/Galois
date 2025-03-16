@@ -8,7 +8,6 @@ target_sources(galois_dist_async PRIVATE
         src/DistGalois.cpp
         src/DistStats.cpp
         src/Network.cpp
-        src/NetworkBuffered.cpp
         src/NetworkIOMPI.cpp
 )
 
