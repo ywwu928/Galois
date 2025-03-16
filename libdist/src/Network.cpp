@@ -205,7 +205,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
 void NetworkInterface::sendBufferRemoteWork::setFlush() {
     if (msgCount != 0) {
         // put number of message count at the very last
-        std::memcpy(buf + bufLen, &msgCount, sizeof(uint32_t));
+        *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         messages.enqueue(ptok, std::make_pair(buf, bufLen));
     
@@ -237,11 +237,12 @@ bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work, size_t& workLen
     return success;
 }
 
-void NetworkInterface::sendBufferRemoteWork::add(uint32_t* lid, void* val, size_t valLen) {
-    size_t workLen = sizeof(uint32_t) + valLen;
+template <typename ValTy>
+void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
+    size_t workLen = sizeof(uint32_t) + sizeof(ValTy);
     if (bufLen + workLen + sizeof(uint32_t) > AGG_MSG_SIZE) {
         // put number of message count at the very last
-        std::memcpy(buf + bufLen, &msgCount, sizeof(uint32_t));
+        *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         messages.enqueue(ptok, std::make_pair(buf, bufLen));
 
@@ -253,10 +254,10 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t* lid, void* val, size_
                 galois::substrate::asmPause();
             }
         } while (buf == nullptr);
-        std::memcpy(buf, lid, sizeof(uint32_t));
+        *((uint32_t*)buf) = lid;
         bufLen = sizeof(uint32_t);
-        std::memcpy(buf + bufLen, val, valLen);
-        bufLen += valLen;
+        *((ValTy*)(buf + bufLen)) = val;
+        bufLen += sizeof(ValTy);
         msgCount = 1;
 
         ++inflightSends;
@@ -264,13 +265,19 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t* lid, void* val, size_
     }
     else {
         // aggregate message
-        std::memcpy(buf + bufLen, lid, sizeof(uint32_t));
+        *((uint32_t*)(buf + bufLen)) = lid;
         bufLen += sizeof(uint32_t);
-        std::memcpy(buf + bufLen, val, valLen);
-        bufLen += valLen;
+        *((ValTy*)(buf + bufLen)) = val;
+        bufLen += sizeof(ValTy);
         msgCount += 1;
     }
 }
+
+// explicit instantiation
+template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
+template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
+template void NetworkInterface::sendBufferRemoteWork::add<uint64_t>(uint32_t lid, uint64_t val);
+template void NetworkInterface::sendBufferRemoteWork::add<double>(uint32_t lid, double val);
     
 void NetworkInterface::sendComplete() {
     for (unsigned t=0; t<numT; t++) {
@@ -570,9 +577,16 @@ void NetworkInterface::sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf, 
     sendData[dest].push(tag, std::move(buf.getVec()));
 }
 
-void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t* lid, void* val, size_t valLen) {
-    sendRemoteWork[dest][tid].add(lid, val, valLen);
+template <typename ValTy>
+void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val) {
+    sendRemoteWork[dest][tid].add<ValTy>(lid, val);
 }
+
+// explicit instantiation
+template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
+template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
+template void NetworkInterface::sendWork<uint64_t>(unsigned tid, uint32_t dest, uint32_t lid, uint64_t val);
+template void NetworkInterface::sendWork<double>(unsigned tid, uint32_t dest, uint32_t lid, double val);
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendCommunication[dest].push(bufPtr, len);

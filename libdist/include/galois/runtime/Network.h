@@ -305,7 +305,8 @@ private:
     
       bool pop(uint8_t*& work, size_t& workLen);
 
-      void add(uint32_t* lid, void* val, size_t valLen);
+      template <typename ValTy>
+      void add(uint32_t lid, ValTy val);
   };
   
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
@@ -386,7 +387,8 @@ public:
   void sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf,
                           int type = 0);
   
-  void sendWork(unsigned tid, uint32_t dest, uint32_t* lid, void* val, size_t valLen);
+  template <typename ValTy>
+  void sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val);
   
   void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len);
 
