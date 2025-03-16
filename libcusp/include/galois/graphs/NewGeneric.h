@@ -98,22 +98,6 @@ private:
     return (graphPartitioner->retrieveMaster(gid) == base_DistGraph::id);
   }
 
-  virtual bool isLocalImpl(uint64_t gid) const {
-    assert(gid < base_DistGraph::numGlobalNodes);
-    return (base_DistGraph::globalToLocalMap.find(gid) !=
-            base_DistGraph::globalToLocalMap.end());
-  }
-  
-  virtual bool isPresentImpl(uint32_t lid) const {
-    assert(lid < base_DistGraph::numNodes);
-    return (lid < base_DistGraph::numActualNodes);
-  }
-  
-  virtual bool isPhantomImpl(uint32_t lid) const {
-    assert(lid < base_DistGraph::numNodes);
-    return (lid >= base_DistGraph::numActualNodes && lid < base_DistGraph::numNodes);
-  }
-
   // TODO current uses graph partitioner
   // TODO make it so user doens't have to specify; can be done by tracking
   // if an outgoing mirror is marked as having an incoming edge on any

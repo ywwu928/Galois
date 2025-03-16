@@ -556,9 +556,6 @@ public:
 private:
   virtual unsigned getHostIDImpl(uint64_t) const = 0;
   virtual bool isOwnedImpl(uint64_t) const       = 0;
-  virtual bool isLocalImpl(uint64_t) const       = 0;
-  virtual bool isPresentImpl(uint32_t) const       = 0;
-  virtual bool isPhantomImpl(uint32_t) const       = 0;
   virtual bool isVertexCutImpl() const           = 0;
   virtual std::pair<unsigned, unsigned> cartesianGridImpl() const {
     return std::make_pair(0u, 0u);
@@ -580,12 +577,22 @@ public:
   inline bool isOwned(uint64_t gid) const { return isOwnedImpl(gid); }
   //! Determine if a node can be on this host
   //! @returns True if passed in global id can be on this host
-  inline bool isLocal(uint64_t gid) const { return isLocalImpl(gid); }
+  inline bool isLocal(uint64_t gid) const {
+      assert(gid < numGlobalNodes);
+      return (globalToLocalMap.find(gid) !=
+              globalToLocalMap.end());
+  }
   //! Determine if a node has a proxy on this host
   //! @returns True if passed in global id has a proxy on this host
-  inline bool isPresent(uint32_t lid) const { return isPresentImpl(lid); }
+  inline bool isPresent(uint32_t lid) const {
+      assert(lid < numNodes);
+      return (lid < numActualNodes);
+  }
   //! Determine if a node is a phantom on this host
-  inline bool isPhantom(uint32_t lid) const { return isPhantomImpl(lid); }
+  inline bool isPhantom(uint32_t lid) const {
+      assert(lid < numNodes);
+      return (lid >= numActualNodes);
+  }
   /**
    * Returns true if current partition is a vertex cut
    * @returns true if partition being stored in this graph is a vertex cut
