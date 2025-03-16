@@ -2260,14 +2260,13 @@ public:
                 size_t offset = 0;
 
                 uint32_t lid;
-                
                 ValTy val;
 
                 while (offset != bufLen) {
-                    std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                    lid = *((uint32_t*)(buf + offset));
                     offset += sizeof(uint32_t);
-                    std::memcpy(&val, buf + offset, sizeof(val));
-                    offset += sizeof(val);
+                    val = *((ValTy*)(buf + offset));
+                    offset += sizeof(ValTy);
                     func(*(phantomMasterUpdateBuffer[lid]), val);
                 }
 
@@ -2301,10 +2300,10 @@ public:
                 ValTy val;
 
                 while (offset != bufLen) {
-                    std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                    lid = *((uint32_t*)(buf + offset));
                     offset += sizeof(uint32_t);
-                    std::memcpy(&val, buf + offset, sizeof(val));
-                    offset += sizeof(val);
+                    val = *((ValTy*)(buf + offset));
+                    offset += sizeof(ValTy);
                     FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                 }
 
@@ -2356,8 +2355,7 @@ public:
                 }
 
                 if (success) { // received message
-                    uint32_t msgCount;
-                    std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
+                    uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
 
                     galois::on_each(
                         [&](unsigned tid, unsigned numT) {
@@ -2378,10 +2376,10 @@ public:
                             ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
-                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                                lid = *((uint32_t*)(buf + offset));
                                 offset += sizeof(uint32_t);
-                                std::memcpy(&val, buf + offset, sizeof(val));
-                                offset += sizeof(val);
+                                val = *((ValTy*)(buf + offset));
+                                offset += sizeof(ValTy);
                                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                             }
                         }
@@ -2403,8 +2401,7 @@ public:
                 success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                 
                 if (success) { // received message
-                    uint32_t msgCount;
-                    std::memcpy(&msgCount, buf + bufLen - sizeof(uint32_t), sizeof(uint32_t));
+                    uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
 
                     galois::on_each(
                         [&](unsigned tid, unsigned numT) {
@@ -2425,10 +2422,10 @@ public:
                             ValTy val;
 
                             for (unsigned i=0; i<size; i++) {
-                                std::memcpy(&lid, buf + offset, sizeof(uint32_t));
+                                lid = *((uint32_t*)(buf + offset));
                                 offset += sizeof(uint32_t);
-                                std::memcpy(&val, buf + offset, sizeof(val));
-                                offset += sizeof(val);
+                                val = *((ValTy*)(buf + offset));
+                                offset += sizeof(ValTy);
                                 FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
                             }
                         }
