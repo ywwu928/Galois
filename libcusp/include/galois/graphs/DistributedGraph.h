@@ -625,7 +625,7 @@ public:
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
 
-  inline void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
+  void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
       phantomLocalToRemoteVector.resize(numNodes - numActualNodes);
 
       for (uint32_t i=0; i<numHosts; i++) {
@@ -646,7 +646,7 @@ public:
    * @param mflag access flag for node data
    * @returns A node data object
    */
-  inline typename GraphTy::node_data_reference
+  typename GraphTy::node_data_reference
   getData(GraphNode N,
           galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getData(N, mflag);
@@ -660,7 +660,7 @@ public:
    * @param mflag access flag for edge data
    * @returns The edge data for the requested edge
    */
-  inline typename GraphTy::edge_data_reference
+  typename GraphTy::edge_data_reference
   getEdgeData(edge_iterator ni,
               galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getEdgeData(ni, mflag);
@@ -709,7 +709,7 @@ public:
    *
    * @param N node to get edges iterator over
    */
-  inline galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
+  galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
   edges(GraphNode N) {
     return galois::graphs::internal::make_no_deref_range(edge_begin(N),
                                                          edge_end(N));
@@ -886,7 +886,7 @@ protected:
    *
    * The call uses binary search to determine the ranges.
    */
-  inline void determineThreadRanges() {
+  void determineThreadRanges() {
     assert(allNodesRanges.size() != 0);
     allNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum());
   }
@@ -897,7 +897,7 @@ protected:
    *
    * Only call after graph is constructed + only call once
    */
-  inline void determineThreadRangesPresent() {
+  void determineThreadRangesPresent() {
     // make sure this hasn't been called before
     assert(presentNodesRanges.size() == 0);
     presentNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
@@ -909,7 +909,7 @@ protected:
    *
    * Only call after graph is constructed + only call once
    */
-  inline void determineThreadRangesMaster() {
+  void determineThreadRangesMaster() {
     // make sure this hasn't been called before
     assert(masterRanges.size() == 0);
     masterRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
@@ -921,7 +921,7 @@ protected:
    *
    * Only call after graph is constructed + only call once
    */
-  inline void determineThreadRangesMirror() {
+  void determineThreadRangesMirror() {
     // make sure this hasn't been called before
     assert(mirrorRanges.size() == 0);
     mirrorRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
@@ -933,34 +933,34 @@ protected:
    *
    * Only call after graph is constructed + only call once
    */
-  inline void determineThreadRangesPhantom() {
+  void determineThreadRangesPhantom() {
     // make sure this hasn't been called before
     assert(phantomRanges.size() == 0);
     phantomRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
 
 #ifndef GALOIS_FULL_MIRRORING
-  inline void determineThreadRangesReserved(uint32_t reserved) {
+  void determineThreadRangesReserved(uint32_t reserved) {
     assert(allNodesRangesReserved.size() != 0);
     allNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum());
   }
   
-  inline void determineThreadRangesPresentReserved(uint32_t reserved) {
+  void determineThreadRangesPresentReserved(uint32_t reserved) {
     assert(presentNodesRangesReserved.size() != 0);
     presentNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
   }
   
-  inline void determineThreadRangesMasterReserved(uint32_t reserved) {
+  void determineThreadRangesMasterReserved(uint32_t reserved) {
     assert(masterRangesReserved.size() != 0);
     masterRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
   }
   
-  inline void determineThreadRangesMirrorReserved(uint32_t reserved) {
+  void determineThreadRangesMirrorReserved(uint32_t reserved) {
     assert(mirrorRangesReserved.size() != 0);
     mirrorRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
   }
   
-  inline void determineThreadRangesPhantomReserved(uint32_t reserved) {
+  void determineThreadRangesPhantomReserved(uint32_t reserved) {
     assert(phantomRangesReserved.size() != 0);
     phantomRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
