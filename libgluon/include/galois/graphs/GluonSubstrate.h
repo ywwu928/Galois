@@ -2254,17 +2254,6 @@ public:
         stopDedicated = true;
     }
 
-    void send_data_to_remote(uint32_t dst, uint32_t lid, ValTy val) {
-        unsigned tid = galois::substrate::ThreadPool::getTID();
-        
-        //start = std::chrono::high_resolution_clock::now();
-        net.sendWork(tid, dst, lid, val);
-        //end = std::chrono::high_resolution_clock::now();
-        //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        //temp << "sendWork takes " << duration.count() << " ns" << std::endl;
-        //std::cout << temp.str();
-    }
-
 };
 
 template <typename GraphTy, typename ValTy>
