@@ -30,8 +30,6 @@
 #include <iostream>
 #include <limits>
 #include <vector>
-#include <chrono>
-#include <sstream>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -315,48 +313,20 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-        //std::ostringstream temp;
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
-            //auto start = std::chrono::high_resolution_clock::now();
-            uint32_t& hostID = graph->getHostIDForLocal(dst);
-            //auto end = std::chrono::high_resolution_clock::now();
-            //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            //temp << "getHostIDForLocal() takes " << duration.count() << " ns" << std::endl;
-
-            //start = std::chrono::high_resolution_clock::now();
-            uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
-            //end = std::chrono::high_resolution_clock::now();
-            //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            //temp << "getPhantomRemoteLID() takes " << duration.count() << " ns" << std::endl;
-
-            //start = std::chrono::high_resolution_clock::now();
-            unsigned tid = galois::substrate::ThreadPool::getTID();
-            //end = std::chrono::high_resolution_clock::now();
-            //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            //temp << "getTID() takes " << duration.count() << " ns" << std::endl;
-            
-            
-            //auto start = std::chrono::high_resolution_clock::now();
-            net.sendWork(tid, hostID, remoteLID, _delta);
-            //auto end = std::chrono::high_resolution_clock::now();
-            //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            //temp << "sendWork() takes " << duration.count() << " ns" << std::endl;
-
-            //std::cout << temp.str();
+            //uint32_t& hostID = graph->getHostIDForLocal(dst);
+            //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
+            //unsigned tid = galois::substrate::ThreadPool::getTID();
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
         }
         else {
 #endif
-            //auto start = std::chrono::high_resolution_clock::now();
             NodeData& ddata = graph->getData(dst);
 
             galois::atomicAdd(ddata.residual, _delta);
 
             bitset_residual.set(dst);
-            //auto end = std::chrono::high_resolution_clock::now();
-            //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            //temp << "present node operation takes " << duration.count() << " ns" << std::endl;
-            //std::cout << temp.str();
 #ifndef GALOIS_FULL_MIRRORING     
         }
 #endif
