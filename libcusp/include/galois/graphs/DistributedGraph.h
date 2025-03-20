@@ -646,7 +646,7 @@ public:
    * @param mflag access flag for node data
    * @returns A node data object
    */
-  inline typename GraphTy::node_data_reference
+  typename GraphTy::node_data_reference
   getData(GraphNode N,
           galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getData(N, mflag);
@@ -681,7 +681,7 @@ public:
    * @param N node to get the edge of
    * @returns iterator to first edge of N
    */
-  inline edge_iterator edge_begin(GraphNode N) {
+  edge_iterator edge_begin(GraphNode N) {
     return graph.edge_begin(N, galois::MethodFlag::UNPROTECTED);
   }
 
@@ -692,7 +692,7 @@ public:
    * @returns iterator to the end of the edges of node N, i.e. the first edge
    * of the next node (or an "end" iterator if there is no next node)
    */
-  inline edge_iterator edge_end(GraphNode N) {
+  edge_iterator edge_end(GraphNode N) {
     return graph.edge_end(N, galois::MethodFlag::UNPROTECTED);
   }
   
@@ -709,7 +709,7 @@ public:
    *
    * @param N node to get edges iterator over
    */
-  inline galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
+  galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
   edges(GraphNode N) {
     return galois::graphs::internal::make_no_deref_range(edge_begin(N),
                                                          edge_end(N));
