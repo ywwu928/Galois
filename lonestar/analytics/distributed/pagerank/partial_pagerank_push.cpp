@@ -265,7 +265,6 @@ struct PageRank {
       StatTimer_flush.start();
       syncSubstrate->net_flush();
       StatTimer_flush.stop();
-#endif
 
       StatTimer_sync.start();
       syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
@@ -274,6 +273,7 @@ struct PageRank {
       StatTimer_wait.start();
       galois::substrate::getThreadPool().waitDedicated();
       StatTimer_wait.stop();
+#endif
 
       StatTimer_comm.start();
 #ifdef GALOIS_NO_MIRRORING     

@@ -2020,13 +2020,13 @@ public:
 
 /* For Polling */
 private:
-    uint8_t stopUpdateBuffer = 0;
+    uint8_t stopUpdateBuffer = (uint8_t)0;
     bool stopDedicated = false;
     bool terminateFlag = false;
 
 public:
     void reset_termination() {
-        stopUpdateBuffer = 0;
+        stopUpdateBuffer = (uint8_t)0;
         stopDedicated = false;
         terminateFlag = false;
         net.resetWorkTermination();
@@ -2049,12 +2049,12 @@ public:
         uint8_t* buf;
         size_t bufLen;
         
-        while (stopUpdateBuffer == 0) {
+        while (stopUpdateBuffer == (uint8_t)0) {
             success = false;
             buf = nullptr;
             bufLen = 0;
             do {
-                if (stopUpdateBuffer == 1) {
+                if (stopUpdateBuffer == (uint8_t)1) {
                     break;
                 }
 
@@ -2084,7 +2084,7 @@ public:
             }
         }
 
-        stopUpdateBuffer = 2;
+        stopUpdateBuffer = (uint8_t)2;
         
         while (!stopDedicated) {
             success = false;
@@ -2250,8 +2250,7 @@ public:
     void net_flush() {
         net.flushRemoteWork();
         net.broadcastWorkTermination();
-        stopUpdateBuffer = true;
-        stopDedicated = true;
+        stopUpdateBuffer = (uint8_t)1;
     }
 
 };
