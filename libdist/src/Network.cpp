@@ -100,13 +100,13 @@ std::optional<RecvBuffer> NetworkInterface::recvBufferData::tryPopMsg(uint32_t t
 
 // Worker thread interface
 void NetworkInterface::recvBufferData::add(uint32_t tag, vTy&& vec) {
-    messages.enqueue(ptok, recvMessage(tag, std::move(vec)));
+    messages.enqueue(recvMessage(tag, std::move(vec)));
 }
       
 bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
     if (frontTag == ~0U) {
         if (messages.size_approx() != 0) {
-            bool success = messages.try_dequeue_from_producer(ptok, frontMsg);
+            bool success = messages.try_dequeue(frontMsg);
             if (success) {
                 frontTag = frontMsg.tag;
             }
@@ -118,7 +118,7 @@ bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
 
 bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_t*& work) {
     std::pair<uint32_t, uint8_t*> message;
-    bool success = messages.try_dequeue_from_producer(ptok, message);
+    bool success = messages.try_dequeue(message);
     if (success) {
         --inflightRecvs;
         host = message.first;
@@ -130,12 +130,12 @@ bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_
 
 // Worker thread interface
 void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work) {
-    messages.enqueue(ptok, std::make_pair(host, work));
+    messages.enqueue(std::make_pair(host, work));
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue_from_producer(ptok, message);
+    bool success = messages.try_dequeue(message);
     if (success) {
         --inflightRecvs;
         work = message.first;
@@ -147,12 +147,12 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& w
 
 // Worker thread interface
 void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) {
-    messages.enqueue(ptok, std::make_pair(work, workLen));
+    messages.enqueue(std::make_pair(work, workLen));
 }
 
 NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
     sendMessage m;
-    bool success = messages.try_dequeue_from_producer(ptok, m);
+    bool success = messages.try_dequeue(m);
     if (success) {
         flush -= 1;
         return m;
@@ -163,14 +163,14 @@ NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
 }
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, vTy&& b) {
-    messages.enqueue(ptok, sendMessage(tag, std::move(b)));
+    messages.enqueue(sendMessage(tag, std::move(b)));
     ++inflightSends;
     flush += 1;
 }
     
 bool NetworkInterface::sendBufferCommunication::pop(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue_from_producer(ptok, message);
+    bool success = messages.try_dequeue(message);
     if (success) {
         flush -= 1;
         work = message.first;
@@ -181,7 +181,7 @@ bool NetworkInterface::sendBufferCommunication::pop(uint8_t*& work, size_t& work
 }
 
 void NetworkInterface::sendBufferCommunication::push(uint8_t* work, size_t workLen) {
-    messages.enqueue(ptok, std::make_pair(work, workLen));
+    messages.enqueue(std::make_pair(work, workLen));
     ++inflightSends;
     flush += 1;
 }
@@ -207,7 +207,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         // put number of message count at the very last
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
-        messages.enqueue(ptok, std::make_pair(buf, bufLen));
+        messages.enqueue(std::make_pair(buf, bufLen));
     
         // allocate new buffer
         do {
@@ -227,7 +227,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
 
 bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue_from_producer(ptok, message);
+    bool success = messages.try_dequeue(message);
     if (success) {
         flush -= 1;
         work = message.first;
@@ -244,7 +244,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         // put number of message count at the very last
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
-        messages.enqueue(ptok, std::make_pair(buf, bufLen));
+        messages.enqueue(std::make_pair(buf, bufLen));
 
         // allocate new buffer
         do {

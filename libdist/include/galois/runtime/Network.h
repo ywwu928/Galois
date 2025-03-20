@@ -31,7 +31,7 @@
 #include "galois/runtime/MemUsage.h"
 #include "galois/substrate/Barrier.h"
 #include "galois/runtime/Mem.h"
-#include "galois/concurrentqueue.h"
+#include "galois/runtime/readerwriterqueue.h"
 
 #include <mpi.h>
 
@@ -141,8 +141,7 @@ private:
    */
   class recvBufferData {
       // single producer single consumer
-      moodycamel::ConcurrentQueue<recvMessage> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<recvMessage> messages;
 
       std::atomic<uint32_t> frontTag;
       recvMessage frontMsg;
@@ -150,7 +149,7 @@ private:
   public:
       std::atomic<size_t> inflightRecvs = 0;
 
-      recvBufferData() : ptok(messages), frontTag(~0U) {}
+      recvBufferData() : frontTag(~0U) {}
 
       std::optional<RecvBuffer> tryPopMsg(uint32_t tag);
 
@@ -166,13 +165,12 @@ private:
    */
   class recvBufferCommunication {
       // single producer single consumer
-      moodycamel::ConcurrentQueue<std::pair<uint32_t, uint8_t*>> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<std::pair<uint32_t, uint8_t*>> messages;
 
   public:
       std::atomic<size_t> inflightRecvs = 0;
 
-      recvBufferCommunication() : ptok(messages) {}
+      recvBufferCommunication() {}
 
       bool tryPopMsg(uint32_t& host, uint8_t*& work);
       
@@ -186,13 +184,12 @@ private:
    */
   class recvBufferRemoteWork {
       // single producer single consumer
-      moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
 
   public:
       std::atomic<size_t> inflightRecvs = 0;
 
-      recvBufferRemoteWork() : ptok(messages) {}
+      recvBufferRemoteWork() {}
 
       bool tryPopMsg(uint8_t*& work, size_t& workLen);
 
@@ -220,15 +217,14 @@ private:
    * Single producer single consumer with multiple tags
    */
   class sendBufferData {
-      moodycamel::ConcurrentQueue<sendMessage> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<sendMessage> messages;
 
       std::atomic<size_t> flush;
 
   public:
       std::atomic<size_t> inflightSends = 0;
       
-      sendBufferData() : ptok(messages), flush(0) {}
+      sendBufferData() : flush(0) {}
       
       void setFlush() {}
     
@@ -247,15 +243,14 @@ private:
    * Single producer single consumer with single tag
    */
   class sendBufferCommunication {
-      moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
 
       std::atomic<size_t> flush;
 
   public:
       std::atomic<size_t> inflightSends = 0;
       
-      sendBufferCommunication() : ptok(messages), flush(0) {}
+      sendBufferCommunication() : flush(0) {}
       
       void setFlush() {}
     
@@ -277,8 +272,7 @@ private:
       NetworkInterface* net;
       unsigned tid;
 
-      moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> messages;
-      moodycamel::ProducerToken ptok;
+      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
 
       uint8_t* buf;
       size_t bufLen;
@@ -289,7 +283,7 @@ private:
   public:
       std::atomic<size_t> inflightSends = 0;
 
-      sendBufferRemoteWork() : net(nullptr), tid(0), ptok(messages), buf(nullptr), bufLen(0), msgCount(0), flush(0) {}
+      sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), bufLen(0), msgCount(0), flush(0) {}
 
       void setNet(NetworkInterface* _net);
       
