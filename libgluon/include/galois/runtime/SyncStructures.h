@@ -526,11 +526,23 @@ public:
       }                                                                        \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {             \
+    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {      \
       {                                                                        \
-        galois::atomicAdd(node.fieldname, y);                                        \
+        galois::atomicAdd(node.fieldname, y);                                  \
         return true;                                                           \
       }                                                                        \
+    }                                                                          \
+                                                                               \
+    static void reduce_void(struct NodeData& node, ValTy y) {                  \
+        galois::addVoid(node.fieldname, y);                                    \
+    }                                                                          \
+                                                                               \
+    static void reduce_atomic_void(struct NodeData& node, ValTy y) {           \
+        galois::atomicAddVoid(node.fieldname, y);                              \
+    }                                                                          \
+                                                                               \
+    static void reduce_numerical_void(ValTy& x, const ValTy& y) {              \
+        galois::addVoid(x, y);                                                 \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned, uint8_t*, DataCommMode) {               \
@@ -1250,8 +1262,20 @@ public:
       { return y < galois::min(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {             \
-      { return y < galois::atomicMin(node.fieldname, y); }                           \
+    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {      \
+      { return y < galois::atomicMin(node.fieldname, y); }                     \
+    }                                                                          \
+                                                                               \
+    static void reduce_void(struct NodeData& node, ValTy y) {                  \
+        galois::minVoid(node.fieldname, y);                                    \
+    }                                                                          \
+                                                                               \
+    static void reduce_atomic_void(struct NodeData& node, ValTy y) {           \
+        galois::atomicMinVoid(node.fieldname, y);                              \
+    }                                                                          \
+                                                                               \
+    static void reduce_numerical_void(ValTy& x, const ValTy& y) {              \
+        galois::minVoid(x, y);                                                 \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned, uint8_t*, DataCommMode) {               \
@@ -1419,14 +1443,26 @@ public:
       return true;                                                             \
     }                                                                          \
                                                                                \
-    static bool reduce(uint32_t GALOIS_UNUSED(node_id), struct NodeData& node, \
+    static bool reduce(uint32_t, struct NodeData& node,                        \
                        ValTy y) {                                              \
       { return y > galois::max(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t GALOIS_UNUSED(node_id), struct NodeData& node, \
+    static bool reduce_atomic(uint32_t, struct NodeData& node,                 \
                        ValTy y) {                                              \
-      { return y > galois::atomicMax(node.fieldname, y); }                           \
+      { return y > galois::atomicMax(node.fieldname, y); }                     \
+    }                                                                          \
+                                                                               \
+    static void reduce_void(struct NodeData& node, ValTy y) {                  \
+        galois::maxVoid(node.fieldname, y);                                    \
+    }                                                                          \
+                                                                               \
+    static void reduce_atomic_void(struct NodeData& node, ValTy y) {           \
+        galois::atomicMaxVoid(node.fieldname, y);                              \
+    }                                                                          \
+                                                                               \
+    static void reduce_numerical_void(ValTy& x, const ValTy& y) {              \
+        galois::maxVoid(x, y);                                                 \
     }                                                                          \
                                                                                \
     static bool reduce_batch(unsigned from_id, uint8_t* y,                     \

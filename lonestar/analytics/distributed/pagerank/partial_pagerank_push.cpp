@@ -246,7 +246,7 @@ struct PageRank {
       // dedicate a thread to poll for remote messages
       StatTimer_dedicate.start();
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>(galois::add<float>);
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>();
       };
       galois::substrate::getThreadPool().runDedicated(func);
       StatTimer_dedicate.stop();
@@ -266,13 +266,13 @@ struct PageRank {
       syncSubstrate->net_flush();
       StatTimer_flush.stop();
 
-      StatTimer_sync.start();
-      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
-      StatTimer_sync.stop();
-
       StatTimer_wait.start();
       galois::substrate::getThreadPool().waitDedicated();
       StatTimer_wait.stop();
+
+      StatTimer_sync.start();
+      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
+      StatTimer_sync.stop();
 #endif
 
       StatTimer_comm.start();
@@ -324,7 +324,7 @@ struct PageRank {
 #endif
             NodeData& ddata = graph->getData(dst);
 
-            galois::atomicAdd(ddata.residual, _delta);
+            galois::atomicAddVoid(ddata.residual, _delta);
 
             bitset_residual.set(dst);
 #ifndef GALOIS_FULL_MIRRORING     

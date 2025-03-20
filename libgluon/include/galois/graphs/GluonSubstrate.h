@@ -827,7 +827,7 @@ private:
       }
     } else {
       if (async)
-        FnTy::reduce(lid, userGraph.getData(lid), val);
+        FnTy::reduce_void(userGraph.getData(lid), val);
       else
         FnTy::setVal(lid, userGraph.getData(lid), val);
     }
@@ -2020,13 +2020,11 @@ public:
 
 /* For Polling */
 private:
-    uint8_t stopUpdateBuffer = (uint8_t)0;
     bool stopDedicated = false;
     bool terminateFlag = false;
 
 public:
     void reset_termination() {
-        stopUpdateBuffer = (uint8_t)0;
         stopDedicated = false;
         terminateFlag = false;
         net.resetWorkTermination();
@@ -2040,51 +2038,15 @@ public:
                     *(phantomMasterUpdateBuffer[lid]) = identity;
                 }
             },
+            galois::steal(),
             galois::no_stats());
     }
 
     template<typename FnTy>
-    void poll_for_remote_work_dedicated(const ValTy (*func)(ValTy&, const ValTy&)) {
+    void poll_for_remote_work_dedicated() {
         bool success;
         uint8_t* buf;
         size_t bufLen;
-        
-        while (stopUpdateBuffer == (uint8_t)0) {
-            success = false;
-            buf = nullptr;
-            bufLen = 0;
-            do {
-                if (stopUpdateBuffer == (uint8_t)1) {
-                    break;
-                }
-
-                success = net.receiveRemoteWork(buf, bufLen);
-                if (!success) {
-                    galois::substrate::asmPause();
-                }
-            } while (!success);
-            
-            if (success) { // received message
-                // dedicated thread does not care about the number of aggregated message count
-                bufLen -= sizeof(uint32_t);
-                size_t offset = 0;
-
-                uint32_t lid;
-                ValTy val;
-
-                while (offset != bufLen) {
-                    lid = *((uint32_t*)(buf + offset));
-                    offset += sizeof(uint32_t);
-                    val = *((ValTy*)(buf + offset));
-                    offset += sizeof(ValTy);
-                    func(*(phantomMasterUpdateBuffer[lid]), val);
-                }
-
-                net.deallocateRecvBuffer(buf);
-            }
-        }
-
-        stopUpdateBuffer = (uint8_t)2;
         
         while (!stopDedicated) {
             success = false;
@@ -2114,30 +2076,27 @@ public:
                     offset += sizeof(uint32_t);
                     val = *((ValTy*)(buf + offset));
                     offset += sizeof(ValTy);
-                    FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                    FnTy::reduce_numerical_void(*(phantomMasterUpdateBuffer[lid]), val);
                 }
 
                 net.deallocateRecvBuffer(buf);
             }
         }
-
     }
     
     template<typename FnTy>
     void sync_update_buf(ValTy identity) {
-        while (stopUpdateBuffer != 2) {}
         galois::do_all(
             galois::iterate((uint32_t)0, (uint32_t)phantomMasterUpdateBuffer.size()),
             [&](uint32_t lid) {
                 if(phantomMasterUpdateBuffer[lid]) {
                     if (*(phantomMasterUpdateBuffer[lid]) != identity) { // there is update
-                        FnTy::reduce_atomic(lid, userGraph.getData(lid), *(phantomMasterUpdateBuffer[lid]));
+                        FnTy::reduce_void(userGraph.getData(lid), *(phantomMasterUpdateBuffer[lid]));
                     }
                 }
             },
+            galois::steal(),
             galois::no_stats());
-
-        stopDedicated = true;
     }
     
     template<typename FnTy>
@@ -2190,7 +2149,7 @@ public:
                                 offset += sizeof(uint32_t);
                                 val = *((ValTy*)(buf + offset));
                                 offset += sizeof(ValTy);
-                                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                                FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                             }
                         }
                     );
@@ -2236,7 +2195,7 @@ public:
                                 offset += sizeof(uint32_t);
                                 val = *((ValTy*)(buf + offset));
                                 offset += sizeof(ValTy);
-                                FnTy::reduce_atomic(lid, userGraph.getData(lid), val);
+                                FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                             }
                         }
                     );
@@ -2250,7 +2209,7 @@ public:
     void net_flush() {
         net.flushRemoteWork();
         net.broadcastWorkTermination();
-        stopUpdateBuffer = (uint8_t)1;
+        stopDedicated = true;
     }
 
 };

@@ -37,6 +37,15 @@ const Ty atomicMax(std::atomic<Ty>& a, const Ty b) {
 }
 
 template <typename Ty>
+void atomicMaxVoid(std::atomic<Ty>& a, const Ty b) {
+  Ty old_a = a.load(std::memory_order_relaxed);
+  // if old value is less than new value, atomically exchange
+  while (old_a < b &&
+         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+    ;
+}
+
+template <typename Ty>
 const Ty max(std::atomic<Ty>& a, const Ty& b) {
   Ty old_a = a.load(std::memory_order_relaxed);
 
@@ -47,6 +56,13 @@ const Ty max(std::atomic<Ty>& a, const Ty& b) {
 }
 
 template <typename Ty>
+void maxVoid(std::atomic<Ty>& a, const Ty& b) {
+  if (a < b) {
+    a.store(b, std::memory_order_relaxed);
+  }
+}
+
+template <typename Ty>
 const Ty max(Ty& a, const Ty& b) {
   Ty old_a = a;
 
@@ -54,6 +70,13 @@ const Ty max(Ty& a, const Ty& b) {
     a = b;
   }
   return old_a;
+}
+
+template <typename Ty>
+inline void maxVoid(Ty& a, const Ty& b) {
+  if (a < b) {
+    a = b;
+  }
 }
 
 /** galois::atomicMin **/
@@ -67,6 +90,14 @@ const Ty atomicMin(std::atomic<Ty>& a, const Ty b) {
 }
 
 template <typename Ty>
+void atomicMinVoid(std::atomic<Ty>& a, const Ty b) {
+  Ty old_a = a.load(std::memory_order_relaxed);
+  while (old_a > b &&
+         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+    ;
+}
+
+template <typename Ty>
 const Ty min(std::atomic<Ty>& a, const Ty& b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   if (a > b) {
@@ -76,12 +107,26 @@ const Ty min(std::atomic<Ty>& a, const Ty& b) {
 }
 
 template <typename Ty>
+void minVoid(std::atomic<Ty>& a, const Ty& b) {
+  if (a > b) {
+    a.store(b, std::memory_order_relaxed);
+  }
+}
+
+template <typename Ty>
 const Ty min(Ty& a, const Ty& b) {
   Ty old_a = a;
   if (a > b) {
     a = b;
   }
   return old_a;
+}
+
+template <typename Ty>
+inline void minVoid(Ty& a, const Ty& b) {
+  if (a > b) {
+    a = b;
+  }
 }
 
 /** galois::atomicAdd **/
@@ -95,10 +140,23 @@ const Ty atomicAdd(std::atomic<Ty>& val, Ty delta) {
 }
 
 template <typename Ty>
+void atomicAddVoid(std::atomic<Ty>& val, Ty delta) {
+  Ty old_val = val.load(std::memory_order_relaxed);
+  while (!val.compare_exchange_weak(old_val, old_val + delta,
+                                    std::memory_order_relaxed))
+    ;
+}
+
+template <typename Ty>
 const Ty add(std::atomic<Ty>& a, const Ty& b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   a.store(a + b, std::memory_order_relaxed);
   return old_a;
+}
+
+template <typename Ty>
+void addVoid(std::atomic<Ty>& a, const Ty& b) {
+  a.store(a + b, std::memory_order_relaxed);
 }
 
 template <typename Ty>
@@ -113,6 +171,11 @@ const Ty add(Ty& a, const Ty& b) {
   Ty old_a = a;
   a += b;
   return old_a;
+}
+
+template <typename Ty>
+inline void addVoid(Ty& a, const Ty& b) {
+  a += b;
 }
 
 /**
