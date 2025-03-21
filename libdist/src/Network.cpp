@@ -150,20 +150,20 @@ void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) 
     messages.enqueue(std::make_pair(work, workLen));
 }
 
-NetworkInterface::sendMessageData NetworkInterface::sendBufferData::pop() {
-    sendMessageData m;
+NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
+    sendMessage m;
     bool success = messages.try_dequeue(m);
     if (success) {
         flush -= 1;
         return m;
     }
     else {
-        return sendMessageData(~0U);
+        return sendMessage(~0U);
     }
 }
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, vTy&& b) {
-    messages.enqueue(sendMessageData(tag, std::move(b)));
+    messages.enqueue(sendMessage(tag, std::move(b)));
     ++inflightSends;
     flush += 1;
 }
@@ -313,17 +313,17 @@ void NetworkInterface::sendComplete() {
     }
 }
 
-void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessageBuffer m) {
-    sendInflight[tid].emplace_back(dest, m.tag, m.buf, m.bufLen);
+void NetworkInterface::send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
+    sendInflight[tid].emplace_back(dest, tag, buf, bufLen);
     auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(f.buf, f.bufLen, MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
+    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &f.req);
     handleError(rv);
 }
 
-void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessageData m) {
+void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessage m) {
     sendInflight[tid].emplace_back(dest, m.tag, std::move(m.data));
     auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
+    int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, dest, m.tag, MPI_COMM_WORLD, &f.req);
     handleError(rv);
 }
 
@@ -444,7 +444,7 @@ void NetworkInterface::workerThread() {
                         bool success = srw.pop(work, workLen);
                       
                         if (success) {
-                            send(t, i, sendMessageBuffer(galois::runtime::remoteWorkTag, work, workLen));
+                            send(t, i, galois::runtime::remoteWorkTag, work, workLen);
                         }
                     }
                 }
@@ -454,7 +454,7 @@ void NetworkInterface::workerThread() {
                     if (sendWorkTermination[i]) {
                         ++inflightWorkTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, sendMessageBuffer(galois::runtime::workTerminationTag));
+                        send(numT - 1, i, galois::runtime::workTerminationTag, nullptr, 0);
                         sendWorkTermination[i] = false;
                     }
                 }
@@ -468,7 +468,7 @@ void NetworkInterface::workerThread() {
                   
                     if (success) {
                         // put it on the first thread
-                        send(0, i, sendMessageBuffer(galois::runtime::communicationTag, work, workLen));
+                        send(0, i, galois::runtime::communicationTag, work, workLen);
                     }
                 }
               
@@ -478,7 +478,7 @@ void NetworkInterface::workerThread() {
                 if (sd.checkFlush()) {
                     hostDataEmpty = false;
 
-                    sendMessageData msg = sd.pop();
+                    sendMessage msg = sd.pop();
                   
                     if (msg.tag != ~0U) {
                         // put it on the first thread
@@ -491,7 +491,7 @@ void NetworkInterface::workerThread() {
                     if (sendDataTermination[i]) {
                         ++inflightDataTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, sendMessageBuffer(galois::runtime::dataTerminationTag));
+                        send(numT - 1, i, galois::runtime::dataTerminationTag, nullptr, 0);
                         sendDataTermination[i] = false;
                     }
                 }

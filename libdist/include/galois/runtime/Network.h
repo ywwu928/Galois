@@ -198,36 +198,23 @@ private:
 
   recvBufferRemoteWork recvRemoteWork;
 
-  struct sendMessageBuffer {
-      uint32_t tag;  //!< tag on message indicating distinct communication phases
-      uint8_t* buf;
-      size_t bufLen;
-
-      //! Default constructor initializes host and tag to large numbers.
-      sendMessageBuffer() : tag(~0) {}
-      //! @param t Tag to associate with message
-      //! @param d Data to save in message
-      sendMessageBuffer(uint32_t t) : tag(t) {}
-      sendMessageBuffer(uint32_t t, uint8_t* b, size_t len) : tag(t), buf(b), bufLen(len) {}
-  };
-
-  struct sendMessageData {
+  struct sendMessage {
       uint32_t tag;  //!< tag on message indicating distinct communication phases
       vTy data;      //!< data portion of message
 
       //! Default constructor initializes host and tag to large numbers.
-      sendMessageData() : tag(~0) {}
+      sendMessage() : tag(~0) {}
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      sendMessageData(uint32_t t) : tag(t) {}
-      sendMessageData(uint32_t t, vTy&& d) : tag(t), data(std::move(d)) {}
+      sendMessage(uint32_t t) : tag(t) {}
+      sendMessage(uint32_t t, vTy&& d) : tag(t), data(std::move(d)) {}
   };
 
   /**
    * Single producer single consumer with multiple tags
    */
   class sendBufferData {
-      moodycamel::ReaderWriterQueue<sendMessageData> messages;
+      moodycamel::ReaderWriterQueue<sendMessage> messages;
 
       std::atomic<size_t> flush;
 
@@ -242,7 +229,7 @@ private:
           return flush > 0;
       }
     
-      sendMessageData pop();
+      sendMessage pop();
 
       void push(uint32_t tag, vTy&& b);
   };
@@ -341,8 +328,8 @@ private:
     
   void sendComplete();
 
-  void send(unsigned tid, uint32_t dest, sendMessageBuffer m);
-  void send(unsigned tid, uint32_t dest, sendMessageData m);
+  void send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
+  void send(unsigned tid, uint32_t dest, sendMessage m);
   
   std::deque<mpiMessage> recvInflight;
   
