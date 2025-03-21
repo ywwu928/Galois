@@ -150,20 +150,20 @@ void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) 
     messages.enqueue(std::make_pair(work, workLen));
 }
 
-NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
-    sendMessage m;
+NetworkInterface::sendMessageData NetworkInterface::sendBufferData::pop() {
+    sendMessageData m;
     bool success = messages.try_dequeue(m);
     if (success) {
         flush -= 1;
         return m;
     }
     else {
-        return sendMessage(~0U);
+        return sendMessageData(~0U);
     }
 }
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, vTy&& b) {
-    messages.enqueue(sendMessage(tag, std::move(b)));
+    messages.enqueue(sendMessageData(tag, std::move(b)));
     ++inflightSends;
     flush += 1;
 }
@@ -313,19 +313,18 @@ void NetworkInterface::sendComplete() {
     }
 }
 
-void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessage m) {
-    if (m.tag == galois::runtime::remoteWorkTag || m.tag == galois::runtime::communicationTag) {
-        sendInflight[tid].emplace_back(dest, m.tag, m.buf, m.bufLen);
-        auto& f = sendInflight[tid].back();
-        int rv = MPI_Isend(f.buf, f.bufLen, MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
-        handleError(rv);
-    }
-    else if (m.tag != ~0U) {
-        sendInflight[tid].emplace_back(dest, m.tag, std::move(m.data));
-        auto& f = sendInflight[tid].back();
-        int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
-        handleError(rv);
-    }
+void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessageBuffer m) {
+    sendInflight[tid].emplace_back(dest, m.tag, m.buf, m.bufLen);
+    auto& f = sendInflight[tid].back();
+    int rv = MPI_Isend(f.buf, f.bufLen, MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
+    handleError(rv);
+}
+
+void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessageData m) {
+    sendInflight[tid].emplace_back(dest, m.tag, std::move(m.data));
+    auto& f = sendInflight[tid].back();
+    int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, f.host, f.tag, MPI_COMM_WORLD, &f.req);
+    handleError(rv);
 }
 
 // FIXME: Does synchronous recieves overly halt forward progress?
@@ -445,7 +444,7 @@ void NetworkInterface::workerThread() {
                         bool success = srw.pop(work, workLen);
                       
                         if (success) {
-                            send(t, i, sendMessage(galois::runtime::remoteWorkTag, work, workLen));
+                            send(t, i, sendMessageBuffer(galois::runtime::remoteWorkTag, work, workLen));
                         }
                     }
                 }
@@ -455,7 +454,7 @@ void NetworkInterface::workerThread() {
                     if (sendWorkTermination[i]) {
                         ++inflightWorkTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, sendMessage(galois::runtime::workTerminationTag));
+                        send(numT - 1, i, sendMessageBuffer(galois::runtime::workTerminationTag));
                         sendWorkTermination[i] = false;
                     }
                 }
@@ -469,7 +468,7 @@ void NetworkInterface::workerThread() {
                   
                     if (success) {
                         // put it on the first thread
-                        send(0, i, sendMessage(galois::runtime::communicationTag, work, workLen));
+                        send(0, i, sendMessageBuffer(galois::runtime::communicationTag, work, workLen));
                     }
                 }
               
@@ -479,7 +478,7 @@ void NetworkInterface::workerThread() {
                 if (sd.checkFlush()) {
                     hostDataEmpty = false;
 
-                    sendMessage msg = sd.pop();
+                    sendMessageData msg = sd.pop();
                   
                     if (msg.tag != ~0U) {
                         // put it on the first thread
@@ -492,7 +491,7 @@ void NetworkInterface::workerThread() {
                     if (sendDataTermination[i]) {
                         ++inflightDataTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, sendMessage(galois::runtime::dataTerminationTag));
+                        send(numT - 1, i, sendMessageBuffer(galois::runtime::dataTerminationTag));
                         sendDataTermination[i] = false;
                     }
                 }

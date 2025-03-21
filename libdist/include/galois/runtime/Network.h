@@ -198,26 +198,36 @@ private:
 
   recvBufferRemoteWork recvRemoteWork;
 
-  struct sendMessage {
+  struct sendMessageBuffer {
       uint32_t tag;  //!< tag on message indicating distinct communication phases
-      vTy data;      //!< data portion of message
       uint8_t* buf;
       size_t bufLen;
 
       //! Default constructor initializes host and tag to large numbers.
-      sendMessage() : tag(~0), buf(nullptr), bufLen(0) {}
+      sendMessageBuffer() : tag(~0) {}
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      sendMessage(uint32_t t) : tag(t), buf(nullptr), bufLen(0) {}
-      sendMessage(uint32_t t, vTy&& d) : tag(t), data(std::move(d)), buf(nullptr), bufLen(0) {}
-      sendMessage(uint32_t t, uint8_t* b, size_t len) : tag(t), buf(b), bufLen(len) {}
+      sendMessageBuffer(uint32_t t) : tag(t) {}
+      sendMessageBuffer(uint32_t t, uint8_t* b, size_t len) : tag(t), buf(b), bufLen(len) {}
+  };
+
+  struct sendMessageData {
+      uint32_t tag;  //!< tag on message indicating distinct communication phases
+      vTy data;      //!< data portion of message
+
+      //! Default constructor initializes host and tag to large numbers.
+      sendMessageData() : tag(~0) {}
+      //! @param t Tag to associate with message
+      //! @param d Data to save in message
+      sendMessageData(uint32_t t) : tag(t) {}
+      sendMessageData(uint32_t t, vTy&& d) : tag(t), data(std::move(d)) {}
   };
 
   /**
    * Single producer single consumer with multiple tags
    */
   class sendBufferData {
-      moodycamel::ReaderWriterQueue<sendMessage> messages;
+      moodycamel::ReaderWriterQueue<sendMessageData> messages;
 
       std::atomic<size_t> flush;
 
@@ -232,7 +242,7 @@ private:
           return flush > 0;
       }
     
-      sendMessage pop();
+      sendMessageData pop();
 
       void push(uint32_t tag, vTy&& b);
   };
@@ -320,8 +330,9 @@ private:
       size_t bufLen;
       MPI_Request req;
         
-      mpiMessage(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)), buf(nullptr), bufLen(0) {}
-      mpiMessage(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len), buf(nullptr), bufLen(0) {}
+      mpiMessage(uint32_t host, uint32_t tag) : host(host), tag(tag) {}
+      mpiMessage(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
+      mpiMessage(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
       mpiMessage(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
   };
 
@@ -330,7 +341,8 @@ private:
     
   void sendComplete();
 
-  void send(unsigned tid, uint32_t dest, sendMessage m);
+  void send(unsigned tid, uint32_t dest, sendMessageBuffer m);
+  void send(unsigned tid, uint32_t dest, sendMessageData m);
   
   std::deque<mpiMessage> recvInflight;
   
