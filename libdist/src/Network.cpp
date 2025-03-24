@@ -162,26 +162,8 @@ NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
     }
 }
 
-void NetworkInterface::sendBufferData::push(uint32_t tag, vTy&& b) {
-    messages.enqueue(sendMessage(tag, std::move(b)));
-    ++inflightSends;
-    flush += 1;
-}
-    
-bool NetworkInterface::sendBufferCommunication::pop(uint8_t*& work, size_t& workLen) {
-    std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue(message);
-    if (success) {
-        flush -= 1;
-        work = message.first;
-        workLen = message.second;
-    }
-
-    return success;
-}
-
-void NetworkInterface::sendBufferCommunication::push(uint8_t* work, size_t workLen) {
-    messages.enqueue(std::make_pair(work, workLen));
+void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* work, size_t workLen) {
+    messages.enqueue(sendMessage(tag, work, workLen));
     ++inflightSends;
     flush += 1;
 }
@@ -288,22 +270,23 @@ void NetworkInterface::sendComplete() {
             int rv  = MPI_Test(&f.req, &flag, &status);
             handleError(rv);
             if (flag) {
-                if (f.tag == galois::runtime::workTerminationTag) {
+                if (f.tag == workTerminationTag) {
                     --inflightWorkTermination;
                 }
-                else if (f.tag == galois::runtime::remoteWorkTag) {
+                else if (f.tag == remoteWorkTag) {
                     --sendRemoteWork[f.host][t].inflightSends;
                     // return buffer back to pool
                     sendAllocators[t].deallocate(f.buf);
                 }
-                else if (f.tag == galois::runtime::communicationTag) {
-                    --sendCommunication[f.host].inflightSends;
+                else if (f.tag == communicationTag) {
+                    --sendData[f.host].inflightSends;
                 }
-                else if (f.tag == galois::runtime::dataTerminationTag) {
+                else if (f.tag == dataTerminationTag) {
                     --inflightDataTermination;
                 }
                 else {
                     --sendData[f.host].inflightSends;
+                    free(f.buf);
                 }
 
                 sendInflight[t].pop_front();
@@ -320,13 +303,6 @@ void NetworkInterface::send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* 
     handleError(rv);
 }
 
-void NetworkInterface::send(unsigned tid, uint32_t dest, sendMessage m) {
-    sendInflight[tid].emplace_back(dest, m.tag, std::move(m.data));
-    auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(f.data.data(), f.data.size(), MPI_BYTE, dest, m.tag, MPI_COMM_WORLD, &f.req);
-    handleError(rv);
-}
-
 // FIXME: Does synchronous recieves overly halt forward progress?
 void NetworkInterface::recvProbe() {
     int flag = 0;
@@ -339,7 +315,7 @@ void NetworkInterface::recvProbe() {
         rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
         handleError(rv);
 
-        if (status.MPI_TAG == (int)galois::runtime::remoteWorkTag) {
+        if (status.MPI_TAG == (int)remoteWorkTag) {
             // allocate new buffer
             uint8_t* buf;
             do {
@@ -355,7 +331,7 @@ void NetworkInterface::recvProbe() {
             rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
             handleError(rv);
         }
-        else if (status.MPI_TAG == (int)galois::runtime::communicationTag) {
+        else if (status.MPI_TAG == (int)communicationTag) {
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
             auto& m = recvInflight.back();
             rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
@@ -376,18 +352,18 @@ void NetworkInterface::recvProbe() {
         rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         handleError(rv);
         if (flag) {
-            if (m.tag == galois::runtime::workTerminationTag) {
+            if (m.tag == workTerminationTag) {
                 hostWorkTermination[m.host] += 1;
             }
-            else if (m.tag == galois::runtime::remoteWorkTag) {
+            else if (m.tag == remoteWorkTag) {
                 ++recvRemoteWork.inflightRecvs;
                 recvRemoteWork.add(m.buf, m.bufLen);
             }
-            else if (m.tag == galois::runtime::communicationTag) {
+            else if (m.tag == communicationTag) {
                 ++recvCommunication.inflightRecvs;
                 recvCommunication.add(m.host, m.buf);
             }
-            else if (m.tag == galois::runtime::dataTerminationTag) {
+            else if (m.tag == dataTerminationTag) {
                 hostDataTermination[m.host] += 1;
             }
             else {
@@ -444,7 +420,7 @@ void NetworkInterface::workerThread() {
                         bool success = srw.pop(work, workLen);
                       
                         if (success) {
-                            send(t, i, galois::runtime::remoteWorkTag, work, workLen);
+                            send(t, i, remoteWorkTag, work, workLen);
                         }
                     }
                 }
@@ -454,21 +430,8 @@ void NetworkInterface::workerThread() {
                     if (sendWorkTermination[i]) {
                         ++inflightWorkTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, galois::runtime::workTerminationTag, nullptr, 0);
+                        send(numT - 1, i, workTerminationTag, nullptr, 0);
                         sendWorkTermination[i] = false;
-                    }
-                }
-              
-                // 3. communication
-                auto& sc = sendCommunication[i];
-                if (sc.checkFlush()) {
-                    uint8_t* work = nullptr;
-                    size_t workLen = 0;
-                    bool success = sc.pop(work, workLen);
-                  
-                    if (success) {
-                        // put it on the first thread
-                        send(0, i, galois::runtime::communicationTag, work, workLen);
                     }
                 }
               
@@ -482,7 +445,7 @@ void NetworkInterface::workerThread() {
                   
                     if (msg.tag != ~0U) {
                         // put it on the first thread
-                        send(0, i, std::move(msg));
+                        send(0, i, msg.tag, msg.buf, msg.bufLen);
                     }
                 }
 
@@ -491,7 +454,7 @@ void NetworkInterface::workerThread() {
                     if (sendDataTermination[i]) {
                         ++inflightDataTermination;
                         // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, galois::runtime::dataTerminationTag, nullptr, 0);
+                        send(numT - 1, i, dataTerminationTag, nullptr, 0);
                         sendDataTermination[i] = false;
                     }
                 }
@@ -515,7 +478,6 @@ NetworkInterface::NetworkInterface() {
 
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
-    sendCommunication = decltype(sendCommunication)(Num);
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         std::vector<sendBufferRemoteWork> temp(numT);
@@ -573,7 +535,7 @@ void NetworkInterface::sendMsg(uint32_t dest,
 void NetworkInterface::sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf, int phase) {
     tag += phase;
 
-    sendData[dest].push(tag, std::move(buf.getVec()));
+    sendData[dest].push(tag, buf.getVec().extractData(), buf.getVec().size());
 }
 
 template <typename ValTy>
@@ -588,7 +550,7 @@ template void NetworkInterface::sendWork<uint64_t>(unsigned tid, uint32_t dest, 
 template void NetworkInterface::sendWork<double>(unsigned tid, uint32_t dest, uint32_t lid, double val);
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
-    sendCommunication[dest].push(bufPtr, len);
+    sendData[dest].push(communicationTag, bufPtr, len);
 }
 
 void NetworkInterface::broadcast(void (*recv)(uint32_t, RecvBuffer&),
@@ -751,12 +713,6 @@ void NetworkInterface::flushRemoteWork() {
         }
     }
 }
-
-void NetworkInterface::flushComm() {
-    for (auto& sc : sendCommunication) {
-        sc.setFlush();
-    }
-}
   
 void NetworkInterface::resetWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
@@ -830,9 +786,6 @@ bool NetworkInterface::anyPendingSends() {
             if (sendRemoteWork[i][t].inflightSends > 0) {
                 return true;
             }
-        }
-        if (sendCommunication[i].inflightSends > 0) {
-            return true;
         }
     }
 

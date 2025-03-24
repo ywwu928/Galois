@@ -1069,7 +1069,7 @@ private:
     }
     if (!async) {
       // Will force all messages to be processed before continuing
-      net.flushComm();
+      net.flushData();
     }
 
     if (BitsetFnTy::is_valid()) {

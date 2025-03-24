@@ -173,6 +173,12 @@ public:
 
   pointer data() { return data_; }
   const_pointer data() const { return data_; }
+  
+  pointer extractData() {
+      pointer temp = data_;
+      data_ = nullptr;
+      return temp;
+  }
 
   void push_back(const _Tp& value) {
     resize(size_ + 1);

@@ -199,15 +199,13 @@ private:
   recvBufferRemoteWork recvRemoteWork;
 
   struct sendMessage {
-      uint32_t tag;  //!< tag on message indicating distinct communication phases
-      vTy data;      //!< data portion of message
+      uint32_t tag;
+      uint8_t* buf;
+      size_t bufLen;
 
-      //! Default constructor initializes host and tag to large numbers.
       sendMessage() : tag(~0) {}
-      //! @param t Tag to associate with message
-      //! @param d Data to save in message
-      sendMessage(uint32_t t) : tag(t) {}
-      sendMessage(uint32_t t, vTy&& d) : tag(t), data(std::move(d)) {}
+      sendMessage(uint32_t t) : tag(t), buf(nullptr), bufLen(0) {}
+      sendMessage(uint32_t t, uint8_t* b, size_t len) : tag(t), buf(b), bufLen(len) {}
   };
 
   /**
@@ -231,36 +229,10 @@ private:
     
       sendMessage pop();
 
-      void push(uint32_t tag, vTy&& b);
+      void push(uint32_t tag, uint8_t* work, size_t workLen);
   };
 
   std::vector<sendBufferData> sendData;
-  
-  /**
-   * Single producer single consumer with single tag
-   */
-  class sendBufferCommunication {
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
-
-      std::atomic<size_t> flush;
-
-  public:
-      std::atomic<size_t> inflightSends = 0;
-      
-      sendBufferCommunication() : flush(0) {}
-      
-      void setFlush() {}
-    
-      bool checkFlush() {
-          return flush > 0;
-      }
-    
-      bool pop(uint8_t*& work, size_t& workLen);
-
-      void push(uint8_t* work, size_t workLen);
-  };
-
-  std::vector<sendBufferCommunication> sendCommunication;
 
   /**   
    * single producer single consumer with single tag
@@ -329,7 +301,6 @@ private:
   void sendComplete();
 
   void send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
-  void send(unsigned tid, uint32_t dest, sendMessage m);
   
   std::deque<mpiMessage> recvInflight;
   
@@ -429,8 +400,6 @@ public:
   void flushData();
   
   void flushRemoteWork();
-  
-  void flushComm();
   
   void resetWorkTermination();
 
