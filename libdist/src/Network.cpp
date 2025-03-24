@@ -262,40 +262,37 @@ template void NetworkInterface::sendBufferRemoteWork::add<uint64_t>(uint32_t lid
 template void NetworkInterface::sendBufferRemoteWork::add<double>(uint32_t lid, double val);
     
 void NetworkInterface::sendComplete() {
-    for (unsigned t=0; t<numT; t++) {
-        if (!sendInflight[t].empty()) {
-            int flag = 0;
-            MPI_Status status;
-            auto& f = sendInflight[t].front();
-            int rv  = MPI_Test(&f.req, &flag, &status);
-            handleError(rv);
-            if (flag) {
-                if (f.tag == workTerminationTag) {
-                    --inflightWorkTermination;
-                }
-                else if (f.tag == remoteWorkTag) {
-                    --sendRemoteWork[f.host][t].inflightSends;
-                    // return buffer back to pool
-                    sendAllocators[t].deallocate(f.buf);
-                }
-                else {
-                    --sendData[f.host].inflightSends;
-                    
-                    if (f.tag == dataTerminationTag) {
-                        free(f.buf);
-                    }
-                }
-
-                sendInflight[t].pop_front();
-                break;
+    if (!sendInflight.empty()) {
+        int flag = 0;
+        MPI_Status status;
+        auto& f = sendInflight.front();
+        int rv  = MPI_Test(&f.req, &flag, &status);
+        handleError(rv);
+        if (flag) {
+            if (f.tag == workTerminationTag) {
+                --inflightWorkTermination;
             }
+            else if (f.tag == remoteWorkTag) {
+                --sendRemoteWork[f.host][f.tid].inflightSends;
+                // return buffer back to pool
+                sendAllocators[f.tid].deallocate(f.buf);
+            }
+            else {
+                --sendData[f.host].inflightSends;
+                
+                if (f.tag == dataTerminationTag) {
+                    free(f.buf);
+                }
+            }
+
+            sendInflight.pop_front();
         }
     }
 }
 
 void NetworkInterface::send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
-    sendInflight[tid].emplace_back(dest, tag, buf, bufLen);
-    auto& f = sendInflight[tid].back();
+    sendInflight.emplace_back(tid, dest, tag, buf, bufLen);
+    auto& f = sendInflight.back();
     int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &f.req);
     handleError(rv);
 }
@@ -395,52 +392,57 @@ void NetworkInterface::workerThread() {
     Num = getNum();
 
     ready = 1;
+    std::vector<unsigned> hostOrder(Num - 1);
+    for (unsigned i = 0; i < Num - 1; i++) {
+        if (i + ID + 1 >= Num) {
+            hostOrder[i] = i + ID + 1 - Num;
+        } else {
+            hostOrder[i] = i + ID + 1;
+        }
+    }
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
     while (ready != 3) {
-        for (unsigned i = 0; i < Num; ++i) {
-            if (i != ID) {
-                // handle send queue
-                // 1. remote work
-                bool hostWorkEmpty = true;
-                for (unsigned t=0; t<numT; t++) {
-                    // push progress forward on the network IO
-                    sendComplete();
-                    recvProbe();
-      
-                    auto& srw = sendRemoteWork[i][t];
-                    if (srw.checkFlush()) {
-                        hostWorkEmpty = false;
-                      
-                        uint8_t* work = nullptr;
-                        size_t workLen = 0;
-                        bool success = srw.pop(work, workLen);
-                      
-                        if (success) {
-                            send(t, i, remoteWorkTag, work, workLen);
-                        }
-                    }
-                }
-
-                if(hostWorkEmpty) { // wait until all works are sent
-                    // 2. work termination
-                    if (sendWorkTermination[i]) {
-                        ++inflightWorkTermination;
-                        // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, workTerminationTag, nullptr, 0);
-                        sendWorkTermination[i] = false;
-                    }
-                }
-              
-                // 3. data
-                auto& sd = sendData[i];
-                if (sd.checkFlush()) {
-                    sendMessage msg = sd.pop();
+        for (unsigned i = 0; i < Num - 1; ++i) {
+            unsigned h = hostOrder[i];
+            // handle send queue
+            // 1. remote work
+            bool hostWorkEmpty = true;
+            for (unsigned t=0; t<numT; t++) {
+                // push progress forward on the network IO
+                sendComplete();
+                recvProbe();
+  
+                auto& srw = sendRemoteWork[h][t];
+                if (srw.checkFlush()) {
+                    hostWorkEmpty = false;
                   
-                    if (msg.tag != ~0U) {
-                        // put it on the first thread
-                        send(0, i, msg.tag, msg.buf, msg.bufLen);
+                    uint8_t* work = nullptr;
+                    size_t workLen = 0;
+                    bool success = srw.pop(work, workLen);
+                  
+                    if (success) {
+                        send(t, h, remoteWorkTag, work, workLen);
                     }
+                }
+            }
+
+            if(hostWorkEmpty) { // wait until all works are sent
+                // 2. work termination
+                if (sendWorkTermination[h]) {
+                    ++inflightWorkTermination;
+                    send(0, h, workTerminationTag, nullptr, 0);
+                    sendWorkTermination[h] = false;
+                }
+            }
+          
+            // 3. data
+            auto& sd = sendData[h];
+            if (sd.checkFlush()) {
+                sendMessage msg = sd.pop();
+              
+                if (msg.tag != ~0U) {
+                    send(0, h, msg.tag, msg.buf, msg.bufLen);
                 }
             }
         }
@@ -456,7 +458,6 @@ NetworkInterface::NetworkInterface() {
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
-    sendInflight = decltype(sendInflight)(numT);
     while (ready != 1) {};
 
     recvData = decltype(recvData)(Num);

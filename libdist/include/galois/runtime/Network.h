@@ -279,9 +279,23 @@ private:
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
 
   /**
-   * Message type to send/recv in this network IO layer.
+   * Message type to recv in this network IO layer.
    */
-  struct mpiMessage {
+  struct mpiMessageSend {
+      unsigned tid;
+      uint32_t host;
+      uint32_t tag;
+      uint8_t* buf;
+      size_t bufLen;
+      MPI_Request req;
+        
+      mpiMessageSend(unsigned _tid, uint32_t _host, uint32_t _tag, uint8_t* _buf, size_t _bufLen) : tid(_tid), host(_host), tag(_tag), buf(_buf), bufLen(_bufLen) {}
+  };
+
+  /**
+   * Message type to recv in this network IO layer.
+   */
+  struct mpiMessageRecv {
       uint32_t host;
       uint32_t tag;
       vTy data;
@@ -289,20 +303,19 @@ private:
       size_t bufLen;
       MPI_Request req;
         
-      mpiMessage(uint32_t host, uint32_t tag) : host(host), tag(tag) {}
-      mpiMessage(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
-      mpiMessage(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
-      mpiMessage(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
+      mpiMessageRecv(uint32_t host, uint32_t tag) : host(host), tag(tag) {}
+      mpiMessageRecv(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
+      mpiMessageRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
+      mpiMessageRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
   };
-
   
-  std::vector<std::deque<mpiMessage>> sendInflight;
+  std::deque<mpiMessageSend> sendInflight;
     
   void sendComplete();
 
   void send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
   
-  std::deque<mpiMessage> recvInflight;
+  std::deque<mpiMessageRecv> recvInflight;
   
   void recvProbe();
   
