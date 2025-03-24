@@ -198,21 +198,11 @@ private:
 
   recvBufferRemoteWork recvRemoteWork;
 
-  struct sendMessage {
-      uint32_t tag;
-      uint8_t* buf;
-      size_t bufLen;
-
-      sendMessage() : tag(~0) {}
-      sendMessage(uint32_t t) : tag(t), buf(nullptr), bufLen(0) {}
-      sendMessage(uint32_t t, uint8_t* b, size_t len) : tag(t), buf(b), bufLen(len) {}
-  };
-
   /**
    * Single producer single consumer with multiple tags
    */
   class sendBufferData {
-      moodycamel::ReaderWriterQueue<sendMessage> messages;
+      moodycamel::ReaderWriterQueue<std::tuple<uint32_t, uint8_t*, size_t>> messages;
 
       std::atomic<size_t> flush;
 
@@ -227,9 +217,9 @@ private:
           return flush > 0;
       }
     
-      sendMessage pop();
+      bool pop(uint32_t& tag, uint8_t*& data, size_t& dataLen);
 
-      void push(uint32_t tag, uint8_t* work, size_t workLen);
+      void push(uint32_t tag, uint8_t* data, size_t dataLen);
   };
 
   std::vector<sendBufferData> sendData;

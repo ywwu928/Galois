@@ -150,20 +150,21 @@ void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) 
     messages.enqueue(std::make_pair(work, workLen));
 }
 
-NetworkInterface::sendMessage NetworkInterface::sendBufferData::pop() {
-    sendMessage m;
-    bool success = messages.try_dequeue(m);
+bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
+    std::tuple<uint32_t, uint8_t*, size_t> message;
+    bool success = messages.try_dequeue(message);
     if (success) {
         flush -= 1;
-        return m;
+        tag = std::get<0>(message);
+        data = std::get<1>(message);
+        dataLen = std::get<2>(message);
     }
-    else {
-        return sendMessage(~0U);
-    }
+
+    return success;
 }
 
-void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* work, size_t workLen) {
-    messages.enqueue(sendMessage(tag, work, workLen));
+void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t dataLen) {
+    messages.enqueue(std::make_tuple(tag, data, dataLen));
     ++inflightSends;
     flush += 1;
 }
@@ -441,10 +442,13 @@ void NetworkInterface::workerThread() {
             recvProbe();
             auto& sd = sendData[h];
             if (sd.checkFlush()) {
-                sendMessage msg = sd.pop();
+                uint32_t tag = 0;
+                uint8_t* data = nullptr;
+                size_t dataLen = 0;
+                bool success = sd.pop(tag, data, dataLen);
               
-                if (msg.tag != ~0U) {
-                    send(0, h, msg.tag, msg.buf, msg.bufLen);
+                if (success) {
+                    send(0, h, tag, data, dataLen);
                 }
             }
         }
