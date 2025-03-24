@@ -315,8 +315,6 @@ private:
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<std::atomic<uint32_t>> hostWorkTermination;
   
-  std::atomic<size_t> inflightDataTermination;
-  std::vector<std::atomic<bool>> sendDataTermination;
   std::vector<std::atomic<uint32_t>> hostDataTermination;
 
 public:

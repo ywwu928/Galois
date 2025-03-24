@@ -278,15 +278,12 @@ void NetworkInterface::sendComplete() {
                     // return buffer back to pool
                     sendAllocators[t].deallocate(f.buf);
                 }
-                else if (f.tag == communicationTag) {
-                    --sendData[f.host].inflightSends;
-                }
-                else if (f.tag == dataTerminationTag) {
-                    --inflightDataTermination;
-                }
                 else {
                     --sendData[f.host].inflightSends;
-                    free(f.buf);
+                    
+                    if (f.tag == dataTerminationTag) {
+                        free(f.buf);
+                    }
                 }
 
                 sendInflight[t].pop_front();
@@ -435,27 +432,14 @@ void NetworkInterface::workerThread() {
                     }
                 }
               
-                // 4. data
-                bool hostDataEmpty = true;
+                // 3. data
                 auto& sd = sendData[i];
                 if (sd.checkFlush()) {
-                    hostDataEmpty = false;
-
                     sendMessage msg = sd.pop();
                   
                     if (msg.tag != ~0U) {
                         // put it on the first thread
                         send(0, i, msg.tag, msg.buf, msg.bufLen);
-                    }
-                }
-
-                if(hostDataEmpty) { // wait until all data are sent
-                    // 5. data termination
-                    if (sendDataTermination[i]) {
-                        ++inflightDataTermination;
-                        // put it on the last thread to make sure it is sent last after all the work are sent
-                        send(numT - 1, i, dataTerminationTag, nullptr, 0);
-                        sendDataTermination[i] = false;
                     }
                 }
             }
@@ -468,7 +452,6 @@ void NetworkInterface::workerThread() {
 NetworkInterface::NetworkInterface() {
     ready               = 0;
     inflightWorkTermination = 0;
-    inflightDataTermination = 0;
     anyReceivedMessages = false;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
@@ -500,10 +483,8 @@ NetworkInterface::NetworkInterface() {
             hostWorkTermination[i] = 0;
         }
     }
-    sendDataTermination = decltype(sendDataTermination)(Num);
     hostDataTermination = decltype(hostDataTermination)(Num);
     for (unsigned i=0; i<Num; i++) {
-        sendDataTermination[i] = false;
         if (i == ID) {
             hostDataTermination[i] = 1;
         }
@@ -757,7 +738,7 @@ bool NetworkInterface::checkDataTermination() {
 }
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {
-    sendDataTermination[dest] = true;
+    sendData[dest].push(dataTerminationTag, nullptr, 0);
 }
 
 void NetworkInterface::broadcastWorkTermination() {
@@ -773,9 +754,6 @@ void NetworkInterface::broadcastWorkTermination() {
 
 bool NetworkInterface::anyPendingSends() {
     if (inflightWorkTermination > 0) {
-        return true;
-    }
-    if (inflightDataTermination > 0) {
         return true;
     }
     for (unsigned i=0; i<Num; i++) {
