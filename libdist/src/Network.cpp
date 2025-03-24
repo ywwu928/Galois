@@ -437,6 +437,8 @@ void NetworkInterface::workerThread() {
             }
           
             // 3. data
+            sendComplete();
+            recvProbe();
             auto& sd = sendData[h];
             if (sd.checkFlush()) {
                 sendMessage msg = sd.pop();
