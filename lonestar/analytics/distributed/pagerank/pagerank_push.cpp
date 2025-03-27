@@ -194,7 +194,7 @@ struct PageRank {
     unsigned _num_iterations   = 0;
     const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
-
+    
     do {
       std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
