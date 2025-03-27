@@ -47,14 +47,6 @@ static cll::opt<unsigned int>
                   cll::desc("Maximum iterations: Default 1000"),
                   cll::init(1000));
 
-enum Exec { Sync, Async };
-
-static cll::opt<Exec> execution(
-    "exec", cll::desc("Distributed Execution Model (default value Async):"),
-    cll::values(clEnumVal(Sync, "Bulk-synchronous Parallel (BSP)"),
-                clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
-    cll::init(Sync));
-
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
@@ -168,12 +160,9 @@ struct PageRank_delta {
   }
 };
 
-template <bool async>
 struct PageRank {
   Graph* graph;
-  using DGTerminatorDetector =
-      typename std::conditional<async, galois::DGTerminator<unsigned int>,
-                                galois::DGAccumulator<unsigned int>>::type;
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
 
   DGTerminatorDetector& active_vertices;
 
@@ -279,7 +268,7 @@ struct PageRank {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #else
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual, async>("PageRank");
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>("PageRank");
 #endif
       StatTimer_comm.stop();
       
@@ -292,7 +281,7 @@ struct PageRank {
           (unsigned long)dga.read_local());
 
       ++_num_iterations;
-    } while ((async || (_num_iterations < maxIterations)) &&
+    } while ((_num_iterations < maxIterations) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
 
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
@@ -506,11 +495,7 @@ int main(int argc, char** argv) {
     net.touchBufferPool();
 
     StatTimer_main.start();
-    if (execution == Async) {
-      PageRank<true>::go(*hg);
-    } else {
-      PageRank<false>::go(*hg);
-    }
+    PageRank::go(*hg);
     StatTimer_main.stop();
 
     // sanity check
