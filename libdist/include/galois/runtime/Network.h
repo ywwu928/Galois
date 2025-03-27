@@ -151,7 +151,7 @@ private:
 
       recvBufferData() : frontTag(~0U) {}
 
-      std::optional<RecvBuffer> tryPopMsg(uint32_t tag);
+      RecvBuffer pop();
 
       void add(uint32_t tag, vTy&& vec);
       

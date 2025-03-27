@@ -81,21 +81,11 @@ void NetworkInterface::finalizeMPI() {
     galois::gDebug("[", NetworkInterface::ID, "] MPI finalized");
 }
 
-std::optional<RecvBuffer> NetworkInterface::recvBufferData::tryPopMsg(uint32_t tag) {
-    if (frontTag == ~0U) { // no messages available
-        return std::optional<RecvBuffer>();
-    }
-    else {
-        if (frontTag != tag) {
-            return std::optional<RecvBuffer>();
-        }
-        else {
-            frontTag = ~0U;
-          
-            --inflightRecvs;
-            return std::optional<RecvBuffer>(RecvBuffer(std::move(frontMsg.data)));
-        }
-    }
+RecvBuffer NetworkInterface::recvBufferData::pop() {
+    frontTag = ~0U;
+  
+    --inflightRecvs;
+    return RecvBuffer(std::move(frontMsg.data));
 }
 
 // Worker thread interface
@@ -597,11 +587,9 @@ NetworkInterface::receiveTagged(uint32_t tag, int phase) {
 
         auto& rq = recvData[h];
         if (rq.hasMsg(tag)) {
-            auto buf = rq.tryPopMsg(tag);
-            if (buf.has_value()) {
-                anyReceivedMessages = true;
-                return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf.value())));
-            }
+            auto buf = rq.pop();
+            anyReceivedMessages = true;
+            return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
         }
     }
 
@@ -619,11 +607,9 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
 
         auto& rq = recvData[h];
         if (rq.hasMsg(tag)) {
-            auto buf = rq.tryPopMsg(tag);
-            if (buf.has_value()) {
-                anyReceivedMessages = true;
-                return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf.value())));
-            }
+            auto buf = rq.pop();
+            anyReceivedMessages = true;
+            return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
         }
     }
   
@@ -640,11 +626,9 @@ NetworkInterface::receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint
 
     auto& rq = recvData[host];
     if (rq.hasMsg(tag)) {
-        auto buf = rq.tryPopMsg(tag);
-        if (buf.has_value()) {
-            anyReceivedMessages = true;
-            return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf.value())));
-        }
+        auto buf = rq.pop();
+        anyReceivedMessages = true;
+        return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf)));
     }
   
     if (hostDataTermination[host] > 0) {
