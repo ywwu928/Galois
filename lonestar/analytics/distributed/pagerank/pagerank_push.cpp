@@ -200,8 +200,6 @@ struct PageRank {
     do {
       std::string delta_str("Host_" + std::to_string(net.ID) + "_Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string mirror_reset_str("Host_" + std::to_string(net.ID) + "_MirrorReset_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_mirror_reset(mirror_reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
@@ -216,9 +214,7 @@ struct PageRank {
       dga.reset();
 
       // reset residual on mirrors
-      StatTimer_mirror_reset.start();
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-      StatTimer_mirror_reset.stop();
 
       StatTimer_compute.start();
       galois::do_all(
