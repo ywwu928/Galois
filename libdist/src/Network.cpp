@@ -81,16 +81,18 @@ void NetworkInterface::finalizeMPI() {
     galois::gDebug("[", NetworkInterface::ID, "] MPI finalized");
 }
 
-RecvBuffer NetworkInterface::recvBufferData::pop() {
+RecvBuffer NetworkInterface::recvBufferData::pop(uint32_t& host) {
+    host = frontMsg.host;
+
     frontTag = ~0U;
-  
     --inflightRecvs;
+
     return RecvBuffer(std::move(frontMsg.data));
 }
 
 // Worker thread interface
-void NetworkInterface::recvBufferData::add(uint32_t tag, vTy&& vec) {
-    messages.enqueue(recvMessage(tag, std::move(vec)));
+void NetworkInterface::recvBufferData::add(uint32_t host, uint32_t tag, vTy&& vec) {
+    messages.enqueue(recvMessage(host, tag, std::move(vec)));
 }
       
 bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
@@ -352,8 +354,8 @@ void NetworkInterface::recvProbe() {
                 hostDataTermination[m.host] += 1;
             }
             else {
-                ++recvData[m.host].inflightRecvs;
-                recvData[m.host].add(m.tag, std::move(m.data));
+                ++recvData.inflightRecvs;
+                recvData.add(m.host, m.tag, std::move(m.data));
             }
             
             recvInflight.pop_front();
@@ -455,7 +457,6 @@ NetworkInterface::NetworkInterface() {
     sendAllocators = decltype(sendAllocators)(numT);
     while (ready != 1) {};
 
-    recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
@@ -579,16 +580,10 @@ std::optional<std::pair<uint32_t, RecvBuffer>>
 NetworkInterface::receiveTagged(uint32_t tag, int phase) {
     tag += phase;
 
-    for (unsigned h=0; h<Num; h++) {
-        if (h == ID) {
-            continue;
-        }
-
-        auto& rq = recvData[h];
-        if (rq.hasMsg(tag)) {
-            auto buf = rq.pop();
-            return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
-        }
+    if (recvData.hasMsg(tag)) {
+        uint32_t host;
+        auto buf = recvData.pop(host);
+        return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf)));
     }
 
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
@@ -598,16 +593,10 @@ std::optional<std::pair<uint32_t, RecvBuffer>>
 NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     tag += phase;
 
-    for (unsigned h=0; h<Num; h++) {
-        if (h == ID) {
-            continue;
-        }
-
-        auto& rq = recvData[h];
-        if (rq.hasMsg(tag)) {
-            auto buf = rq.pop();
-            return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
-        }
+    if (recvData.hasMsg(tag)) {
+        uint32_t host;
+        auto buf = recvData.pop(host);
+        return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf)));
     }
   
     if (checkDataTermination()) {

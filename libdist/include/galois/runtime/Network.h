@@ -123,6 +123,7 @@ private:
   }
 
   struct recvMessage {
+      uint32_t host;
       uint32_t tag;  //!< tag on message indicating distinct communication phases
       vTy data;      //!< data portion of message
 
@@ -131,7 +132,7 @@ private:
       //! @param h Host to send message to
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      recvMessage(uint32_t t, vTy&& d) : tag(t), data(std::move(d)) {}
+      recvMessage(uint32_t _host, uint32_t _tag, vTy&& _data) : host(_host), tag(_tag), data(std::move(_data)) {}
   };
 
   /**
@@ -149,14 +150,14 @@ private:
 
       recvBufferData() : frontTag(~0U) {}
 
-      RecvBuffer pop();
+      RecvBuffer pop(uint32_t& host);
 
-      void add(uint32_t tag, vTy&& vec);
+      void add(uint32_t host, uint32_t tag, vTy&& vec);
       
       bool hasMsg(uint32_t tag);
   }; // end recv buffer class
 
-  std::vector<recvBufferData> recvData;
+  recvBufferData recvData;
   
   /**
    * Receive buffers for the buffered network interface
@@ -291,8 +292,6 @@ private:
       size_t bufLen;
       MPI_Request req;
         
-      mpiMessageRecv(uint32_t host, uint32_t tag) : host(host), tag(tag) {}
-      mpiMessageRecv(uint32_t host, uint32_t tag, vTy&& data) : host(host), tag(tag), data(std::move(data)) {}
       mpiMessageRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
       mpiMessageRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
   };
