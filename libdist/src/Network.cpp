@@ -450,7 +450,6 @@ void NetworkInterface::workerThread() {
 NetworkInterface::NetworkInterface() {
     ready               = 0;
     inflightWorkTermination = 0;
-    anyReceivedMessages = false;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
@@ -588,7 +587,6 @@ NetworkInterface::receiveTagged(uint32_t tag, int phase) {
         auto& rq = recvData[h];
         if (rq.hasMsg(tag)) {
             auto buf = rq.pop();
-            anyReceivedMessages = true;
             return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
         }
     }
@@ -608,7 +606,6 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
         auto& rq = recvData[h];
         if (rq.hasMsg(tag)) {
             auto buf = rq.pop();
-            anyReceivedMessages = true;
             return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(h, std::move(buf)));
         }
     }
@@ -627,7 +624,6 @@ NetworkInterface::receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint
     auto& rq = recvData[host];
     if (rq.hasMsg(tag)) {
         auto buf = rq.pop();
-        anyReceivedMessages = true;
         return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf)));
     }
   
@@ -647,10 +643,7 @@ bool NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, si
     terminateFlag = false;
 
     bool success = recvRemoteWork.tryPopMsg(work, workLen);
-    if (success) {
-        anyReceivedMessages = true;
-    }
-    else {
+    if (!success) {
         if (checkWorkTermination()) {
             terminateFlag = true;
         }
@@ -661,10 +654,6 @@ bool NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, si
 
 bool NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     bool success = recvCommunication.tryPopMsg(host, work);
-    if (success) {
-        anyReceivedMessages = true;
-    }
-
     return success;
 }
 
@@ -741,46 +730,6 @@ void NetworkInterface::broadcastWorkTermination() {
             sendWorkTermination[i] = true;
         }
     }
-}
-
-bool NetworkInterface::anyPendingSends() {
-    if (inflightWorkTermination > 0) {
-        return true;
-    }
-    for (unsigned i=0; i<Num; i++) {
-        if (sendData[i].inflightSends > 0) {
-            return true;
-        }
-        for (unsigned t=0; t<numT; t++) {
-            if (sendRemoteWork[i][t].inflightSends > 0) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-bool NetworkInterface::anyPendingReceives() {
-    if (anyReceivedMessages) { // might not be acted on by the computation yet
-      anyReceivedMessages = false;
-      // galois::gDebug("[", ID, "] receive out of buffer \n");
-      return true;
-    }
-
-    if (recvRemoteWork.inflightRecvs > 0) {
-        return true;
-    }
-    for (unsigned i=0; i<Num; i++) {
-        if (recvData[i].inflightRecvs > 0) {
-            return true;
-        }
-    }
-    if (recvCommunication.inflightRecvs > 0) {
-        return true;
-    }
-
-    return false;
 }
 
 void NetworkInterface::reportMemUsage() const {

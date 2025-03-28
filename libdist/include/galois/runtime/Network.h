@@ -84,8 +84,6 @@ private:
 
   std::vector<uint8_t*> recvCommBuffer;
 
-  bool anyReceivedMessages;
-
   unsigned numT;
 
   using vTy = galois::PODResizeableArray<uint8_t>;
@@ -413,12 +411,6 @@ public:
   void signalDataTermination(uint32_t dest);
 
   void broadcastWorkTermination();
-  
-  //! @returns true if any send is in progress or is pending to be enqueued
-  bool anyPendingSends();
-
-  //! @returns true if any receive is in progress or is pending to be dequeued
-  bool anyPendingReceives();
 
   //! Wrapper to reset the mem usage tracker's stats
   inline void resetMemUsage() { memUsageTracker.resetMemUsage(); }
