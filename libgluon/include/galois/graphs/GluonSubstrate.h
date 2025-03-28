@@ -2021,9 +2021,6 @@ public:
                 }
 
                 success = net.receiveRemoteWork(buf, bufLen);
-                if (!success) {
-                    galois::substrate::asmPause();
-                }
             } while (!success);
             
             if (success) { // received message
@@ -2076,9 +2073,6 @@ public:
                     success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                     if (terminateFlag) {
                         break;
-                    }
-                    if (!success) {
-                        galois::substrate::asmPause();
                     }
                 } while (!success);
                 
