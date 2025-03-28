@@ -188,29 +188,21 @@ struct PageRank {
 
     DGTerminatorDetector dga;
   
+#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
+#endif
 
     do {
-      std::string mirror_reset_str("Host_" + std::to_string(_net.ID) + "_MirrorReset_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_mirror_reset(mirror_reset_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string delta_str("Host_" + std::to_string(_net.ID) + "_Delta_Round_" + std::to_string(_num_iterations));
+      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string buf_reset_str("Host_" + std::to_string(_net.ID) + "_BufferReset_Round_" + std::to_string(_num_iterations));
+      std::string buf_reset_str("BufferReset_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_buf_reset(buf_reset_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string dedicate_str("Host_" + std::to_string(_net.ID) + "_Dedicate_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_dedicate(dedicate_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Host_" + std::to_string(_net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Host_" + std::to_string(_net.ID) + "_Flush_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string sync_str("Host_" + std::to_string(_net.ID) + "_Sync_Round_" + std::to_string(_num_iterations));
+      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string wait_str("Host_" + std::to_string(_net.ID) + "_Wait_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_wait(wait_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Host_" + std::to_string(_net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string termination_reset_str("Host_" + std::to_string(_net.ID) + "_TerminationReset_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_termination_reset(termination_reset_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
@@ -220,9 +212,7 @@ struct PageRank {
       dga.reset();
 
       // reset residual on mirrors
-      StatTimer_mirror_reset.start();
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-      StatTimer_mirror_reset.stop();
       
       StatTimer_delta.start();
       PageRank_delta::go(_graph);
@@ -233,12 +223,10 @@ struct PageRank {
       syncSubstrate->set_update_buf_to_identity(0);
       StatTimer_buf_reset.stop();
       // dedicate a thread to poll for remote messages
-      StatTimer_dedicate.start();
       std::function<void(void)> func = [&]() {
               syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>();
       };
       galois::substrate::getThreadPool().runDedicated(func);
-      StatTimer_dedicate.stop();
 #endif
 
       // launch all other threads to compute
@@ -251,13 +239,9 @@ struct PageRank {
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
-      StatTimer_flush.start();
       syncSubstrate->net_flush();
-      StatTimer_flush.stop();
 
-      StatTimer_wait.start();
       galois::substrate::getThreadPool().waitDedicated();
-      StatTimer_wait.stop();
 
       StatTimer_sync.start();
       syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
@@ -272,9 +256,7 @@ struct PageRank {
 #endif
       StatTimer_comm.stop();
       
-      StatTimer_termination_reset.start();
       syncSubstrate->reset_termination();
-      StatTimer_termination_reset.stop();
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME_RUN.c_str(), "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
@@ -283,13 +265,6 @@ struct PageRank {
       ++_num_iterations;
     } while ((_num_iterations < maxIterations) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::runtime::reportStat_Single(
-          REGION_NAME_RUN.c_str(),
-          "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-          (unsigned long)_num_iterations);
-    }
   }
 
   void operator()(WorkItem src) const {
