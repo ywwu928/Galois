@@ -617,23 +617,6 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-std::optional<std::pair<uint32_t, RecvBuffer>>
-NetworkInterface::receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint32_t tag, int phase) {
-    tag += phase;
-
-    auto& rq = recvData[host];
-    if (rq.hasMsg(tag)) {
-        auto buf = rq.pop();
-        return std::optional<std::pair<uint32_t, RecvBuffer>>(std::make_pair(host, std::move(buf)));
-    }
-  
-    if (hostDataTermination[host] > 0) {
-        terminateFlag = true;
-    }
-
-    return std::optional<std::pair<uint32_t, RecvBuffer>>();
-}
-
 bool NetworkInterface::receiveRemoteWork(uint8_t*& work, size_t& workLen) {
     bool success = recvRemoteWork.tryPopMsg(work, workLen);
     return success;

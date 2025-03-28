@@ -384,9 +384,6 @@ public:
   std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0);
   
-  std::optional<std::pair<uint32_t, RecvBuffer>>
-  receiveTaggedFromHost(uint32_t host, bool& terminateFlag, uint32_t tag, int type = 0);
-  
   bool receiveRemoteWork(uint8_t*& work, size_t& workLen);
 
   bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen);
