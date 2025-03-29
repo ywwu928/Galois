@@ -410,8 +410,8 @@ void NetworkInterface::workerThread() {
                 if (srw.checkFlush()) {
                     hostWorkEmpty = false;
                   
-                    uint8_t* work = nullptr;
-                    size_t workLen = 0;
+                    uint8_t* work;
+                    size_t workLen;
                     bool success = srw.pop(work, workLen);
                   
                     if (success) {
@@ -434,9 +434,9 @@ void NetworkInterface::workerThread() {
             recvProbe();
             auto& sd = sendData[h];
             if (sd.checkFlush()) {
-                uint32_t tag = 0;
-                uint8_t* data = nullptr;
-                size_t dataLen = 0;
+                uint32_t tag;
+                uint8_t* data;
+                size_t dataLen;
                 bool success = sd.pop(tag, data, dataLen);
               
                 if (success) {
@@ -612,8 +612,6 @@ bool NetworkInterface::receiveRemoteWork(uint8_t*& work, size_t& workLen) {
 }
 
 bool NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) {
-    terminateFlag = false;
-
     bool success = recvRemoteWork.tryPopMsg(work, workLen);
     if (!success) {
         if (checkWorkTermination()) {

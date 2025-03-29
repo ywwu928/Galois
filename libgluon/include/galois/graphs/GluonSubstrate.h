@@ -1285,9 +1285,6 @@ private:
               continue;
 
           Twait.start();
-          success = false;
-          host = ~0U;
-          work = nullptr;
           do {
 #ifndef GALOIS_FULL_MIRRORING     
               check_remote_work<SyncFnTy>();
@@ -2013,8 +2010,6 @@ public:
         
         while (!stopDedicated) {
             success = false;
-            buf = nullptr;
-            bufLen = 0;
             do {
                 if (stopDedicated) {
                     break;
@@ -2066,9 +2061,6 @@ public:
             uint8_t* buf;
             size_t bufLen;
             while (true) {
-                success = false;
-                buf = nullptr;
-                bufLen = 0;
                 do {
                     success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                     if (terminateFlag) {
@@ -2120,9 +2112,9 @@ public:
     template<typename FnTy>
     void check_remote_work() {
         if (!terminateFlag) {
-            bool success = false;;
-            uint8_t* buf = nullptr;
-            size_t bufLen = 0;
+            bool success;
+            uint8_t* buf;
+            size_t bufLen;
             do {
                 success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
                 
