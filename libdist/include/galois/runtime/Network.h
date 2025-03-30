@@ -126,7 +126,6 @@ private:
   }
 
   struct recvMessage {
-      uint32_t host;
       uint32_t tag;  //!< tag on message indicating distinct communication phases
       vTy data;      //!< data portion of message
 
@@ -135,7 +134,7 @@ private:
       //! @param h Host to send message to
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      recvMessage(uint32_t _host, uint32_t _tag, vTy&& _data) : host(_host), tag(_tag), data(std::move(_data)) {}
+      recvMessage(uint32_t _tag, vTy&& _data) : tag(_tag), data(std::move(_data)) {}
   };
 
   /**
@@ -153,14 +152,14 @@ private:
 
       recvBufferData() : frontTag(~0U) {}
 
-      RecvBuffer pop(uint32_t& host);
+      RecvBuffer pop();
 
-      void add(uint32_t host, uint32_t tag, vTy&& vec);
+      void add(uint32_t tag, vTy&& vec);
       
       bool hasMsg(uint32_t tag);
   }; // end recv buffer class
 
-  recvBufferData recvData;
+  std::vector<recvBufferData> recvData;
   
   /**
    * Receive buffers for the buffered network interface
