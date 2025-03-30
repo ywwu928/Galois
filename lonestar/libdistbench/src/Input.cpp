@@ -92,16 +92,6 @@ cll::opt<int> mirrorThreshold("mirrorThreshold",
                                   cll::init(0));
 #endif
 
-#ifdef GALOIS_FULL_MIRRORING
-uint32_t highDegreeFactor = 0;
-#elif defined(GALOIS_NO_MIRRORING)
-uint32_t highDegreeFactor = 0;
-#else
-cll::opt<uint32_t> highDegreeFactor("highDegreeFactor",
-                                  cll::desc("Factor to determine the threshold for high incoming degree mirrors to not be mirrored"),
-                                  cll::init(0));
-#endif
-
 cll::opt<uint32_t> dataSizeRatio("dataSizeRatio",
                                   cll::desc("The ratio of the node data size to the edge data size"),
                                   cll::init(1));
