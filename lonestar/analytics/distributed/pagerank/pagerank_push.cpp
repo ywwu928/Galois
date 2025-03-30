@@ -149,10 +149,10 @@ struct PageRank_delta {
         graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& allNodes = _graph.allNodesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     galois::do_all(
-        galois::iterate(allNodes),
+        galois::iterate(masterNodes),
         PageRank_delta{alpha, tolerance, &_graph}, galois::no_stats());
   }
 
@@ -205,14 +205,14 @@ struct PageRank {
 
       syncSubstrate->set_num_round(_num_iterations);
 
+      // reset residual on mirrors
+      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+
       StatTimer_delta.start();
       PageRank_delta::go(_graph);
       StatTimer_delta.stop();
 
       dga.reset();
-
-      // reset residual on mirrors
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
 
       StatTimer_compute.start();
       galois::do_all(
