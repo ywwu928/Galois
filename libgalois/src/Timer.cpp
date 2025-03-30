@@ -90,4 +90,6 @@ void StatTimer::stop() {
   TimeAccumulator::stop();
 }
 
+uint64_t StatTimer::get() const { return TimeAccumulator::get(); }
+
 uint64_t StatTimer::get_usec() const { return TimeAccumulator::get_usec(); }

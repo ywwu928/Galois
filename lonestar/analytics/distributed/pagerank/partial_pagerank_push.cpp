@@ -472,6 +472,7 @@ int main(int argc, char** argv) {
     StatTimer_main.start();
     PageRank::go(*hg);
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     // sanity check
     PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,

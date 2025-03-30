@@ -81,6 +81,7 @@ public:
 
   void start();
   void stop();
+  uint64_t get() const;
   uint64_t get_usec() const;
 };
 
