@@ -69,6 +69,11 @@ void NetworkInterface::initializeMPI() {
     if (supportProvided != MPI_THREAD_MULTIPLE) {
         GALOIS_DIE("MPI_THREAD_MULTIPLE not supported.");
     }
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &comm_barrier);
+    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &comm_comm);
 }
 
 void NetworkInterface::finalizeMPI() {
@@ -286,7 +291,7 @@ void NetworkInterface::sendComplete() {
 void NetworkInterface::send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
     sendInflight.emplace_back(tid, dest, tag, buf, bufLen);
     auto& f = sendInflight.back();
-    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, MPI_COMM_WORLD, &f.req);
+    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &f.req);
     handleError(rv);
 }
 
@@ -295,7 +300,7 @@ void NetworkInterface::recvProbe() {
     int flag = 0;
     MPI_Status status;
     // check for new messages
-    int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
+    int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
     handleError(rv);
     if (flag) {
         int nbytes;
@@ -315,19 +320,19 @@ void NetworkInterface::recvProbe() {
 
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
             auto& m = recvInflight.back();
-            rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+            rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
             auto& m = recvInflight.back();
-            rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+            rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
         }
         else {
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
             auto& m = recvInflight.back();
-            rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &m.req);
+            rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
         }
     }

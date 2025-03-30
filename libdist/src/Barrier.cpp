@@ -95,7 +95,8 @@ public:
 
   //! Control-flow barrier across distributed hosts
   virtual void wait() {
-    MPI_Barrier(MPI_COMM_WORLD); // assumes MPI_THREAD_MULTIPLE
+    auto& net = galois::runtime::getSystemNetworkInterface();
+    MPI_Barrier(net.comm_barrier); // assumes MPI_THREAD_MULTIPLE
   }
 };
 

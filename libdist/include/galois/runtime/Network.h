@@ -52,6 +52,9 @@ using RecvBuffer = DeSerializeBuffer;
  * as the network layer itself is up to the implemention of the class.
  */
 class NetworkInterface {
+public:
+  MPI_Comm comm_barrier, comm_comm;
+  
 protected:
   //! Initialize the MPI system. Should only be called once per process.
   void initializeMPI();
