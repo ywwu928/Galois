@@ -88,7 +88,6 @@ void NetworkInterface::finalizeMPI() {
 
 RecvBuffer NetworkInterface::recvBufferData::pop() {
     frontTag = ~0U;
-    --inflightRecvs;
 
     return RecvBuffer(std::move(frontMsg.data));
 }
@@ -115,7 +114,6 @@ bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_
     std::pair<uint32_t, uint8_t*> message;
     bool success = messages.try_dequeue(message);
     if (success) {
-        --inflightRecvs;
         host = message.first;
         work = message.second;
     }
@@ -132,7 +130,6 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& w
     std::pair<uint8_t*, size_t> message;
     bool success = messages.try_dequeue(message);
     if (success) {
-        --inflightRecvs;
         work = message.first;
         workLen = message.second;
     }
@@ -160,7 +157,6 @@ bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t dataLen) {
     messages.enqueue(std::make_tuple(tag, data, dataLen));
-    ++inflightSends;
     flush += 1;
 }
 
@@ -190,7 +186,6 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         bufLen = 0;
         msgCount = 0;
         
-        ++inflightSends;
         flush += 1;
     }
 }
@@ -226,7 +221,6 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         bufLen += sizeof(ValTy);
         msgCount = 1;
 
-        ++inflightSends;
         flush += 1;
     }
     else {
@@ -245,39 +239,34 @@ template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, f
 template void NetworkInterface::sendBufferRemoteWork::add<uint64_t>(uint32_t lid, uint64_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<double>(uint32_t lid, double val);
     
-void NetworkInterface::sendComplete() {
-    if (!sendInflight.empty()) {
-        int flag = 0;
-        MPI_Status status;
-        auto& f = sendInflight.front();
-        int rv  = MPI_Test(&f.req, &flag, &status);
-        handleError(rv);
-        if (flag) {
-            if (f.tag == workTerminationTag) {
-                --inflightWorkTermination;
-            }
-            else if (f.tag == remoteWorkTag) {
-                --sendRemoteWork[f.host][f.tid].inflightSends;
+void NetworkInterface::sendTrackComplete() {
+    for (unsigned t=0; t<numT; t++) {
+        if (!sendInflight[t].empty()) {
+            int flag = 0;
+            MPI_Status status;
+            auto& f = sendInflight[t].front();
+            int rv  = MPI_Test(&f.req, &flag, &status);
+            handleError(rv);
+            if (flag) {
                 // return buffer back to pool
-                sendAllocators[f.tid].deallocate(f.buf);
-            }
-            else {
-                --sendData[f.host].inflightSends;
-                
-                if (f.tag == dataTerminationTag) {
-                    free(f.buf);
-                }
-            }
+                sendAllocators[t].deallocate(f.buf);
 
-            sendInflight.pop_front();
+                sendInflight[t].pop_front();
+            }
         }
     }
 }
 
-void NetworkInterface::send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
-    sendInflight.emplace_back(tid, dest, tag, buf, bufLen);
-    auto& f = sendInflight.back();
-    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &f.req);
+void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
+    MPI_Request req;
+    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
+    handleError(rv);
+}
+
+void NetworkInterface::sendTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
+    sendInflight[tid].emplace_back(buf);
+    auto& f = sendInflight[tid].back();
+    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
     handleError(rv);
 }
 
@@ -330,18 +319,15 @@ void NetworkInterface::recvProbe() {
                 hostWorkTermination[m.host] += 1;
             }
             else if (m.tag == remoteWorkTag) {
-                ++recvRemoteWork.inflightRecvs;
                 recvRemoteWork.add(m.buf, m.bufLen);
             }
             else if (m.tag == communicationTag) {
-                ++recvCommunication.inflightRecvs;
                 recvCommunication.add(m.host, m.buf);
             }
             else if (m.tag == dataTerminationTag) {
                 hostDataTermination[m.host] += 1;
             }
             else {
-                ++recvData[m.host].inflightRecvs;
                 recvData[m.host].add(m.tag, std::move(m.data));
             }
             
@@ -385,12 +371,14 @@ void NetworkInterface::workerThread() {
     while (ready != 3) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
+            
             // handle send queue
+            sendTrackComplete();
+            
             // 1. remote work
             bool hostWorkEmpty = true;
             for (unsigned t=0; t<numT; t++) {
                 // push progress forward on the network IO
-                sendComplete();
                 recvProbe();
   
                 auto& srw = sendRemoteWork[h][t];
@@ -402,7 +390,7 @@ void NetworkInterface::workerThread() {
                     bool success = srw.pop(work, workLen);
                   
                     if (success) {
-                        send(t, h, remoteWorkTag, work, workLen);
+                        sendTrack(t, h, work, workLen);
                     }
                 }
             }
@@ -410,14 +398,12 @@ void NetworkInterface::workerThread() {
             if(hostWorkEmpty) { // wait until all works are sent
                 // 2. work termination
                 if (sendWorkTermination[h]) {
-                    ++inflightWorkTermination;
-                    send(0, h, workTerminationTag, nullptr, 0);
+                    send(h, workTerminationTag, nullptr, 0);
                     sendWorkTermination[h] = false;
                 }
             }
           
             // 3. data
-            sendComplete();
             recvProbe();
             auto& sd = sendData[h];
             if (sd.checkFlush()) {
@@ -427,7 +413,7 @@ void NetworkInterface::workerThread() {
                 bool success = sd.pop(tag, data, dataLen);
               
                 if (success) {
-                    send(0, h, tag, data, dataLen);
+                    send(h, tag, data, dataLen);
                 }
             }
         }
@@ -438,7 +424,6 @@ void NetworkInterface::workerThread() {
 
 NetworkInterface::NetworkInterface() {
     ready               = 0;
-    inflightWorkTermination = 0;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
@@ -477,6 +462,7 @@ NetworkInterface::NetworkInterface() {
             hostDataTermination[i] = 0;
         }
     }
+    sendInflight = decltype(sendInflight)(numT);
     ready    = 2;
 }
 

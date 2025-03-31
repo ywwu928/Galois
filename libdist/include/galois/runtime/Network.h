@@ -148,8 +148,6 @@ private:
       recvMessage frontMsg;
 
   public:
-      std::atomic<size_t> inflightRecvs = 0;
-
       recvBufferData() : frontTag(~0U) {}
 
       RecvBuffer pop();
@@ -169,8 +167,6 @@ private:
       moodycamel::ReaderWriterQueue<std::pair<uint32_t, uint8_t*>> messages;
 
   public:
-      std::atomic<size_t> inflightRecvs = 0;
-
       recvBufferCommunication() {}
 
       bool tryPopMsg(uint32_t& host, uint8_t*& work);
@@ -188,8 +184,6 @@ private:
       moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
 
   public:
-      std::atomic<size_t> inflightRecvs = 0;
-
       recvBufferRemoteWork() {}
 
       bool tryPopMsg(uint8_t*& work, size_t& workLen);
@@ -208,8 +202,6 @@ private:
       std::atomic<size_t> flush;
 
   public:
-      std::atomic<size_t> inflightSends = 0;
-      
       sendBufferData() : flush(0) {}
       
       void setFlush() {}
@@ -241,8 +233,6 @@ private:
       std::atomic<size_t> flush;
 
   public:
-      std::atomic<size_t> inflightSends = 0;
-
       sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), bufLen(0), msgCount(0), flush(0) {}
 
       void setNet(NetworkInterface* _net);
@@ -272,16 +262,20 @@ private:
   /**
    * Message type to recv in this network IO layer.
    */
-  struct mpiMessageSend {
-      unsigned tid;
-      uint32_t host;
-      uint32_t tag;
+  struct trackMessageSend {
       uint8_t* buf;
-      size_t bufLen;
       MPI_Request req;
         
-      mpiMessageSend(unsigned _tid, uint32_t _host, uint32_t _tag, uint8_t* _buf, size_t _bufLen) : tid(_tid), host(_host), tag(_tag), buf(_buf), bufLen(_bufLen) {}
+      trackMessageSend(uint8_t* _buf) : buf(_buf) {}
   };
+  
+  std::vector<std::deque<trackMessageSend>> sendInflight;
+    
+  void sendTrackComplete();
+
+  void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
+  
+  void sendTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
 
   /**
    * Message type to recv in this network IO layer.
@@ -298,12 +292,6 @@ private:
       mpiMessageRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
   };
   
-  std::deque<mpiMessageSend> sendInflight;
-    
-  void sendComplete();
-
-  void send(unsigned tid, uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
-  
   std::deque<mpiMessageRecv> recvInflight;
   
   void recvProbe();
@@ -313,7 +301,6 @@ private:
   std::thread worker;
   std::atomic<int> ready;
   
-  std::atomic<size_t> inflightWorkTermination;
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<std::atomic<uint32_t>> hostWorkTermination;
   
