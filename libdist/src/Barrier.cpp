@@ -63,6 +63,7 @@ public:
       galois::runtime::gSerialize(b, net.ID + 1); // non-zero message
       net.sendTagged(h, galois::runtime::evilPhase, b);
     }
+    net.flush(); // flush all sends
 
     unsigned received = 1; // self
     while (received < net.Num) {

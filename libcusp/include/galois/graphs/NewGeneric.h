@@ -2939,6 +2939,8 @@ private:
       }
     }
 
+    net.flush();
+
     galois::runtime::reportStat_Tsum(
         GRNAME, std::string("EdgeLoadingMessagesSent"), messagesSent.reduce());
     galois::runtime::reportStat_Tsum(
@@ -3082,6 +3084,8 @@ private:
         }
       }
     }
+
+    net.flush();
 
     galois::runtime::reportStat_Tsum(
         GRNAME, std::string("EdgeLoadingMessagesSent"), messagesSent.reduce());
@@ -3349,6 +3353,8 @@ public:
             net.sendTagged(x, 5, b);
         }
         
+        net.flushData();
+        
         for (unsigned x = 0; x < base_DistGraph::numHosts; ++x) {
             if (x == myID)
                 continue;
@@ -3392,6 +3398,8 @@ public:
                 gSerialize(b, phantom[x]);
                 net.sendTagged(x, 5, b);
             }
+            
+            net.flushData();
             
             phantomMaster.clear();
             for (unsigned x = 0; x < base_DistGraph::numHosts; ++x) {
