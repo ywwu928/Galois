@@ -196,11 +196,14 @@ struct PageRank {
     DGTerminatorDetector dga;
     
     do {
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
+      StatTimer_total.start();
       syncSubstrate->set_num_round(_num_iterations);
 
       // reset residual on mirrors
@@ -225,16 +228,14 @@ struct PageRank {
           REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
           (unsigned long)dga.read_local());
 
-      ++_num_iterations;
-    } while ((async || (_num_iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
+      if (dga.reduce(syncSubstrate->get_run_identifier()) == 0) {
+          StatTimer_total.stop();
+          break;
+      }
+      StatTimer_total.stop();
 
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::runtime::reportStat_Single(
-          REGION_NAME,
-          "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-          (unsigned long)_num_iterations);
-    }
+      ++_num_iterations;
+    } while (async || (_num_iterations < maxIterations));
   }
 
   void operator()(WorkItem src) const {
