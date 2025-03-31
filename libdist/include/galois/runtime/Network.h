@@ -203,8 +203,6 @@ private:
 
   public:
       sendBufferData() : flush(0) {}
-      
-      void setFlush() {}
     
       bool checkFlush() {
           return flush > 0;
@@ -379,10 +377,6 @@ public:
   bool receiveComm(uint32_t& host, uint8_t*& work);
   
   //! move send buffers out to network
-  void flush();
-  
-  void flushData();
-  
   void flushRemoteWork();
   
   void resetWorkTermination();

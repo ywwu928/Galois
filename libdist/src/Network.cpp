@@ -613,16 +613,6 @@ bool NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     return success;
 }
 
-void NetworkInterface::flush() {
-    flushData();
-}
-
-void NetworkInterface::flushData() {
-    for (auto& sd : sendData) {
-        sd.setFlush();
-    }
-}
-
 void NetworkInterface::flushRemoteWork() {
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         for (auto& threadSendRemoteWork : hostSendRemoteWork) {
