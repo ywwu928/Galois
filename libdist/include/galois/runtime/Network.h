@@ -369,12 +369,10 @@ public:
   
   std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0);
-  
-  bool receiveRemoteWork(uint8_t*& work, size_t& workLen);
 
-  bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen);
+  void receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen);
   
-  bool receiveComm(uint32_t& host, uint8_t*& work);
+  void receiveComm(uint32_t& host, uint8_t*& work);
   
   //! move send buffers out to network
   void flushRemoteWork();

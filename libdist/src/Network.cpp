@@ -592,25 +592,25 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-bool NetworkInterface::receiveRemoteWork(uint8_t*& work, size_t& workLen) {
-    bool success = recvRemoteWork.tryPopMsg(work, workLen);
-    return success;
-}
-
-bool NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) {
-    bool success = recvRemoteWork.tryPopMsg(work, workLen);
-    if (!success) {
-        if (checkWorkTermination()) {
-            terminateFlag = true;
+void NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) {
+    bool success;
+    do {
+        success = recvRemoteWork.tryPopMsg(work, workLen);
+        
+        if (!success) {
+            if (checkWorkTermination()) {
+                terminateFlag = true;
+                break;
+            }
         }
-    }
-
-    return success;
+    } while(!success);
 }
 
-bool NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
-    bool success = recvCommunication.tryPopMsg(host, work);
-    return success;
+void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
+    bool success;
+    do {
+        success = recvCommunication.tryPopMsg(host, work);
+    } while(!success);
 }
 
 void NetworkInterface::flushRemoteWork() {

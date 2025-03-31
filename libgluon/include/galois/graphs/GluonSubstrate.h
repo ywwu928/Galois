@@ -1246,7 +1246,6 @@ private:
       std::string wait_timer_str("Wait_" + get_run_identifier(loopName));
       galois::CondStatTimer<GALOIS_COMM_STATS> Twait(wait_timer_str.c_str(), RNAME);
 
-      bool success;
       uint32_t host;
       uint8_t* work;
       for (unsigned x = 0; x < numHosts; ++x) {
@@ -1256,9 +1255,7 @@ private:
               continue;
 
           Twait.start();
-          do {
-              success = net.receiveComm(host, work);
-          } while (!success);
+          net.receiveComm(host, work);
           Twait.stop();
 
           recvCommBufferOffset = 0;
@@ -1945,66 +1942,53 @@ public:
 /* For Polling */
 private:
     bool stopDedicated = false;
-    bool terminateFlag = false;
 
 public:
     void reset_termination() {
         stopDedicated = false;
-        terminateFlag = false;
         net.resetWorkTermination();
     }
     
     template<typename FnTy>
     void poll_for_remote_work() {
-        if (!terminateFlag) {
-            bool success;
-            uint8_t* buf;
-            size_t bufLen;
-            while (true) {
-                do {
-                    success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
-                    if (terminateFlag) {
-                        break;
-                    }
-                } while (!success);
-                
-                if (terminateFlag) {
-                    break;
-                }
+        bool terminateFlag = false;
+        uint8_t* buf;
+        size_t bufLen;
+        while (!terminateFlag) {
+            net.receiveRemoteWork(terminateFlag, buf, bufLen);
 
-                if (success) { // received message
-                    uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+            if (!terminateFlag) { // received message
+                uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
 
-                    galois::on_each(
-                        [&](unsigned tid, unsigned numT) {
-                            unsigned quotient = msgCount / numT;
-                            unsigned remainder = msgCount % numT;
-                            unsigned start, size;
-                            if (tid < remainder) {
-                                start = tid * quotient + tid;
-                                size = quotient + 1;
-                            }
-                            else {
-                                start = tid * quotient + remainder;
-                                size = quotient;
-                            }
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-                            
-                            uint32_t lid;
-                            ValTy val;
-
-                            for (unsigned i=0; i<size; i++) {
-                                lid = *((uint32_t*)(buf + offset));
-                                offset += sizeof(uint32_t);
-                                val = *((ValTy*)(buf + offset));
-                                offset += sizeof(ValTy);
-                                FnTy::reduce_void(userGraph.getData(lid), val);
-                            }
+                galois::on_each(
+                    [&](unsigned tid, unsigned numT) {
+                        unsigned quotient = msgCount / numT;
+                        unsigned remainder = msgCount % numT;
+                        unsigned start, size;
+                        if (tid < remainder) {
+                            start = tid * quotient + tid;
+                            size = quotient + 1;
                         }
-                    );
+                        else {
+                            start = tid * quotient + remainder;
+                            size = quotient;
+                        }
+                        size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
+                        
+                        uint32_t lid;
+                        ValTy val;
 
-                    net.deallocateRecvBuffer(buf);
-                }
+                        for (unsigned i=0; i<size; i++) {
+                            lid = *((uint32_t*)(buf + offset));
+                            offset += sizeof(uint32_t);
+                            val = *((ValTy*)(buf + offset));
+                            offset += sizeof(ValTy);
+                            FnTy::reduce_void(userGraph.getData(lid), val);
+                        }
+                    }
+                );
+
+                net.deallocateRecvBuffer(buf);
             }
         }
     }
