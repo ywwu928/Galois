@@ -196,8 +196,6 @@ struct PageRank {
     DGTerminatorDetector dga;
     
     do {
-      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
@@ -208,9 +206,7 @@ struct PageRank {
       // reset residual on mirrors
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
 
-      StatTimer_delta.start();
       PageRank_delta::go(_graph);
-      StatTimer_delta.stop();
 
       dga.reset();
 
