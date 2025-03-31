@@ -171,10 +171,6 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
         // allocate new buffer
         do {
             buf = net->sendAllocators[tid].allocate();
-          
-            if (buf == nullptr) {
-                galois::substrate::asmPause();
-            }
         } while (buf == nullptr);
     }
   
@@ -190,10 +186,6 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         // allocate new buffer
         do {
             buf = net->sendAllocators[tid].allocate();
-            
-            if (buf == nullptr) {
-                galois::substrate::asmPause();
-            }
         } while (buf == nullptr);
         bufLen = 0;
         msgCount = 0;
@@ -227,10 +219,6 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         // allocate new buffer
         do {
             buf = net->sendAllocators[tid].allocate();
-          
-            if (buf == nullptr) {
-                galois::substrate::asmPause();
-            }
         } while (buf == nullptr);
         *((uint32_t*)buf) = lid;
         bufLen = sizeof(uint32_t);
@@ -310,10 +298,6 @@ void NetworkInterface::recvProbe() {
             uint8_t* buf;
             do {
                 buf = recvAllocator.allocate();
-              
-                if (buf == nullptr) {
-                    galois::substrate::asmPause();
-                }
             } while (buf == nullptr);
 
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
