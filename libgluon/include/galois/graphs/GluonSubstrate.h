@@ -1271,9 +1271,6 @@ private:
 
           Twait.start();
           do {
-#ifndef GALOIS_FULL_MIRRORING     
-              check_remote_work<SyncFnTy>();
-#endif
               success = net.receiveComm(host, work);
           } while (!success);
           Twait.stop();
@@ -1333,10 +1330,6 @@ private:
     syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
 
     TsyncReduce.stop();
-
-#ifndef GALOIS_FULL_MIRRORING     
-    poll_for_remote_work<ReduceFnTy>();
-#endif
   }
 
   /**
@@ -2027,52 +2020,6 @@ public:
                     net.deallocateRecvBuffer(buf);
                 }
             }
-        }
-    }
-    
-    template<typename FnTy>
-    void check_remote_work() {
-        if (!terminateFlag) {
-            bool success;
-            uint8_t* buf;
-            size_t bufLen;
-            do {
-                success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
-                
-                if (success) { // received message
-                    uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
-
-                    galois::on_each(
-                        [&](unsigned tid, unsigned numT) {
-                            unsigned quotient = msgCount / numT;
-                            unsigned remainder = msgCount % numT;
-                            unsigned start, size;
-                            if (tid < remainder) {
-                                start = tid * quotient + tid;
-                                size = quotient + 1;
-                            }
-                            else {
-                                start = tid * quotient + remainder;
-                                size = quotient;
-                            }
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-                            
-                            uint32_t lid;
-                            ValTy val;
-
-                            for (unsigned i=0; i<size; i++) {
-                                lid = *((uint32_t*)(buf + offset));
-                                offset += sizeof(uint32_t);
-                                val = *((ValTy*)(buf + offset));
-                                offset += sizeof(ValTy);
-                                FnTy::reduce_void(userGraph.getData(lid), val);
-                            }
-                        }
-                    );
-
-                    net.deallocateRecvBuffer(buf);
-                }
-            } while (success);
         }
     }
 
