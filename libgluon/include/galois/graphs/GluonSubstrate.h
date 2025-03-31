@@ -197,9 +197,6 @@ private:
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
 
-    // force all messages to be processed before continuing
-    net.flushData();
-
     // receive the mirror nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -253,9 +250,6 @@ private:
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
 
-    // force all messages to be processed before continuing
-    net.flushData();
-
     // receive the phantom master nodes
     std::vector<std::vector<size_t>> phantomMasterNodes;
     phantomMasterNodes.resize(numHosts);
@@ -307,9 +301,6 @@ private:
       gSerialize(b, phantomMasterNodes[x]);
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
-
-    // force all messages to be processed before continuing
-    net.flushData();
     
     // receive the phantom remote nodes
     std::vector<std::vector<size_t>> phantomRemoteNodes;
@@ -388,9 +379,6 @@ private:
         galois::runtime::SendBuffer b;
         gSerialize(b, host_mirror_nodes, host_phantom_nodes, phantomMasterCount);
         net.sendTagged(0, galois::runtime::evilPhase, b);
-        
-        // force all messages to be processed before continuing
-        net.flushData();
     }
 
     incrementEvilPhase();
@@ -1035,8 +1023,6 @@ private:
       sendCommBufferLen[x] = 0;
       ++numMessages;
     }
-    // Will force all messages to be processed before continuing
-    net.flushData();
 
     if (BitsetFnTy::is_valid()) {
       reset_bitset(syncType, &BitsetFnTy::reset_range);
@@ -1959,72 +1945,38 @@ public:
 /* For Polling */
 private:
     bool stopDedicated = false;
-    bool terminateFlag = false;
 
 public:
     void reset_termination() {
         stopDedicated = false;
-        terminateFlag = false;
         net.resetWorkTermination();
     }
     
     template<typename FnTy>
     void poll_for_remote_work() {
-        if (!terminateFlag) {
-            bool success;
-            uint8_t* buf;
-            size_t bufLen;
-            while (true) {
-                do {
-                    success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
-                    if (terminateFlag) {
-                        break;
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool terminateFlag = false;
+                bool success;
+                uint8_t* buf;
+                uint32_t lid;
+                ValTy val;
+                while (!terminateFlag) {
+                    do {
+                        success = net.receiveRemoteWork(terminateFlag, buf);
+                    } while (!success && !terminateFlag);
+
+                    if (success) {
+                        lid = *((uint32_t*)buf);
+                        val = *((ValTy*)(buf + sizeof(ValTy)));
+                        FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                     }
-                } while (!success);
-                
-                if (terminateFlag) {
-                    break;
-                }
-
-                if (success) { // received message
-                    uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
-
-                    galois::on_each(
-                        [&](unsigned tid, unsigned numT) {
-                            unsigned quotient = msgCount / numT;
-                            unsigned remainder = msgCount % numT;
-                            unsigned start, size;
-                            if (tid < remainder) {
-                                start = tid * quotient + tid;
-                                size = quotient + 1;
-                            }
-                            else {
-                                start = tid * quotient + remainder;
-                                size = quotient;
-                            }
-                            size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
-                            
-                            uint32_t lid;
-                            ValTy val;
-
-                            for (unsigned i=0; i<size; i++) {
-                                lid = *((uint32_t*)(buf + offset));
-                                offset += sizeof(uint32_t);
-                                val = *((ValTy*)(buf + offset));
-                                offset += sizeof(ValTy);
-                                FnTy::reduce_void(userGraph.getData(lid), val);
-                            }
-                        }
-                    );
-
-                    net.deallocateRecvBuffer(buf);
                 }
             }
-        }
+        );
     }
 
     void net_flush() {
-        net.flushRemoteWork();
         net.broadcastWorkTermination();
         stopDedicated = true;
     }

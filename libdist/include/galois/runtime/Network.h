@@ -32,6 +32,7 @@
 #include "galois/substrate/Barrier.h"
 #include "galois/runtime/Mem.h"
 #include "galois/runtime/readerwriterqueue.h"
+#include "galois/runtime/concurrentqueue.h"
 
 #include <mpi.h>
 
@@ -78,11 +79,11 @@ public:
 #endif
 
 private:
-  static const size_t AGG_MSG_SIZE = 2 << 14;
-  static const size_t SEND_BUF_COUNT = 2 << 13;
-  static const size_t RECV_BUF_COUNT = 2 << 15;
+  static const size_t AGG_MSG_SIZE = sizeof(uint32_t) + sizeof(float);
+  //static const size_t SEND_BUF_COUNT = 2 << 23;
+  static const size_t RECV_BUF_COUNT = 2 << 25;
 
-  std::vector<FixedSizeBufferAllocator<AGG_MSG_SIZE, SEND_BUF_COUNT>> sendAllocators;
+  //std::vector<FixedSizeBufferAllocator<AGG_MSG_SIZE, SEND_BUF_COUNT>> sendAllocators;
   FixedSizeBufferAllocator<AGG_MSG_SIZE, RECV_BUF_COUNT> recvAllocator;
 
   std::vector<uint8_t*> recvCommBuffer;
@@ -181,14 +182,15 @@ private:
    */
   class recvBufferRemoteWork {
       // single producer single consumer
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
+      moodycamel::ConcurrentQueue<uint8_t*> messages;
+      moodycamel::ProducerToken ptok;
 
   public:
-      recvBufferRemoteWork() {}
+      recvBufferRemoteWork() : ptok(messages) {}
 
-      bool tryPopMsg(uint8_t*& work, size_t& workLen);
+      bool tryPopMsg(uint8_t*& work);
 
-      void add(uint8_t* work, size_t workLen);
+      void add(uint8_t* work);
   }; // end recv buffer class
 
   recvBufferRemoteWork recvRemoteWork;
@@ -203,8 +205,6 @@ private:
 
   public:
       sendBufferData() : flush(0) {}
-      
-      void setFlush() {}
     
       bool checkFlush() {
           return flush > 0;
@@ -220,45 +220,38 @@ private:
   /**   
    * single producer single consumer with single tag
    */
+/*  
   class sendBufferRemoteWork {
       NetworkInterface* net;
       unsigned tid;
 
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
-
-      uint8_t* buf;
-      size_t bufLen;
-      uint32_t msgCount;
+      moodycamel::ReaderWriterQueue<uint8_t*> messages;
       
       std::atomic<size_t> flush;
 
   public:
-      sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), bufLen(0), msgCount(0), flush(0) {}
+      sendBufferRemoteWork() : net(nullptr), tid(0), flush(0) {}
 
-      void setNet(NetworkInterface* _net);
+      void setNet(NetworkInterface* _net) {
+          net = _net;
+      }
       
       void setTID(unsigned _tid) {
           tid = _tid;
       }
-      
-      void setFlush();
     
       bool checkFlush() {
           return flush > 0;
       }
     
-      bool pop(uint8_t*& work, size_t& workLen);
+      bool pop(uint8_t*& work);
 
       template <typename ValTy>
       void add(uint32_t lid, ValTy val);
-
-      inline void touchBuf() {
-          volatile uint8_t temp = *buf;
-      }
   };
   
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
-
+*/
   /**
    * Message type to recv in this network IO layer.
    */
@@ -269,13 +262,13 @@ private:
       trackMessageSend(uint8_t* _buf) : buf(_buf) {}
   };
   
-  std::vector<std::deque<trackMessageSend>> sendInflight;
+  std::vector<moodycamel::ReaderWriterQueue<trackMessageSend>> sendInflight;
     
   void sendTrackComplete();
 
   void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
   
-  void sendTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
+  //void sendTrack(unsigned tid, uint32_t dest, uint8_t* buf);
 
   /**
    * Message type to recv in this network IO layer.
@@ -372,18 +365,9 @@ public:
   std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0);
   
-  bool receiveRemoteWork(uint8_t*& work, size_t& workLen);
-
-  bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen);
+  bool receiveRemoteWork(bool& terminateFlag, uint8_t*& work);
   
   bool receiveComm(uint32_t& host, uint8_t*& work);
-  
-  //! move send buffers out to network
-  void flush();
-  
-  void flushData();
-  
-  void flushRemoteWork();
   
   void resetWorkTermination();
 
@@ -402,9 +386,6 @@ public:
 
   //! Reports the memory usage tracker's statistics to the stat manager
   void reportMemUsage() const;
-
-  // touch all the buffers in the buffer pool
-  void touchBufferPool();
 };
 
 //! Variable that keeps track of which network send/recv phase a program is

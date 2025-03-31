@@ -271,7 +271,6 @@ private:
       }
       net.sendTagged(h, galois::runtime::evilPhase, b);
     }
-    net.flush();
     unsigned received = 1;
     while (received < numHosts) {
       decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
@@ -341,7 +340,6 @@ private:
       galois::runtime::gSerialize(b, gid2host[id]);
       net.sendTagged(h, galois::runtime::evilPhase, b);
     }
-    net.flush();
     unsigned received = 1;
     while (received < numHosts) {
       decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
@@ -458,7 +456,6 @@ protected:
       galois::runtime::gSerialize(b, gid2host[id]);
       net.sendTagged(h, galois::runtime::evilPhase, b);
     }
-    net.flush();
     unsigned received = 1;
     while (received < numHosts) {
       decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
