@@ -180,11 +180,7 @@ struct PageRank {
 
     unsigned _num_iterations   = 0;
 
-#ifndef GALOIS_FULL_MIRRORING     
-    const auto& masterNodes = _graph.masterNodesRangeReserved();
-#else
     const auto& masterNodes = _graph.masterNodesRange();
-#endif
 
     DGTerminatorDetector dga;
   
@@ -193,12 +189,8 @@ struct PageRank {
 #endif
 
     do {
-      std::string buf_reset_str("BufferReset_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_buf_reset(buf_reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
@@ -214,17 +206,6 @@ struct PageRank {
       
       PageRank_delta::go(_graph);
 
-#ifndef GALOIS_FULL_MIRRORING
-      StatTimer_buf_reset.start();
-      syncSubstrate->set_update_buf_to_identity(0);
-      StatTimer_buf_reset.stop();
-      // dedicate a thread to poll for remote messages
-      std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_add_residual>();
-      };
-      galois::substrate::getThreadPool().runDedicated(func);
-#endif
-
       // launch all other threads to compute
       StatTimer_compute.start();
       galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
@@ -236,12 +217,6 @@ struct PageRank {
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
-
-      galois::substrate::getThreadPool().waitDedicated();
-
-      StatTimer_sync.start();
-      syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
-      StatTimer_sync.stop();
 #endif
 
       StatTimer_comm.start();

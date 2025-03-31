@@ -132,9 +132,6 @@ private:
 
   uint32_t dataSizeRatio;
 
-  // double buffering storage to enforce synchronization for partial or no mirroring
-  std::vector<std::unique_ptr<ValTy>> phantomMasterUpdateBuffer;
-
   // Used for efficient comms
   DataCommMode data_mode;
   size_t syncBitsetLen;
@@ -287,18 +284,6 @@ private:
           galois::loopname(get_run_identifier("PhantomMasterNodes").c_str()),
 #endif
           galois::no_stats());
-    }
-    
-    // count the number of phantom masters and allocat memory for the update buffers
-    phantomMasterCount = 0;
-    phantomMasterUpdateBuffer.resize(userGraph.numMasters());
-    for (uint32_t h = 0; h < numHosts; ++h) {
-        for (size_t i=0; i<phantomMasterNodes[h].size(); i++) {
-            if (!phantomMasterUpdateBuffer[phantomMasterNodes[h][i]]) {
-                phantomMasterUpdateBuffer[phantomMasterNodes[h][i]] = std::make_unique<ValTy>();
-                phantomMasterCount++;
-            }
-        }
     }
     
     for (uint32_t h = 0; h < phantomNodes.size(); ++h) {
@@ -1989,70 +1974,6 @@ public:
         terminateFlag = false;
         net.resetWorkTermination();
     }
-
-    void set_update_buf_to_identity(ValTy identity) {
-        galois::do_all(
-            galois::iterate((uint32_t)0, (uint32_t)phantomMasterUpdateBuffer.size()),
-            [&](uint32_t lid) {
-                if(phantomMasterUpdateBuffer[lid]) {
-                    *(phantomMasterUpdateBuffer[lid]) = identity;
-                }
-            },
-            galois::steal(),
-            galois::no_stats());
-    }
-
-    template<typename FnTy>
-    void poll_for_remote_work_dedicated() {
-        bool success;
-        uint8_t* buf;
-        size_t bufLen;
-        
-        while (!stopDedicated) {
-            success = false;
-            do {
-                if (stopDedicated) {
-                    break;
-                }
-
-                success = net.receiveRemoteWork(buf, bufLen);
-            } while (!success);
-            
-            if (success) { // received message
-                // dedicated thread does not care about the number of aggregated message count
-                bufLen -= sizeof(uint32_t);
-                size_t offset = 0;
-
-                uint32_t lid;
-                ValTy val;
-
-                while (offset != bufLen) {
-                    lid = *((uint32_t*)(buf + offset));
-                    offset += sizeof(uint32_t);
-                    val = *((ValTy*)(buf + offset));
-                    offset += sizeof(ValTy);
-                    FnTy::reduce_numerical_void(*(phantomMasterUpdateBuffer[lid]), val);
-                }
-
-                net.deallocateRecvBuffer(buf);
-            }
-        }
-    }
-    
-    template<typename FnTy>
-    void sync_update_buf(ValTy identity) {
-        galois::do_all(
-            galois::iterate((uint32_t)0, (uint32_t)phantomMasterUpdateBuffer.size()),
-            [&](uint32_t lid) {
-                if(phantomMasterUpdateBuffer[lid]) {
-                    if (*(phantomMasterUpdateBuffer[lid]) != identity) { // there is update
-                        FnTy::reduce_void(userGraph.getData(lid), *(phantomMasterUpdateBuffer[lid]));
-                    }
-                }
-            },
-            galois::steal(),
-            galois::no_stats());
-    }
     
     template<typename FnTy>
     void poll_for_remote_work() {
@@ -2098,7 +2019,7 @@ public:
                                 offset += sizeof(uint32_t);
                                 val = *((ValTy*)(buf + offset));
                                 offset += sizeof(ValTy);
-                                FnTy::reduce_atomic_void(userGraph.getData(lid), val);
+                                FnTy::reduce_void(userGraph.getData(lid), val);
                             }
                         }
                     );
@@ -2144,7 +2065,7 @@ public:
                                 offset += sizeof(uint32_t);
                                 val = *((ValTy*)(buf + offset));
                                 offset += sizeof(ValTy);
-                                FnTy::reduce_atomic_void(userGraph.getData(lid), val);
+                                FnTy::reduce_void(userGraph.getData(lid), val);
                             }
                         }
                     );
