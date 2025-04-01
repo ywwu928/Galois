@@ -1320,6 +1320,11 @@ private:
     TsyncReduce.start();
 
     syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
+
+#ifndef GALOIS_FULL_MIRRORING
+    poll_for_remote_work<ReduceFnTy>();
+#endif
+
     syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
 
     TsyncReduce.stop();

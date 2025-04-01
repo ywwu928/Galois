@@ -222,8 +222,11 @@ struct PageRank {
 #endif
 
       StatTimer_comm.start();
+#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
+#else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>("PageRank");
+#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
