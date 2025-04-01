@@ -246,6 +246,10 @@ private:
       galois::runtime::SendBuffer b;
       gSerialize(b, phantomNodes[x]);
       net.sendTagged(x, galois::runtime::evilPhase, b);
+
+      if (phantomNodes[x].size() == 0) {
+          net.excludeSendWorkTermination(x);
+      }
     }
 
     // receive the phantom master nodes
@@ -276,6 +280,10 @@ private:
           galois::loopname(get_run_identifier("PhantomMasterNodes").c_str()),
 #endif
           galois::no_stats());
+
+      if (phantomMasterNodes[h].size() == 0) {
+          net.excludeHostWorkTermination(h);
+      }
     }
     
     for (uint32_t h = 0; h < phantomNodes.size(); ++h) {
