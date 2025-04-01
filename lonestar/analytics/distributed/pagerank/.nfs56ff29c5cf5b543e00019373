@@ -185,6 +185,12 @@ struct PageRank {
       : graph(_g), active_vertices(_dga) {}
 
   void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
     unsigned _num_iterations   = 0;
     const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
