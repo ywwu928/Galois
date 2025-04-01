@@ -196,14 +196,6 @@ struct PageRank {
     DGTerminatorDetector dga;
     
     do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-
-      StatTimer_total.start();
       syncSubstrate->set_num_round(_num_iterations);
 
       // reset residual on mirrors
@@ -213,29 +205,15 @@ struct PageRank {
 
       dga.reset();
 
-      StatTimer_compute.start();
       galois::do_all(
           galois::iterate(allNodes), PageRank{&_graph, dga},
           galois::no_stats(), galois::steal());
-      StatTimer_compute.stop();
 
-      StatTimer_comm.start();
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
-      StatTimer_comm.stop();
-
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-          (unsigned long)dga.read_local());
-
-      if (dga.reduce(syncSubstrate->get_run_identifier()) == 0) {
-          StatTimer_total.stop();
-          break;
-      }
-      StatTimer_total.stop();
 
       ++_num_iterations;
-    } while (async || (_num_iterations < maxIterations));
+    } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
 
   void operator()(WorkItem src) const {
