@@ -126,9 +126,14 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work
     messages.enqueue(std::make_pair(host, work));
 }
 
-bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& workLen) {
+bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
+    bool success = fullMessages.try_dequeue(work);
+    return success;
+}
+
+bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue(message);
+    bool success = partialMessages.try_dequeue(message);
     if (success) {
         work = message.first;
         workLen = message.second;
@@ -138,8 +143,12 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& w
 }
 
 // Worker thread interface
-void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) {
-    messages.enqueue(std::make_pair(work, workLen));
+void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
+    fullMessages.enqueue(work);
+}
+
+void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t workLen) {
+    partialMessages.enqueue(std::make_pair(work, workLen));
 }
 
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
@@ -175,28 +184,32 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
 void NetworkInterface::sendBufferRemoteWork::setFlush() {
     if (msgCount != 0) {
         // put number of message count at the very last
-        *((uint32_t*)(buf + bufLen)) = msgCount;
-        bufLen += sizeof(uint32_t);
-        messages.enqueue(std::make_pair(buf, bufLen));
+        size_t bufLen = 2 * sizeof(uint32_t) * msgCount;
+        *((size_t*)(buf + bufLen)) = msgCount;
+        bufLen += sizeof(size_t);
+        partialMessage = std::make_pair(buf, bufLen);
+        flush += 1;
+        partialFlag = true;
     
         // allocate new buffer
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
-        bufLen = 0;
         msgCount = 0;
-        
-        flush += 1;
     }
 }
 
-bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work, size_t& workLen) {
-    std::pair<uint8_t*, size_t> message;
-    bool success = messages.try_dequeue(message);
+void NetworkInterface::sendBufferRemoteWork::popPartial(uint8_t*& work, size_t& workLen) {
+    work = partialMessage.first;
+    workLen = partialMessage.second;
+    partialFlag = false;
+    flush -= 1;
+}
+
+bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
+    bool success = messages.try_dequeue(work);
     if (success) {
         flush -= 1;
-        work = message.first;
-        workLen = message.second;
     }
 
     return success;
@@ -204,40 +217,26 @@ bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work, size_t& workLen
 
 template <typename ValTy>
 void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
-    size_t workLen = sizeof(uint32_t) + sizeof(ValTy);
-    if (bufLen + workLen + sizeof(uint32_t) > AGG_MSG_SIZE) {
-        // put number of message count at the very last
-        *((uint32_t*)(buf + bufLen)) = msgCount;
-        bufLen += sizeof(uint32_t);
-        messages.enqueue(std::make_pair(buf, bufLen));
+    // aggregate message
+    *((uint32_t*)buf + 2 * msgCount) = lid;
+    *((ValTy*)buf + 2 * msgCount + 1) = val;
+    msgCount += 1;
+
+    if (msgCount == WORK_COUNT) {
+        messages.enqueue(buf);
+        flush += 1;
 
         // allocate new buffer
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
-        *((uint32_t*)buf) = lid;
-        bufLen = sizeof(uint32_t);
-        *((ValTy*)(buf + bufLen)) = val;
-        bufLen += sizeof(ValTy);
-        msgCount = 1;
-
-        flush += 1;
-    }
-    else {
-        // aggregate message
-        *((uint32_t*)(buf + bufLen)) = lid;
-        bufLen += sizeof(uint32_t);
-        *((ValTy*)(buf + bufLen)) = val;
-        bufLen += sizeof(ValTy);
-        msgCount += 1;
+        msgCount = 0;
     }
 }
 
 // explicit instantiation
 template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
-template void NetworkInterface::sendBufferRemoteWork::add<uint64_t>(uint32_t lid, uint64_t val);
-template void NetworkInterface::sendBufferRemoteWork::add<double>(uint32_t lid, double val);
     
 void NetworkInterface::sendTrackComplete() {
     for (unsigned t=0; t<numT; t++) {
@@ -263,7 +262,14 @@ void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bu
     handleError(rv);
 }
 
-void NetworkInterface::sendTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
+void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
+    sendInflight[tid].emplace_back(buf);
+    auto& f = sendInflight[tid].back();
+    int rv = MPI_Isend(buf, AGG_MSG_SIZE, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
+    handleError(rv);
+}
+
+void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
     int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
@@ -319,7 +325,12 @@ void NetworkInterface::recvProbe() {
                 hostWorkTermination[m.host] += 1;
             }
             else if (m.tag == remoteWorkTag) {
-                recvRemoteWork.add(m.buf, m.bufLen);
+                if (m.bufLen == AGG_MSG_SIZE) {
+                    recvRemoteWork.addFull(m.buf);
+                }
+                else {
+                    recvRemoteWork.addPartial(m.buf, m.bufLen);
+                }
             }
             else if (m.tag == communicationTag) {
                 recvCommunication.add(m.host, m.buf);
@@ -386,11 +397,17 @@ void NetworkInterface::workerThread() {
                     hostWorkEmpty = false;
                   
                     uint8_t* work;
-                    size_t workLen;
-                    bool success = srw.pop(work, workLen);
+                    bool success = srw.pop(work);
                   
                     if (success) {
-                        sendTrack(t, h, work, workLen);
+                        sendFullTrack(t, h, work);
+                    }
+                    else {
+                        if (srw.checkPartial()) {
+                            size_t workLen;
+                            srw.popPartial(work, workLen);
+                            sendPartialTrack(t, h, work, workLen);
+                        }
                     }
                 }
             }
@@ -498,8 +515,6 @@ void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy
 // explicit instantiation
 template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
 template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
-template void NetworkInterface::sendWork<uint64_t>(unsigned tid, uint32_t dest, uint32_t lid, uint64_t val);
-template void NetworkInterface::sendWork<double>(unsigned tid, uint32_t dest, uint32_t lid, double val);
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendData[dest].push(communicationTag, bufPtr, len);
@@ -592,18 +607,26 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-void NetworkInterface::receiveRemoteWork(bool& terminateFlag, uint8_t*& work, size_t& workLen) {
+void NetworkInterface::receiveRemoteWork(bool& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
     bool success;
-    do {
-        success = recvRemoteWork.tryPopMsg(work, workLen);
-        
-        if (!success) {
-            if (checkWorkTermination()) {
-                terminateFlag = true;
-                break;
-            }
+    while(true) {
+        success = recvRemoteWork.tryPopFullMsg(work);
+        if (success) {
+            fullFlag = true;
+            break;
         }
-    } while(!success);
+        
+        success = recvRemoteWork.tryPopPartialMsg(work, workLen);
+        if (success) {
+            fullFlag = false;
+            break;
+        }
+
+        if (checkWorkTermination()) {
+            terminateFlag = true;
+            break;
+        }
+    }
 }
 
 void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
