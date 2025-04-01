@@ -224,9 +224,7 @@ struct PageRank {
                           Bitset_residual, async>("PageRank");
       StatTimer_comm.stop();
 
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-          (unsigned long)dga.read_local());
+      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
 
       if (dga.reduce(syncSubstrate->get_run_identifier()) == 0) {
           StatTimer_total.stop();
