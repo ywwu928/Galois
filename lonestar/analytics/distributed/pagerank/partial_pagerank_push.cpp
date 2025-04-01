@@ -30,6 +30,7 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <chrono>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -253,20 +254,35 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-#ifndef GALOIS_FULL_MIRRORING     
+        //auto start = std::chrono::high_resolution_clock::now();
+#ifndef GALOIS_FULL_MIRRORING
         if (graph->isPhantom(dst)) {
+            //auto end = std::chrono::high_resolution_clock::now();
+            //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            //galois::gPrint("isPhantom takes ", duration.count(), " ns\n");
+            
+            //start = std::chrono::high_resolution_clock::now();
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
             //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
             //unsigned tid = galois::substrate::ThreadPool::getTID();
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
+            //end = std::chrono::high_resolution_clock::now();
+            //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            //galois::gPrint("sendWork takes ", duration.count(), " ns\n");
         }
         else {
 #endif
+            //auto end = std::chrono::high_resolution_clock::now();
+            //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            //galois::gPrint("isPhantom takes ", duration.count(), " ns\n");
+
+            //start = std::chrono::high_resolution_clock::now();
             NodeData& ddata = graph->getData(dst);
-
             galois::atomicAddVoid(ddata.residual, _delta);
-
             bitset_residual.set(dst);
+            //end = std::chrono::high_resolution_clock::now();
+            //duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+            //galois::gPrint("regular operation takes ", duration.count(), " ns\n");
 #ifndef GALOIS_FULL_MIRRORING     
         }
 #endif
