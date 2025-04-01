@@ -1971,27 +1971,24 @@ public:
 
                 galois::on_each(
                     [&](unsigned tid, unsigned numT) {
-                        unsigned quotient = msgCount / numT;
+                        unsigned size = msgCount / numT;
                         unsigned remainder = msgCount % numT;
-                        unsigned start, size;
+                        unsigned start;
                         if (tid < remainder) {
-                            start = tid * quotient + tid;
-                            size = quotient + 1;
+                            start = tid * size + tid;
+                            size++;
                         }
                         else {
-                            start = tid * quotient + remainder;
-                            size = quotient;
+                            start = tid * size + remainder;
                         }
-                        size_t offset = start * net.WORK_SIZE;
+                        unsigned end = start + size;
                         
                         uint32_t lid;
                         ValTy val;
 
-                        for (unsigned i=0; i<size; i++) {
-                            lid = *((uint32_t*)(buf + offset));
-                            offset += sizeof(uint32_t);
-                            val = *((ValTy*)(buf + offset));
-                            offset += sizeof(ValTy);
+                        for (unsigned i=start; i<end; i++) {
+                            lid = *((uint32_t*)buf + (i << 1));
+                            val = *((ValTy*)buf + (i << 1) + 1);
                             FnTy::reduce_void(userGraph.getData(lid), val);
                         }
                     }
