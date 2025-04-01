@@ -1940,16 +1940,6 @@ public:
           galois::no_stats());
     }
   }
-
-/* For Polling */
-private:
-    bool stopDedicated = false;
-
-public:
-    void reset_termination() {
-        stopDedicated = false;
-        net.resetWorkTermination();
-    }
     
     template<typename FnTy>
     void poll_for_remote_work() {
@@ -1997,12 +1987,6 @@ public:
                 net.deallocateRecvBuffer(buf);
             }
         }
-    }
-
-    void net_flush() {
-        net.flushRemoteWork();
-        net.broadcastWorkTermination();
-        stopDedicated = true;
     }
 
 };

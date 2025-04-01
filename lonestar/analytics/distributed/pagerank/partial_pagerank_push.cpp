@@ -184,9 +184,7 @@ struct PageRank {
 
     DGTerminatorDetector dga;
   
-#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
-#endif
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -219,7 +217,8 @@ struct PageRank {
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
-      syncSubstrate->net_flush();
+       _net.flushRemoteWork();
+       _net.broadcastWorkTermination();
 #endif
 
       StatTimer_comm.start();
@@ -227,7 +226,7 @@ struct PageRank {
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>("PageRank");
       StatTimer_comm.stop();
       
-      syncSubstrate->reset_termination();
+      _net.resetWorkTermination();
 
       galois::runtime::reportStat_Tsum(
           REGION_NAME_RUN.c_str(), "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
