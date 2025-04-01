@@ -120,8 +120,6 @@ private:
   //! Phantom nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& phantomNodes;
-
-  uint64_t phantomMasterCount;
   
   std::vector<uint8_t*> sendCommBuffer;
   std::vector<size_t> sendCommBufferLen;
@@ -345,13 +343,10 @@ private:
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
     std::string phantom_nodes_str = "PhantomNodes_Host_" + std::to_string(id);
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_nodes_str, host_phantom_nodes);
-    std::string phantom_master_nodes_str = "PhantomMasterNodes_Host_" + std::to_string(id);
-    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_master_nodes_str, phantomMasterCount);
         
     if (net.ID == 0) {
         uint64_t global_total_mirror_nodes = host_mirror_nodes;
         uint64_t global_total_phantom_nodes = host_phantom_nodes;
-        uint64_t global_total_phantom_master_nodes = phantomMasterCount;
 
         // receive
         for (unsigned x = 0; x < numHosts; ++x) {
@@ -365,19 +360,17 @@ private:
 
           uint64_t mirror_nodes_from_others;
           uint64_t phantom_nodes_from_others;
-          uint64_t phantom_master_nodes_from_others;
-          galois::runtime::gDeserialize(p->second, mirror_nodes_from_others, phantom_nodes_from_others, phantom_master_nodes_from_others);
+          galois::runtime::gDeserialize(p->second, mirror_nodes_from_others, phantom_nodes_from_others);
           global_total_mirror_nodes += mirror_nodes_from_others;
           global_total_phantom_nodes += phantom_nodes_from_others;
-          global_total_phantom_master_nodes += phantom_master_nodes_from_others;
       }
 
-      reportProxyStats(global_total_mirror_nodes, global_total_phantom_nodes, global_total_phantom_master_nodes);
+      reportProxyStats(global_total_mirror_nodes, global_total_phantom_nodes);
     }
     else {
         // send info to host
         galois::runtime::SendBuffer b;
-        gSerialize(b, host_mirror_nodes, host_phantom_nodes, phantomMasterCount);
+        gSerialize(b, host_mirror_nodes, host_phantom_nodes);
         net.sendTagged(0, galois::runtime::evilPhase, b);
     }
 
@@ -392,10 +385,10 @@ private:
    * @param global_total_mirror_nodes number of mirror nodes on all hosts
    * @param global_total_owned_nodes number of "owned" nodes on all hosts
    */
-  void reportProxyStats(uint64_t global_total_mirror_nodes, uint64_t global_total_phantom_nodes, uint64_t global_total_phantom_master_nodes) {
-    float replication_factor = (float)(global_total_mirror_nodes + global_total_phantom_master_nodes) / (float)userGraph.globalSize();
+  void reportProxyStats(uint64_t global_total_mirror_nodes, uint64_t global_total_phantom_nodes) {
+    float replication_factor = (float)global_total_mirror_nodes / (float)userGraph.globalSize();
     galois::runtime::reportStat_Single(RNAME, "ReplicationFactor", replication_factor);
-    float memory_overhead = (float)(dataSizeRatio * (userGraph.globalSize() + global_total_mirror_nodes + global_total_phantom_master_nodes) + userGraph.globalSizeEdges()) / (float)(dataSizeRatio * userGraph.globalSize() + userGraph.globalSizeEdges());
+    float memory_overhead = (float)(dataSizeRatio * (userGraph.globalSize() + global_total_mirror_nodes) + userGraph.globalSizeEdges()) / (float)(dataSizeRatio * userGraph.globalSize() + userGraph.globalSizeEdges());
     galois::runtime::reportStat_Single(RNAME, "AggregatedMemoryOverhead", memory_overhead);
   
 #ifdef GALOIS_HOST_STATS
@@ -458,6 +451,15 @@ private:
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
       }
+    }
+
+    for (auto x = 0U; x < phantomNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string phantom_nodes_str =
+          "PhantomNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, phantom_nodes_str, phantomNodes[x].size());
     }
 
     sendInfoToHost();
