@@ -254,9 +254,7 @@ struct PageRank {
       
       syncSubstrate->reset_termination();
 
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME_RUN.c_str(), "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-          (unsigned long)dga.read_local());
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
 
       ++_num_iterations;
     } while ((_num_iterations < maxIterations) &&
