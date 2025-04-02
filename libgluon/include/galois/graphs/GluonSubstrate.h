@@ -1964,12 +1964,12 @@ public:
             net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
             if (!terminateFlag) { // received message
-                size_t msgCount;
+                uint32_t msgCount;
                 if (fullFlag) {
                     msgCount = net.WORK_COUNT;
                 }
                 else {
-                    msgCount = *((size_t*)(buf + bufLen - sizeof(size_t)));
+                    msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
                 }
 
                 galois::on_each(

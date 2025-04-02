@@ -55,8 +55,8 @@ class NetworkInterface {
 public:
   MPI_Comm comm_barrier, comm_comm;
 
-  static constexpr size_t WORK_SIZE = 8; // lid (uint32_t) + val (uint32_t or float)
-  static constexpr size_t WORK_COUNT = 1 << 12;
+  static constexpr uint32_t WORK_SIZE = 8; // lid (uint32_t) + val (uint32_t or float)
+  static constexpr uint32_t WORK_COUNT = 1 << 12;
   static constexpr size_t AGG_MSG_SIZE = WORK_SIZE * WORK_COUNT;
   static constexpr size_t SEND_BUF_COUNT = 1 << 14;
   static constexpr size_t RECV_BUF_COUNT = 1 << 16;
@@ -230,7 +230,7 @@ private:
       moodycamel::ReaderWriterQueue<uint8_t*> messages;
 
       uint8_t* buf;
-      size_t msgCount;
+      uint32_t msgCount;
 
       std::pair<uint8_t*, size_t> partialMessage;
       std::atomic<bool> partialFlag;

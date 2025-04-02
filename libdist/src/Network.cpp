@@ -185,8 +185,8 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
     if (msgCount != 0) {
         // put number of message count at the very last
         size_t bufLen = msgCount << 3; // 2 * sizeof(uint32_t) * msgCount
-        *((size_t*)(buf + bufLen)) = msgCount;
-        bufLen += sizeof(size_t);
+        *((uint32_t*)(buf + bufLen)) = msgCount;
+        bufLen += sizeof(uint32_t);
         partialMessage = std::make_pair(buf, bufLen);
         flush += 1;
         partialFlag = true;
