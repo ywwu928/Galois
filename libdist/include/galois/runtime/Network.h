@@ -385,7 +385,7 @@ public:
   std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0);
   
-  void receiveRemoteWorkUntilSignal(bool& stopFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
+  void receiveRemoteWorkUntilSignal(std::atomic<bool>& stopFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
 
   void receiveRemoteWork(bool& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
   

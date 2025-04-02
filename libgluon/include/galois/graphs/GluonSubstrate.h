@@ -1956,7 +1956,7 @@ public:
 
 /* For Polling */
 private:
-    bool stopDedicated = false;
+  std::atomic<bool> stopDedicated = false;
 
 public:
     void reset_termination() {

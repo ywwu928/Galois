@@ -607,7 +607,7 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-void NetworkInterface::receiveRemoteWorkUntilSignal(bool& stopFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
+void NetworkInterface::receiveRemoteWorkUntilSignal(std::atomic<bool>& stopFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
     bool success;
     while(true) {
         if (stopFlag) {
