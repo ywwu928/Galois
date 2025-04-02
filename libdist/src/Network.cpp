@@ -184,7 +184,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
 void NetworkInterface::sendBufferRemoteWork::setFlush() {
     if (msgCount != 0) {
         // put number of message count at the very last
-        size_t bufLen = 2 * sizeof(uint32_t) * msgCount;
+        size_t bufLen = msgCount << 3; // 2 * sizeof(uint32_t) * msgCount
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         partialMessage = std::make_pair(buf, bufLen);
@@ -218,8 +218,8 @@ bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
 template <typename ValTy>
 void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     // aggregate message
-    *((uint32_t*)buf + 2 * msgCount) = lid;
-    *((ValTy*)buf + 2 * msgCount + 1) = val;
+    *((uint32_t*)buf + (msgCount << 1)) = lid;
+    *((ValTy*)buf + (msgCount << 1) + 1) = val;
     msgCount += 1;
 
     if (msgCount == WORK_COUNT) {
