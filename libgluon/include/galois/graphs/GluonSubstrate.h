@@ -1978,15 +1978,21 @@ public:
 
     template<typename FnTy>
     void poll_for_remote_work_dedicated() {
+        bool fullFlag;
         uint8_t* buf;
         size_t bufLen;
         
         while (!stopDedicated) {
-            net.receiveRemoteWorkUntilSignal(stopDedicated, buf, bufLen);
+            net.receiveRemoteWorkUntilSignal(stopDedicated, fullFlag, buf, bufLen);
             
             if (!stopDedicated) { // received message
                 // dedicated thread does not care about the number of aggregated message count
-                bufLen -= sizeof(uint32_t);
+                if (fullFlag) {
+                    bufLen = net.AGG_MSG_SIZE;
+                }
+                else {
+                    bufLen -= sizeof(size_t);
+                }
                 size_t offset = 0;
 
                 uint32_t lid;
@@ -2023,13 +2029,20 @@ public:
     template<typename FnTy>
     void poll_for_remote_work() {
         bool terminateFlag = false;
+        bool fullFlag;
         uint8_t* buf;
         size_t bufLen;
         while (!terminateFlag) {
-            net.receiveRemoteWork(terminateFlag, buf, bufLen);
+            net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
             if (!terminateFlag) { // received message
-                uint32_t msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                size_t msgCount;
+                if (fullFlag) {
+                    msgCount = net.WORK_COUNT;
+                }
+                else {
+                    msgCount = *((size_t*)(buf + bufLen - sizeof(size_t)));
+                }
 
                 galois::on_each(
                     [&](unsigned tid, unsigned numT) {
@@ -2044,7 +2057,7 @@ public:
                             start = tid * quotient + remainder;
                             size = quotient;
                         }
-                        size_t offset = start * (sizeof(uint32_t) + sizeof(ValTy));
+                        size_t offset = start * net.WORK_SIZE;
 
                         uint32_t lid;
                         ValTy val;
