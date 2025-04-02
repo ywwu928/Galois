@@ -109,7 +109,6 @@ void DistStatManager::combineAtHost_0_helper_total(void) {
       net.sendTagged(0, galois::runtime::evilPhase, b, 0);
     }
 
-    net.flushData();
     net.signalDataTermination(0);
   }
 }
@@ -139,7 +138,6 @@ void DistStatManager::combineAtHost_0_helper_int(void) {
   }
     
   if (!IS_HOST0) {
-    net.flushData();
     net.signalDataTermination(0);
   }
 }
@@ -170,7 +168,6 @@ void DistStatManager::combineAtHost_0_helper_fp(void) {
   }
     
   if (!IS_HOST0) {
-    net.flushData();
     net.signalDataTermination(0);
   }
 }
@@ -200,7 +197,6 @@ void DistStatManager::combineAtHost_0_helper_str(void) {
   }
     
   if (!IS_HOST0) {
-    net.flushData();
     net.signalDataTermination(0);
   }
 }

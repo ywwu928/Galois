@@ -200,9 +200,6 @@ private:
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
 
-    // force all messages to be processed before continuing
-    net.flushData();
-
     // receive the mirror nodes
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -255,9 +252,6 @@ private:
       gSerialize(b, phantomNodes[x]);
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
-
-    // force all messages to be processed before continuing
-    net.flushData();
 
     // receive the phantom master nodes
     std::vector<std::vector<size_t>> phantomMasterNodes;
@@ -322,9 +316,6 @@ private:
       gSerialize(b, phantomMasterNodes[x]);
       net.sendTagged(x, galois::runtime::evilPhase, b);
     }
-
-    // force all messages to be processed before continuing
-    net.flushData();
     
     // receive the phantom remote nodes
     std::vector<std::vector<size_t>> phantomRemoteNodes;
@@ -403,9 +394,6 @@ private:
         galois::runtime::SendBuffer b;
         gSerialize(b, host_mirror_nodes, host_phantom_nodes, phantomMasterCount);
         net.sendTagged(0, galois::runtime::evilPhase, b);
-        
-        // force all messages to be processed before continuing
-        net.flushData();
     }
 
     incrementEvilPhase();
@@ -1050,8 +1038,6 @@ private:
       sendCommBufferLen[x] = 0;
       ++numMessages;
     }
-    // Will force all messages to be processed before continuing
-    net.flushData();
 
     if (BitsetFnTy::is_valid()) {
       reset_bitset(syncType, &BitsetFnTy::reset_range);
