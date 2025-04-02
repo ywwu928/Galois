@@ -460,14 +460,20 @@ NetworkInterface::NetworkInterface() {
         }
     }
     sendWorkTermination = decltype(sendWorkTermination)(Num);
+    sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
     hostWorkTermination = decltype(hostWorkTermination)(Num);
+    hostWorkTerminationValid = decltype(hostWorkTerminationValid)(Num);
     for (unsigned i=0; i<Num; i++) {
         sendWorkTermination[i] = false;
         if (i == ID) {
+            sendWorkTerminationValid[i] = false;
             hostWorkTermination[i] = 1;
+            hostWorkTerminationValid[i] = false;
         }
         else {
+            sendWorkTerminationValid[i] = true;
             hostWorkTermination[i] = 0;
+            hostWorkTerminationValid[i] = true;
         }
     }
     hostDataTermination = decltype(hostDataTermination)(Num);
@@ -670,21 +676,26 @@ void NetworkInterface::flushRemoteWork() {
         }
     );
 }
+
+void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
+    sendWorkTerminationValid[host] = false;
+}
+
+void NetworkInterface::excludeHostWorkTermination(uint32_t host) {
+    hostWorkTerminationValid[host] = false;
+    hostWorkTermination[host] = 1;
+}
   
 void NetworkInterface::resetWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
+        if (hostWorkTerminationValid[i]) {
+            hostWorkTermination[i] -= 1;
         }
-        hostWorkTermination[i] -= 1;
     }
 }
 
 bool NetworkInterface::checkWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
-        }
         if (hostWorkTermination[i] == 0) {
             return false;
         }
@@ -703,9 +714,6 @@ void NetworkInterface::resetDataTermination() {
 
 bool NetworkInterface::checkDataTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
-        }
         if (hostDataTermination[i] == 0) {
             return false;
         }
@@ -719,10 +727,7 @@ void NetworkInterface::signalDataTermination(uint32_t dest) {
 
 void NetworkInterface::broadcastWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
-        }
-        else {
+        if (sendWorkTerminationValid[i]) {
             sendWorkTermination[i] = true;
         }
     }

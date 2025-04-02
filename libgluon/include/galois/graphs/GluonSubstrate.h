@@ -484,6 +484,9 @@ private:
           "PhantomNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, phantom_nodes_str, phantomNodes[x].size());
+      if (phantomNodes[x].size() == 0) {
+        net.excludeSendWorkTermination(x);
+      }
     }
     
     for (auto x = 0U; x < phantomMasterNodes.size(); ++x) {
@@ -493,6 +496,9 @@ private:
           "PhantomMasterNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, phantom_master_nodes_str, phantomMasterNodes[x].size());
+      if (phantomMasterNodes[x].size() == 0) {
+        net.excludeHostWorkTermination(x);
+      }
     }
 
     sendInfoToHost();
