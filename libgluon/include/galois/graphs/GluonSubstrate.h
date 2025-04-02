@@ -120,6 +120,9 @@ private:
   //! Phantom nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& phantomNodes;
+  //! Phantom master nodes on different hosts. For reduce; comes from the user graph
+  //! during initialization (we expect user to give to us)
+  std::vector<std::vector<size_t>> phantomMasterNodes;
 
   uint64_t phantomMasterCount;
   
@@ -254,7 +257,6 @@ private:
     }
 
     // receive the phantom master nodes
-    std::vector<std::vector<size_t>> phantomMasterNodes;
     phantomMasterNodes.resize(numHosts);
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -473,6 +475,24 @@ private:
       if (mirrorNodes[x].size() > maxSharedSize) {
         maxSharedSize = mirrorNodes[x].size();
       }
+    }
+
+    for (auto x = 0U; x < phantomNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string phantom_nodes_str =
+          "PhantomNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, phantom_nodes_str, phantomNodes[x].size());
+    }
+    
+    for (auto x = 0U; x < phantomMasterNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string phantom_master_nodes_str =
+          "PhantomMasterNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, phantom_master_nodes_str, phantomMasterNodes[x].size());
     }
 
     sendInfoToHost();
