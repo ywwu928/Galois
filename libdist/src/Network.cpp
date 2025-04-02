@@ -658,11 +658,17 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
 }
 
 void NetworkInterface::flushRemoteWork() {
-    for (auto& hostSendRemoteWork : sendRemoteWork) {
-        for (auto& threadSendRemoteWork : hostSendRemoteWork) {
-            threadSendRemoteWork.setFlush();
+    galois::on_each(
+        [&](unsigned tid, unsigned) {
+            for (uint32_t h=0; h<Num; h++) {
+                if (h == ID) {
+                    continue;
+                }
+
+                sendRemoteWork[h][tid].setFlush();
+            }
         }
-    }
+    );
 }
   
 void NetworkInterface::resetWorkTermination() {
