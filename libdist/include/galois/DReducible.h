@@ -47,6 +47,7 @@ class DGAccumulator {
 
   galois::GAccumulator<Ty> mdata;
   Ty local_mdata, global_mdata;
+  MPI_Request req;
 
   /**
    * Sum reduction using MPI
@@ -73,6 +74,34 @@ class DGAccumulator {
     } else if (typeid(Ty) == typeid(long double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG_DOUBLE, MPI_SUM,
                     MPI_COMM_WORLD);
+    } else {
+      static_assert(true,
+                    "Type of DGAccumulator not supported for MPI reduction");
+    }
+  }
+  
+  inline void ireduce_mpi() {
+    if (typeid(Ty) == typeid(int32_t)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_INT, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(int64_t)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_LONG, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(uint32_t)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(uint64_t)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED_LONG, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(float)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_FLOAT, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(double)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_DOUBLE, MPI_SUM,
+                    net.comm_other, &req);
+    } else if (typeid(Ty) == typeid(long double)) {
+      MPI_Iallreduce(&local_mdata, &global_mdata, 1, MPI_LONG_DOUBLE, MPI_SUM,
+                    net.comm_other, &req);
     } else {
       static_assert(true,
                     "Type of DGAccumulator not supported for MPI reduction");
@@ -168,6 +197,20 @@ public:
     reduce_mpi();
 
     reduceTimer.stop();
+
+    return global_mdata;
+  }
+  
+  void ireduce_send() {
+    if (local_mdata == 0)
+      local_mdata = mdata.reduce();
+
+    ireduce_mpi();
+  }
+  
+  Ty ireduce_wait() {
+    MPI_Status status;
+    MPI_Wait(&req, &status);
 
     return global_mdata;
   }

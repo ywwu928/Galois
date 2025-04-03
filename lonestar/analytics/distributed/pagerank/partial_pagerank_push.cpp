@@ -205,6 +205,8 @@ struct PageRank {
        _net.broadcastWorkTermination();
 #endif
 
+       dga.ireduce_send();
+
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
 #else
@@ -214,7 +216,7 @@ struct PageRank {
       _net.resetWorkTermination();
 
       ++_num_iterations;
-    } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
+    } while((_num_iterations < maxIterations) && dga.ireduce_wait());
   }
 
   void operator()(WorkItem src) const {
