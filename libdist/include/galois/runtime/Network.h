@@ -183,20 +183,31 @@ private:
    */
   class recvBufferRemoteWork {
       // single producer single consumer
-      moodycamel::ReaderWriterQueue<uint8_t*> fullMessages;
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> partialMessages;
+      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
+
+      bool terminate;
 
   public:
-      recvBufferRemoteWork() {}
+      recvBufferRemoteWork() : terminate(false) {}
 
-      bool tryPopFullMsg(uint8_t*& work);
-      bool tryPopPartialMsg(uint8_t*& work, size_t& workLen);
+      void setTerminate() {
+          terminate = true;
+      }
 
-      void addFull(uint8_t* work);
-      void addPartial(uint8_t* work, size_t workLen);
+      void resetTerminate() {
+          terminate = false;
+      }
+
+      bool checkTerminate() {
+          return terminate;
+      }
+
+      bool tryPopMsg(uint8_t*& work, size_t& workLen);
+
+      void add(uint8_t* work, size_t workLen);
   }; // end recv buffer class
 
-  recvBufferRemoteWork recvRemoteWork;
+  std::vector<recvBufferRemoteWork> recvRemoteWork;
 
   /**
    * Single producer single consumer with multiple tags
@@ -316,7 +327,6 @@ private:
   
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  std::vector<std::atomic<uint32_t>> hostWorkTermination;
   std::vector<bool> hostWorkTerminationValid;
   
   std::vector<std::atomic<uint32_t>> hostDataTermination;
@@ -399,8 +409,6 @@ public:
   void excludeHostWorkTermination(uint32_t host);
   
   void resetWorkTermination();
-
-  bool checkWorkTermination();
   
   void resetDataTermination();
 

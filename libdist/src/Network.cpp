@@ -126,29 +126,25 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work
     messages.enqueue(std::make_pair(host, work));
 }
 
-bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
-    bool success = fullMessages.try_dequeue(work);
-    return success;
-}
-
-bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
+bool NetworkInterface::recvBufferRemoteWork::tryPopMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = partialMessages.try_dequeue(message);
+    bool success = messages.try_dequeue(message);
     if (success) {
         work = message.first;
         workLen = message.second;
+
+        if (workLen == 0) {
+            terminate = true;
+            return false;
+        }
     }
 
     return success;
 }
 
 // Worker thread interface
-void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
-    fullMessages.enqueue(work);
-}
-
-void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t workLen) {
-    partialMessages.enqueue(std::make_pair(work, workLen));
+void NetworkInterface::recvBufferRemoteWork::add(uint8_t* work, size_t workLen) {
+    messages.enqueue(std::make_pair(work, workLen));
 }
 
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
@@ -322,15 +318,10 @@ void NetworkInterface::recvProbe() {
         handleError(rv);
         if (flag) {
             if (m.tag == workTerminationTag) {
-                hostWorkTermination[m.host] += 1;
+                recvRemoteWork[m.host].add(nullptr, 0);
             }
             else if (m.tag == remoteWorkTag) {
-                if (m.bufLen == AGG_MSG_SIZE) {
-                    recvRemoteWork.addFull(m.buf);
-                }
-                else {
-                    recvRemoteWork.addPartial(m.buf, m.bufLen);
-                }
+                recvRemoteWork[m.host].add(m.buf, m.bufLen);
             }
             else if (m.tag == communicationTag) {
                 recvCommunication.add(m.host, m.buf);
@@ -447,6 +438,7 @@ NetworkInterface::NetworkInterface() {
     while (ready != 1) {};
 
     recvData = decltype(recvData)(Num);
+    recvRemoteWork = decltype(recvRemoteWork)(Num);
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
@@ -461,18 +453,16 @@ NetworkInterface::NetworkInterface() {
     }
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
-    hostWorkTermination = decltype(hostWorkTermination)(Num);
     hostWorkTerminationValid = decltype(hostWorkTerminationValid)(Num);
     for (unsigned i=0; i<Num; i++) {
         sendWorkTermination[i] = false;
         if (i == ID) {
             sendWorkTerminationValid[i] = false;
-            hostWorkTermination[i] = 1;
             hostWorkTerminationValid[i] = false;
+            recvRemoteWork[i].setTerminate();
         }
         else {
             sendWorkTerminationValid[i] = true;
-            hostWorkTermination[i] = 0;
             hostWorkTerminationValid[i] = true;
         }
     }
@@ -614,25 +604,32 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
 }
 
 void NetworkInterface::receiveRemoteWork(bool& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
-    bool success;
-    while(true) {
-        success = recvRemoteWork.tryPopFullMsg(work);
-        if (success) {
-            fullFlag = true;
-            break;
-        }
+    do {
+        terminateFlag = true;
         
-        success = recvRemoteWork.tryPopPartialMsg(work, workLen);
-        if (success) {
-            fullFlag = false;
-            break;
-        }
+        for (unsigned h=0; h<Num; h++) {
+            if (h == ID) {
+                continue;
+            }
 
-        if (checkWorkTermination()) {
-            terminateFlag = true;
-            break;
+            auto& rw = recvRemoteWork[h];
+            if (!rw.checkTerminate()) {
+                terminateFlag = false;
+
+                bool success = rw.tryPopMsg(work, workLen);
+                if (success) {
+                    if (workLen == AGG_MSG_SIZE) {
+                        fullFlag = true;
+                        return;
+                    }
+                    else {
+                        fullFlag = false;
+                        return;
+                    }
+                }
+            }
         }
-    }
+    } while(!terminateFlag);
 }
 
 void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
@@ -662,24 +659,15 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
   
 void NetworkInterface::excludeHostWorkTermination(uint32_t host) {
     hostWorkTerminationValid[host] = false;
-    hostWorkTermination[host] = 1;
+    recvRemoteWork[host].setTerminate();
 }
   
 void NetworkInterface::resetWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
         if (hostWorkTerminationValid[i]) {
-            hostWorkTermination[i] -= 1;
+            recvRemoteWork[i].resetTerminate();
         }
     }
-}
-
-bool NetworkInterface::checkWorkTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (hostWorkTermination[i] == 0) {
-            return false;
-        }
-    }
-    return true;
 }
 
 void NetworkInterface::resetDataTermination() {
