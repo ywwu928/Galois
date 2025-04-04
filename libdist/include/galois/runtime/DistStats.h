@@ -51,6 +51,7 @@
 #include "galois/runtime/Network.h"
 
 #include <string>
+#include <set>
 
 namespace galois {
 namespace runtime {
@@ -143,6 +144,7 @@ class DistStatManager : public galois::runtime::StatManager {
     using ThrdStats        = internal::VecStat<T>;
     using PerHostThrdStats = galois::gstl::Map<unsigned, ThrdStats>;
 
+    std::set<std::pair<unsigned, T>> hostStats;
     PerHostThrdStats perHostThrdStats;
 
     explicit HostStat(const StatTotal::Type& hTotalTy) : Base(hTotalTy) {}
@@ -154,6 +156,7 @@ class DistStatManager : public galois::runtime::StatManager {
       const auto& thrdVals    = std::get<3>(val);
 
       Base::add(thrdTotal);
+      hostStats.insert(std::make_pair(hostID, thrdTotal));
 
       auto p      = perHostThrdStats.emplace(hostID, ThrdStats(thrdTotalTy));
       auto& tstat = p.first->second;
@@ -170,11 +173,9 @@ class DistStatManager : public galois::runtime::StatManager {
       out << region << SEP << category << SEP;
       out << HSTAT_NAME << SEP;
 
-      const char* sep = "";
-
-      for (const auto& v : Base::values()) {
-        out << sep << v;
-        sep = HSTAT_SEP;
+      const char* sep = HSTAT_SEP;
+      for (const auto& stat : hostStats) {
+        out << stat.second << sep;
       }
 
       out << std::endl;
