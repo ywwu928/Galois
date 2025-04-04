@@ -223,8 +223,19 @@ struct PageRank {
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
       StatTimer_comm.stop();
+      
+      std::string read_local_str("ReadLocal_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_read_local(read_local_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string report_stat_str("ReportStat_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_report_stat(report_stat_str.c_str(), REGION_NAME_RUN.c_str());
 
-      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
+      StatTimer_read_local.start();
+      unsigned long dgaLocal = dga.read_local();
+      StatTimer_read_local.stop();
+
+      StatTimer_report_stat.start();
+      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), dgaLocal);
+      StatTimer_report_stat.stop();
 
       ++_num_iterations;
       
