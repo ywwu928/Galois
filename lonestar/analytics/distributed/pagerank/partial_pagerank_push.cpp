@@ -194,6 +194,14 @@ struct PageRank {
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string broadcast_str("Broadcast_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_broadcast(broadcast_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
@@ -204,9 +212,13 @@ struct PageRank {
       dga.reset();
 
       // reset residual on mirrors
+      StatTimer_reset.start();
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      StatTimer_reset.stop();
       
+      StatTimer_delta.start();
       PageRank_delta::go(_graph);
+      StatTimer_delta.stop();
 
       // launch all other threads to compute
       StatTimer_compute.start();
@@ -218,8 +230,12 @@ struct PageRank {
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
-       _net.flushRemoteWork();
-       _net.broadcastWorkTermination();
+      StatTimer_flush.start();
+      _net.flushRemoteWork();
+      StatTimer_flush.stop();
+      StatTimer_broadcast.start();
+      _net.broadcastWorkTermination();
+      StatTimer_broadcast.stop();
 #endif
 
       StatTimer_comm.start();
@@ -232,7 +248,7 @@ struct PageRank {
       
       _net.resetWorkTermination();
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
+      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
       
       ++_num_iterations;
 
