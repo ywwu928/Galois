@@ -1139,20 +1139,14 @@ public:
     FixedSizeBufferAllocator() {}
     ~FixedSizeBufferAllocator() {}
 
-    uint8_t* allocate(size_t n = 1) {
-        if (n != 1) {
-            throw std::bad_alloc(); // simple handling
-        }
-
+    uint8_t* allocate() {
         return pool.allocate();
     }
 
-    void deallocate(uint8_t* ptr, size_t n = 1) {
-        if (n != 1) {
-            throw std::invalid_argument("only single deallocation is supported");
+    void deallocate(uint8_t* ptr) {
+        if (ptr != nullptr) {
+            pool.deallocate(ptr);
         }
-
-        pool.deallocate(ptr);
     }
 
     void touch() {

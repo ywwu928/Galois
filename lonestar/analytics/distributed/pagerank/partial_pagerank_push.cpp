@@ -198,10 +198,6 @@ struct PageRank {
       galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string broadcast_str("Broadcast_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_broadcast(broadcast_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
@@ -230,12 +226,8 @@ struct PageRank {
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
-      StatTimer_flush.start();
       _net.flushRemoteWork();
-      StatTimer_flush.stop();
-      StatTimer_broadcast.start();
       _net.broadcastWorkTermination();
-      StatTimer_broadcast.stop();
 #endif
 
       StatTimer_comm.start();
