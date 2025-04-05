@@ -185,28 +185,58 @@ struct PageRank {
       : graph(_g), active_vertices(_dga) {}
 
   void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
     unsigned _num_iterations   = 0;
     const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
     
     do {
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_total.start();
       syncSubstrate->set_num_round(_num_iterations);
 
       // reset residual on mirrors
+      StatTimer_reset.start();
       syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      StatTimer_reset.stop();
 
+      StatTimer_delta.start();
       PageRank_delta::go(_graph);
+      StatTimer_delta.stop();
 
       dga.reset();
 
+      StatTimer_compute.start();
       galois::do_all(
           galois::iterate(allNodes), PageRank{&_graph, dga},
           galois::no_stats(), galois::steal());
+      StatTimer_compute.stop();
 
+      StatTimer_comm.start();
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual,
                           Bitset_residual, async>("PageRank");
+      StatTimer_comm.stop();
+
+      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
 
       ++_num_iterations;
+
+      StatTimer_total.stop();
     } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
 
