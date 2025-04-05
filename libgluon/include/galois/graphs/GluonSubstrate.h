@@ -1953,41 +1953,63 @@ public:
           galois::no_stats());
     }
   }
-    
+
     template<typename FnTy>
     void poll_for_remote_work() {
+        auto& threadBarrier = galois::substrate::getBarrier(numT);
         bool terminateFlag = false;
         bool fullFlag;
-        uint8_t* buf;
+        uint8_t* buf = nullptr;
         size_t bufLen;
-        while (!terminateFlag) {
-            net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
-            if (!terminateFlag) { // received message
-                uint32_t msgCount;
-                if (fullFlag) {
-                    msgCount = net.WORK_COUNT;
+        galois::on_each(
+            [&](unsigned tid, unsigned) {
+                unsigned size = net.WORK_COUNT / numT;
+                unsigned remainder = net.WORK_COUNT % numT;
+                unsigned fullStart, fullEnd;
+                if (tid < remainder) {
+                    fullStart = tid * size + tid;
+                    fullEnd = fullStart + size + 1;
                 }
                 else {
-                    msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                    fullStart = tid * size + remainder;
+                    fullEnd = fullStart + size;
                 }
 
-                galois::on_each(
-                    [&](unsigned tid, unsigned numT) {
-                        unsigned size = msgCount / numT;
-                        unsigned remainder = msgCount % numT;
-                        unsigned start;
-                        if (tid < remainder) {
-                            start = tid * size + tid;
-                            size++;
+                uint32_t msgCount;
+                unsigned start, end;
+
+                uint32_t lid;
+                ValTy val;
+
+                while (!terminateFlag) {
+                    threadBarrier.wait();
+
+                    if (tid == 0) {
+                        net.deallocateRecvBuffer(buf);
+                        net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+                    }
+
+                    threadBarrier.wait();
+
+                    if (!terminateFlag) { // received message
+                        if (fullFlag) {
+                            start = fullStart;
+                            end = fullEnd;
                         }
                         else {
-                            start = tid * size + remainder;
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                            size = msgCount / numT;
+                            remainder = msgCount % numT;
+                            if (tid < remainder) {
+                                start = tid * size + tid;
+                                end = start + size + 1;
+                            }
+                            else {
+                                start = tid * size + remainder;
+                                end = start + size;
+                            }
                         }
-                        unsigned end = start + size;
-                        
-                        uint32_t lid;
-                        ValTy val;
 
                         for (unsigned i=start; i<end; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
@@ -1995,11 +2017,9 @@ public:
                             FnTy::reduce_void(userGraph.getData(lid), val);
                         }
                     }
-                );
-
-                net.deallocateRecvBuffer(buf);
+                }
             }
-        }
+        );
     }
 
 };
