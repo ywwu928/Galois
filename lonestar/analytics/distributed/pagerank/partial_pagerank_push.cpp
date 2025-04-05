@@ -243,6 +243,8 @@ struct PageRank {
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
 
       ++_num_iterations;
+      
+      StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
 
