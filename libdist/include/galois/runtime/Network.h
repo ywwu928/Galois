@@ -53,7 +53,7 @@ using RecvBuffer = DeSerializeBuffer;
  */
 class NetworkInterface {
 public:
-  MPI_Comm comm_comm, comm_other;
+  MPI_Comm comm_barrier, comm_comm;
 
   static constexpr uint32_t WORK_SIZE = 8; // lid (uint32_t) + val (uint32_t or float)
   static constexpr uint32_t WORK_COUNT = 1 << 12;

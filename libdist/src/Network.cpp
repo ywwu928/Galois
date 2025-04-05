@@ -72,8 +72,8 @@ void NetworkInterface::initializeMPI() {
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &comm_comm);
-    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &comm_other);
+    MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &comm_barrier);
+    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &comm_comm);
 }
 
 void NetworkInterface::finalizeMPI() {
