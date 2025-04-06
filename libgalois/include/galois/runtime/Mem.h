@@ -1048,8 +1048,10 @@ public:
   SerialNumaAllocator() : Super(&heap) {}
 };
 
-template<size_t BufferSize, size_t BufferCount>
 class FixedSizeBufferPool {
+    size_t bufferSize;
+    size_t bufferCount;
+
     const size_t hugePageSize = 2 * 1024 * 1024;
     std::vector<void*> regions;
     boost::lockfree::stack<uint8_t*> buffers;
@@ -1057,20 +1059,25 @@ class FixedSizeBufferPool {
     bool alloc;
 
 public:
-    FixedSizeBufferPool() {
-        buffers.reserve(BufferCount);
-        allocateRegions(1);
-        factor = 1;
-        alloc = true;
-    }
+    FixedSizeBufferPool() {}
 
     ~FixedSizeBufferPool() {
         freeRegions();
     }
 
+    void setup(size_t _bufferSize, size_t _bufferCount) {
+        bufferSize = _bufferSize;
+        bufferCount = _bufferCount;
+
+        buffers.reserve(bufferCount);
+        allocateRegions(1);
+        factor = 1;
+        alloc = true;
+    }
+
     inline uint8_t* allocate() {
         if (buffers.empty() && alloc) {
-            galois::gError("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
+            galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
             allocateRegions(factor);
             factor = factor << 1;
         }
@@ -1103,7 +1110,7 @@ public:
 private:
     inline void allocateRegions(uint32_t factor) {
         // allocate new regions
-        size_t pageCount = (BufferCount * BufferSize + hugePageSize - 1) / hugePageSize;
+        size_t pageCount = (bufferCount * bufferSize + hugePageSize - 1) / hugePageSize;
         pageCount = pageCount * factor;
 
         for (size_t i=0; i<pageCount; i++) {
@@ -1115,7 +1122,7 @@ private:
             regions.push_back(region);
 
             // add all buffers in the new page to the free buffer stack
-            for (size_t j=0; j<hugePageSize; j+=BufferSize) {
+            for (size_t j=0; j<hugePageSize; j+=bufferSize) {
                 buffers.push(static_cast<uint8_t*>(region) + j);
             }
         }
@@ -1131,13 +1138,16 @@ private:
     }
 };
 
-template<size_t BufferSize, size_t BufferCount>
 class FixedSizeBufferAllocator {
-    FixedSizeBufferPool<BufferSize, BufferCount> pool;
+    FixedSizeBufferPool pool;
 
 public:
-    FixedSizeBufferAllocator() {}
+    FixedSizeBufferAllocator(){}
     ~FixedSizeBufferAllocator() {}
+
+    void setup(size_t _bufferSize, size_t _bufferCount) {
+        pool.setup(_bufferSize, _bufferCount);
+    }
 
     uint8_t* allocate() {
         return pool.allocate();

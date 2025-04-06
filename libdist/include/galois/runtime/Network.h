@@ -32,6 +32,7 @@
 #include "galois/substrate/Barrier.h"
 #include "galois/runtime/Mem.h"
 #include "galois/runtime/readerwriterqueue.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <mpi.h>
 
@@ -54,12 +55,11 @@ using RecvBuffer = DeSerializeBuffer;
 class NetworkInterface {
 public:
   MPI_Comm comm_barrier, comm_comm;
-
-  static constexpr uint32_t WORK_SIZE = 8; // lid (uint32_t) + val (uint32_t or float)
-  static constexpr uint32_t WORK_COUNT = 1 << 12;
-  static constexpr size_t AGG_MSG_SIZE = WORK_SIZE * WORK_COUNT;
-  static constexpr size_t SEND_BUF_COUNT = 1 << 14;
-  static constexpr size_t RECV_BUF_COUNT = 1 << 16;
+  
+  uint32_t workCount;
+  size_t aggMsgSize;
+  size_t sendBufCount;
+  size_t recvBufCount;  
   
 protected:
   //! Initialize the MPI system. Should only be called once per process.
@@ -84,8 +84,8 @@ public:
 #endif
 
 private:
-  std::vector<FixedSizeBufferAllocator<AGG_MSG_SIZE, SEND_BUF_COUNT>> sendAllocators;
-  FixedSizeBufferAllocator<AGG_MSG_SIZE, RECV_BUF_COUNT> recvAllocator;
+  std::vector<FixedSizeBufferAllocator> sendAllocators;
+  FixedSizeBufferAllocator recvAllocator;
 
   std::vector<uint8_t*> recvCommBuffer;
 

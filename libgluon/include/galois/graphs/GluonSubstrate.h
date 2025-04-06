@@ -1964,8 +1964,8 @@ public:
 
         galois::on_each(
             [&](unsigned tid, unsigned) {
-                unsigned size = net.WORK_COUNT / numT;
-                unsigned remainder = net.WORK_COUNT % numT;
+                unsigned size = net.workCount / numT;
+                unsigned remainder = net.workCount % numT;
                 unsigned fullStart, fullEnd;
                 if (tid < remainder) {
                     fullStart = tid * size + tid;

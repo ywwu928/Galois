@@ -31,6 +31,20 @@
 #include <iostream>
 #include <mutex>
 
+namespace cll = llvm::cl;
+constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
+cll::opt<uint32_t> workCountExp("workCountExp",
+                                cll::desc("The number of remote work in an aggregated message (exponent with base 2)"),
+                                cll::init(12));
+cll::opt<uint32_t> sendBufCountExp("sendBufCountExp",
+                                   cll::desc("The number of send buffers in the pool"),
+                                   cll::init(14));
+cll::opt<uint32_t> recvBufCountExp("recvBufCountExp",
+                                   cll::desc("The number of receive buffers in the pool"),
+                                   cll::init(16));
+//uint32_t sendBufCountExp = 26 - workCountExp;
+//uint32_t recvBufCountExp = 28 - workCountExp;
+
 namespace galois::runtime {
 
 uint32_t evilPhase = 4; // 0, 1, 2 and 3 is reserved
@@ -222,7 +236,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     *((ValTy*)buf + (msgCount << 1) + 1) = val;
     msgCount += 1;
 
-    if (msgCount == WORK_COUNT) {
+    if (msgCount == net->workCount) {
         messages.enqueue(buf);
         flush += 1;
 
@@ -265,7 +279,7 @@ void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bu
 void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(buf, AGG_MSG_SIZE, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
+    int rv = MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
     handleError(rv);
 }
 
@@ -325,7 +339,7 @@ void NetworkInterface::recvProbe() {
                 hostWorkTermination[m.host] += 1;
             }
             else if (m.tag == remoteWorkTag) {
-                if (m.bufLen == AGG_MSG_SIZE) {
+                if (m.bufLen == aggMsgSize) {
                     recvRemoteWork.addFull(m.buf);
                 }
                 else {
@@ -439,11 +453,19 @@ void NetworkInterface::workerThread() {
     finalizeMPI();
 }
 
-NetworkInterface::NetworkInterface() {
+NetworkInterface::NetworkInterface()
+    : workCount(1 << workCountExp),
+      aggMsgSize(workSize * workCount),
+      sendBufCount(1 << sendBufCountExp),
+      recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
+    for (unsigned t=0; t<numT; t++) {
+        sendAllocators[t].setup(aggMsgSize, sendBufCount);
+    }
+    recvAllocator.setup(aggMsgSize, sendBufCount);
     while (ready != 1) {};
 
     recvData = decltype(recvData)(Num);
