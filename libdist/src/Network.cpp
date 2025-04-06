@@ -336,7 +336,7 @@ void NetworkInterface::recvProbe() {
         handleError(rv);
         if (flag) {
             if (m.tag == workTerminationTag) {
-                hostWorkTermination[m.host] += 1;
+                hostWorkTermination[m.host] = true;
             }
             else if (m.tag == remoteWorkTag) {
                 if (m.bufLen == aggMsgSize) {
@@ -489,12 +489,12 @@ NetworkInterface::NetworkInterface()
         sendWorkTermination[i] = false;
         if (i == ID) {
             sendWorkTerminationValid[i] = false;
-            hostWorkTermination[i] = 1;
+            hostWorkTermination[i] = true;
             hostWorkTerminationValid[i] = false;
         }
         else {
             sendWorkTerminationValid[i] = true;
-            hostWorkTermination[i] = 0;
+            hostWorkTermination[i] = false;
             hostWorkTerminationValid[i] = true;
         }
     }
@@ -684,20 +684,20 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
   
 void NetworkInterface::excludeHostWorkTermination(uint32_t host) {
     hostWorkTerminationValid[host] = false;
-    hostWorkTermination[host] = 1;
+    hostWorkTermination[host] = true;
 }
   
 void NetworkInterface::resetWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
         if (hostWorkTerminationValid[i]) {
-            hostWorkTermination[i] -= 1;
+            hostWorkTermination[i] = false;
         }
     }
 }
 
 bool NetworkInterface::checkWorkTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (hostWorkTermination[i] == 0) {
+        if (!hostWorkTermination[i]) {
             return false;
         }
     }

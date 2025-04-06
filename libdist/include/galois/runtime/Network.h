@@ -316,7 +316,7 @@ private:
   
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  std::vector<std::atomic<uint32_t>> hostWorkTermination;
+  std::vector<std::atomic<bool>> hostWorkTermination;
   std::vector<bool> hostWorkTerminationValid;
   
   std::vector<std::atomic<uint32_t>> hostDataTermination;
