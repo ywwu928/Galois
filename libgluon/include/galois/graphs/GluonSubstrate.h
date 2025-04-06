@@ -1956,66 +1956,38 @@ public:
 
     template<typename FnTy>
     void poll_for_remote_work() {
-        auto& threadBarrier = galois::substrate::getBarrier(numT);
-        bool terminateFlag = false;
-        bool fullFlag;
-        uint8_t* buf = nullptr;
-        size_t bufLen;
+        std::atomic<bool> terminateFlag = false;
 
         galois::on_each(
-            [&](unsigned tid, unsigned) {
-                unsigned size = net.workCount / numT;
-                unsigned remainder = net.workCount % numT;
-                unsigned fullStart, fullEnd;
-                if (tid < remainder) {
-                    fullStart = tid * size + tid;
-                    fullEnd = fullStart + size + 1;
-                }
-                else {
-                    fullStart = tid * size + remainder;
-                    fullEnd = fullStart + size;
-                }
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
 
                 uint32_t msgCount;
-                unsigned start, end;
-
+                
                 uint32_t lid;
                 ValTy val;
 
                 while (!terminateFlag) {
-                    threadBarrier.wait();
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
-                    if (tid == 0) {
-                        net.deallocateRecvBuffer(buf);
-                        net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
-                    }
-
-                    threadBarrier.wait();
-
-                    if (!terminateFlag) { // received message
+                    if (success) { // received message
                         if (fullFlag) {
-                            start = fullStart;
-                            end = fullEnd;
+                            msgCount = net.workCount;
                         }
                         else {
                             msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
-                            size = msgCount / numT;
-                            remainder = msgCount % numT;
-                            if (tid < remainder) {
-                                start = tid * size + tid;
-                                end = start + size + 1;
-                            }
-                            else {
-                                start = tid * size + remainder;
-                                end = start + size;
-                            }
                         }
-
-                        for (unsigned i=start; i<end; i++) {
+                        
+                        for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
                             val = *((ValTy*)buf + (i << 1) + 1);
                             FnTy::reduce_void(userGraph.getData(lid), val);
                         }
+                        
+                        net.deallocateRecvBuffer(buf);
                     }
                 }
             }

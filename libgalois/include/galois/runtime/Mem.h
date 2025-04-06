@@ -1154,9 +1154,7 @@ public:
     }
 
     void deallocate(uint8_t* ptr) {
-        if (ptr != nullptr) {
-            pool.deallocate(ptr);
-        }
+        pool.deallocate(ptr);
     }
 
     void touch() {

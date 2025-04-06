@@ -635,24 +635,24 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-void NetworkInterface::receiveRemoteWork(bool& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
+bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
     bool success;
     while(true) {
         success = recvRemoteWork.tryPopFullMsg(work);
         if (success) {
             fullFlag = true;
-            break;
+            return true;
         }
         
         success = recvRemoteWork.tryPopPartialMsg(work, workLen);
         if (success) {
             fullFlag = false;
-            break;
+            return true;;
         }
 
         if (checkWorkTermination()) {
             terminateFlag = true;
-            break;
+            return false;
         }
     }
 }
