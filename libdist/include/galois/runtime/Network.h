@@ -32,6 +32,7 @@
 #include "galois/substrate/Barrier.h"
 #include "galois/runtime/Mem.h"
 #include "galois/runtime/readerwriterqueue.h"
+#include "galois/runtime/concurrentqueue.h"
 #include "llvm/Support/CommandLine.h"
 
 #include <mpi.h>
@@ -182,9 +183,9 @@ private:
    * Receive buffers for the buffered network interface
    */
   class recvBufferRemoteWork {
-      // single producer single consumer
-      moodycamel::ReaderWriterQueue<uint8_t*> fullMessages;
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> partialMessages;
+      // single producer multiple consumer
+      moodycamel::ConcurrentQueue<uint8_t*> fullMessages;
+      moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> partialMessages;
 
   public:
       recvBufferRemoteWork() {}
@@ -389,7 +390,7 @@ public:
   
   void receiveRemoteWorkUntilSignal(std::atomic<bool>& stopFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
 
-  void receiveRemoteWork(bool& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
+  bool receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
   
   void receiveComm(uint32_t& host, uint8_t*& work);
   

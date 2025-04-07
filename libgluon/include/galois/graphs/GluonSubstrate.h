@@ -2012,28 +2012,26 @@ public:
         bool fullFlag;
         uint8_t* buf;
         size_t bufLen;
+
+        uint32_t msgCount;
+
+        uint32_t lid;
+        ValTy val;
         
         while (!stopDedicated) {
             net.receiveRemoteWorkUntilSignal(stopDedicated, fullFlag, buf, bufLen);
             
             if (!stopDedicated) { // received message
-                // dedicated thread does not care about the number of aggregated message count
                 if (fullFlag) {
-                    bufLen = net.aggMsgSize;
+                    msgCount = net.workCount;
                 }
                 else {
-                    bufLen -= sizeof(uint32_t);
+                    msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
                 }
-                size_t offset = 0;
 
-                uint32_t lid;
-                ValTy val;
-
-                while (offset != bufLen) {
-                    lid = *((uint32_t*)(buf + offset));
-                    offset += sizeof(uint32_t);
-                    val = *((ValTy*)(buf + offset));
-                    offset += sizeof(ValTy);
+                for (uint32_t i=0; i<msgCount; i++) {
+                    lid = *((uint32_t*)buf + (i << 1));
+                    val = *((ValTy*)buf + (i << 1) + 1);
                     FnTy::reduce_numerical_void(*(phantomMasterUpdateBuffer[lid]), val);
                 }
 
@@ -2059,51 +2057,42 @@ public:
     
     template<typename FnTy>
     void poll_for_remote_work() {
-        bool terminateFlag = false;
-        bool fullFlag;
-        uint8_t* buf;
-        size_t bufLen;
-        while (!terminateFlag) {
-            net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+        std::atomic<bool> terminateFlag = false;
 
-            if (!terminateFlag) { // received message
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
+
                 uint32_t msgCount;
-                if (fullFlag) {
-                    msgCount = net.workCount;
-                }
-                else {
-                    msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
-                }
 
-                galois::on_each(
-                    [&](unsigned tid, unsigned numT) {
-                        unsigned size = msgCount / numT;
-                        unsigned remainder = msgCount % numT;
-                        unsigned start;
-                        if (tid < remainder) {
-                            start = tid * size + tid;
-                            size++;
+                uint32_t lid;
+                ValTy val;
+
+                while (!terminateFlag) {
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+
+                    if (success) { // received message
+                        if (fullFlag) {
+                            msgCount = net.workCount;
                         }
                         else {
-                            start = tid * size + remainder;
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
                         }
-                        unsigned end = start + size;
 
-                        uint32_t lid;
-                        ValTy val;
-
-                        for (unsigned i=start; i<end; i++) {
+                        for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
                             val = *((ValTy*)buf + (i << 1) + 1);
                             FnTy::reduce_void(userGraph.getData(lid), val);
                         }
+
+                        net.deallocateRecvBuffer(buf);
                     }
-                );
-
-                net.deallocateRecvBuffer(buf);
-
+                }
             }
-        }
+        );
     }
 
     void net_flush() {
