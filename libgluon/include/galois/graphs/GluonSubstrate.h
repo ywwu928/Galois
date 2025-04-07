@@ -2019,7 +2019,7 @@ public:
             if (!stopDedicated) { // received message
                 // dedicated thread does not care about the number of aggregated message count
                 if (fullFlag) {
-                    bufLen = net.AGG_MSG_SIZE;
+                    bufLen = net.aggMsgSize;
                 }
                 else {
                     bufLen -= sizeof(uint32_t);
@@ -2069,7 +2069,7 @@ public:
             if (!terminateFlag) { // received message
                 uint32_t msgCount;
                 if (fullFlag) {
-                    msgCount = net.WORK_COUNT;
+                    msgCount = net.workCount;
                 }
                 else {
                     msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
