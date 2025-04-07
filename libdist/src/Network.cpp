@@ -763,16 +763,6 @@ void NetworkInterface::reportMemUsage() const {
                                      memUsageTracker.getMaxMemUsage());
 }
 
-void NetworkInterface::touchBufferPool() {
-    galois::on_each([&](unsigned tid, unsigned) {
-        sendAllocators[tid].touch();
-        
-        for (unsigned i=0; i<Num; i++) {
-            sendRemoteWork[i][tid].touchBuf();
-        }
-    });
-}
-
 NetworkInterface& getSystemNetworkInterface() {
     static std::atomic<NetworkInterface*> net;
     static substrate::SimpleLock m_mutex;

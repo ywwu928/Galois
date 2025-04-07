@@ -475,8 +475,6 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
-    net.touchBufferPool();
-
     StatTimer_main.start();
     PageRank::go(*hg);
     StatTimer_main.stop();
