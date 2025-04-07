@@ -2085,7 +2085,7 @@ public:
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
                             val = *((ValTy*)buf + (i << 1) + 1);
-                            FnTy::reduce_void(userGraph.getData(lid), val);
+                            FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                         }
 
                         net.deallocateRecvBuffer(buf);
