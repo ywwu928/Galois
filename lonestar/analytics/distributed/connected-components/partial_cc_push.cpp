@@ -390,6 +390,7 @@ int main(int argc, char** argv) {
     StatTimer_main.start();
     ConnectedComp::go(*hg);
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     ConnectedCompSanityCheck::go(*hg, active_vertices64);
 
