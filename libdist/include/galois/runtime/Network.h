@@ -263,10 +263,6 @@ private:
 
       template <typename ValTy>
       void add(uint32_t lid, ValTy val);
-
-      inline void touchBuf() {
-          volatile uint8_t temp = *buf;
-      }
   };
   
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
@@ -416,9 +412,6 @@ public:
 
   //! Reports the memory usage tracker's statistics to the stat manager
   void reportMemUsage() const;
-
-  // touch all the buffers in the buffer pool
-  void touchBufferPool();
 };
 
 //! Variable that keeps track of which network send/recv phase a program is
