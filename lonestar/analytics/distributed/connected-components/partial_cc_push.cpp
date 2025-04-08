@@ -41,14 +41,6 @@ static cll::opt<unsigned int> maxIterations("maxIterations",
                                                       "Default 1000"),
                                             cll::init(1000));
 
-enum Exec { Sync, Async };
-
-static cll::opt<Exec> execution(
-    "exec", cll::desc("Distributed Execution Model (default value Async):"),
-    cll::values(clEnumVal(Sync, "Bulk-synchronous Parallel (BSP)"),
-                clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
-    cll::init(Sync));
-
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
@@ -81,9 +73,7 @@ struct InitializeGraph {
 
       galois::do_all(
           galois::iterate(presentNodes.begin(), presentNodes.end()),
-          InitializeGraph{&_graph}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
+          InitializeGraph{&_graph}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -93,69 +83,92 @@ struct InitializeGraph {
   }
 };
 
-template <bool async>
 struct FirstItr_ConnectedComp {
   Graph* graph;
-  FirstItr_ConnectedComp(Graph* _graph) : graph(_graph) {}
+
+  galois::runtime::NetworkInterface& net;
+  
+  FirstItr_ConnectedComp(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
 #ifndef GALOIS_FULL_MIRRORING     
     const auto& masterNodes = _graph.masterNodesRangeReserved();
 #else
     const auto& masterNodes = _graph.masterNodesRange();
 #endif
     
-    auto& net = galois::runtime::getSystemNetworkInterface();
+#ifdef GALOIS_PRINT_PROCESS
+    auto& _net = galois::runtime::getSystemNetworkInterface();
+#endif
+     
+    std::string total_str("Total_Round_0");
+    galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+    std::string reset_buf_str("ResetBuf_Round_0");
+    galois::CondStatTimer<USER_STATS> StatTimer_reset_buf(reset_buf_str.c_str(), REGION_NAME_RUN.c_str());
+    std::string compute_str("Compute_Round_0");
+    galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+    std::string sync_buf_str("SyncBuf_Round_0");
+    galois::CondStatTimer<USER_STATS> StatTimer_sync_buf(sync_buf_str.c_str(), REGION_NAME_RUN.c_str());
+    std::string comm_str("Communication_Round_0");
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
     
-    galois::gPrint("Host ", net.ID, " : iteration 0\n");
+#ifdef GALOIS_PRINT_PROCESS
+      galois::gPrint("Host ", _net.ID, " : iteration 0\n");
+#endif
+
+    StatTimer_total.start();
     syncSubstrate->set_num_round(0);
-    
-    std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(0));
-    galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       
-    StatTimer_compute.start();
 #ifndef GALOIS_FULL_MIRRORING     
+      StatTimer_reset_buf.start();
       syncSubstrate->set_update_buf_to_identity(UINT32_MAX);
+      StatTimer_reset_buf.stop();
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_comp_current>(galois::min<uint32_t>);
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_comp_current>();
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
+    
     // launch all other threads to compute
+    StatTimer_compute.start();
     galois::do_all(
         galois::iterate(masterNodes), FirstItr_ConnectedComp{&_graph},
         galois::steal(), galois::no_stats(),
         galois::loopname(syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
+    StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
     // inform all other hosts that this host has finished sending messages
     // force all messages to be processed before continuing
     syncSubstrate->net_flush();
+
+    galois::substrate::getThreadPool().waitDedicated();
+
+    StatTimer_sync_buf.start();
+    syncSubstrate->sync_update_buf<Reduce_min_comp_current>(UINT32_MAX);
+    StatTimer_sync_buf.stop();
 #endif
-    StatTimer_compute.stop();
-    
-    std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(0));
-    galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
     StatTimer_comm.start();
-#ifndef GALOIS_FULL_MIRRORING     
-    syncSubstrate->sync_update_buf<Reduce_min_comp_current>(UINT32_MAX);
-    galois::substrate::getThreadPool().waitDedicated();
-#endif
-
 #ifdef GALOIS_NO_MIRRORING     
     syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
 #else
-    syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current, async>("ConnectedComp");
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current>("ConnectedComp");
 #endif
     StatTimer_comm.stop();
       
     syncSubstrate->reset_termination();
 
-    galois::runtime::reportStat_Tsum(
-        REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-        _graph.masterNodesRange().end() - _graph.masterNodesRange().begin());
+    galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_0", _graph.masterNodesRange().end() - _graph.masterNodesRange().begin());
+    
+    StatTimer_total.stop();
   }
 
   void operator()(GNode src) const {
@@ -167,7 +180,10 @@ struct FirstItr_ConnectedComp {
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
+            //uint32_t& hostID = graph->getHostIDForLocal(dst);
+            //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
+            //unsigned tid = galois::substrate::ThreadPool::getTID();
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
         }
         else {
 #endif
@@ -183,26 +199,31 @@ struct FirstItr_ConnectedComp {
   }
 };
 
-template <bool async>
 struct ConnectedComp {
   Graph* graph;
-  using DGTerminatorDetector =
-      typename std::conditional<async, galois::DGTerminator<unsigned int>,
-                                galois::DGAccumulator<unsigned int>>::type;
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
 
   DGTerminatorDetector& active_vertices;
 
+  galois::runtime::NetworkInterface& net;
+
   ConnectedComp(Graph* _graph, DGTerminatorDetector& _dga)
-      : graph(_graph), active_vertices(_dga) {}
+      : graph(_graph), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
     using namespace galois::worklists;
 
-    FirstItr_ConnectedComp<async>::go(_graph);
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
+    FirstItr_ConnectedComp::go(_graph);
     galois::runtime::getHostBarrier().wait();
 
-
     unsigned _num_iterations = 1;
+    
     DGTerminatorDetector dga;
 
 #ifndef GALOIS_FULL_MIRRORING     
@@ -211,72 +232,78 @@ struct ConnectedComp {
     const auto& masterNodes = _graph.masterNodesRange();
 #endif
   
-    auto& net = galois::runtime::getSystemNetworkInterface();
+#ifdef GALOIS_PRINT_PROCESS
+    auto& _net = galois::runtime::getSystemNetworkInterface();
+#endif
 
     do {
-      galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string reset_buf_str("ResetBuf_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_reset_buf(reset_buf_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string sync_buf_str("SyncBuf_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_sync_buf(sync_buf_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+#ifdef GALOIS_PRINT_PROCESS
+      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
+#endif
+
+      StatTimer_total.start();
       syncSubstrate->set_num_round(_num_iterations);
+
       dga.reset();
       
-      std::string compute_str("Host_" + std::to_string(net.ID) + "_Compute_Round_" + std::to_string(_num_iterations));
-      galois::StatTimer StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      
-      StatTimer_compute.start();
 #ifndef GALOIS_FULL_MIRRORING     
+      StatTimer_reset_buf.start();
       syncSubstrate->set_update_buf_to_identity(UINT32_MAX);
+      StatTimer_reset_buf.stop();
       // dedicate a thread to poll for remote messages
       std::function<void(void)> func = [&]() {
-              syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_comp_current>(galois::min<uint32_t>);
+              syncSubstrate->poll_for_remote_work_dedicated<Reduce_min_comp_current>();
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
+      
       // launch all other threads to compute
+      StatTimer_compute.start();
       galois::do_all(
           galois::iterate(masterNodes), ConnectedComp(&_graph, dga),
           galois::no_stats(), galois::steal(),
           galois::loopname(syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
+      StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       syncSubstrate->net_flush();
+
+      galois::substrate::getThreadPool().waitDedicated();
+
+      StatTimer_sync_buf.start();
+      syncSubstrate->sync_update_buf<Reduce_min_comp_current>(UINT32_MAX);
+      StatTimer_sync_buf.stop();
 #endif
-      StatTimer_compute.stop();
-      
-      std::string comm_str("Host_" + std::to_string(net.ID) + "_Communication_Round_" + std::to_string(_num_iterations));
-      galois::StatTimer StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       StatTimer_comm.start();
-#ifndef GALOIS_FULL_MIRRORING     
-      syncSubstrate->sync_update_buf<Reduce_min_comp_current>(UINT32_MAX);
-      galois::substrate::getThreadPool().waitDedicated();
-#endif
-
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
 #else
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current, async>("ConnectedComp");
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current>("ConnectedComp");
 #endif
-      
       StatTimer_comm.stop();
       
       syncSubstrate->reset_termination();
 
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-          (unsigned long)dga.read_local());
-      galois::runtime::reportStat_Single(
-          REGION_NAME, "Host_" + std::to_string(net.ID) + "_Run_" + (syncSubstrate->get_run_identifier()) + "_Round_" + std::to_string(_num_iterations) + "_ActiveVertices",
-          (unsigned long)dga.read_local());
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
 
       ++_num_iterations;
-    } while ((async || (_num_iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
-
-    galois::runtime::reportStat_Tmax(
-        REGION_NAME,
-        "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-        (unsigned long)_num_iterations);
+      
+      StatTimer_total.stop();
+    } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
 
   void operator()(GNode src) const {
@@ -292,7 +319,10 @@ struct ConnectedComp {
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
-            syncSubstrate->send_data_to_remote(graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
+            //uint32_t& hostID = graph->getHostIDForLocal(dst);
+            //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
+            //unsigned tid = galois::substrate::ThreadPool::getTID();
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
         }
         else {
 #endif
@@ -326,8 +356,7 @@ struct ConnectedCompSanityCheck {
     dga.reset();
 
     galois::do_all(galois::iterate(_graph.masterNodesRange().begin(), _graph.masterNodesRange().end()),
-                   ConnectedCompSanityCheck(&_graph, dga), galois::no_stats(),
-                   galois::loopname("ConnectedCompSanityCheck"));
+                   ConnectedCompSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_components = dga.reduce();
 
@@ -384,8 +413,9 @@ int main(int argc, char** argv) {
   }
 
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
-
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
@@ -398,6 +428,7 @@ int main(int argc, char** argv) {
 
   InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> active_vertices64;
 
@@ -408,12 +439,9 @@ int main(int argc, char** argv) {
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME.c_str());
 
     StatTimer_main.start();
-    if (execution == Async) {
-      ConnectedComp<true>::go(*hg);
-    } else {
-      ConnectedComp<false>::go(*hg);
-    }
+    ConnectedComp::go(*hg);
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     ConnectedCompSanityCheck::go(*hg, active_vertices64);
 
