@@ -470,7 +470,7 @@ NetworkInterface::NetworkInterface()
     for (unsigned t=0; t<numT; t++) {
         sendAllocators[t].setup(aggMsgSize, sendBufCount);
     }
-    recvAllocator.setup(aggMsgSize, sendBufCount);
+    recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready != 1) {};
 
     recvData = decltype(recvData)(Num);
