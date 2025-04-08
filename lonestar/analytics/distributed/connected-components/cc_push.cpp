@@ -109,14 +109,14 @@ struct FirstItr_ConnectedComp {
     std::string comm_str("Communication_Round_0");
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     StatTimer_total.start();
     syncSubstrate->set_num_round(0);
     
     StatTimer_compute.start();
     galois::do_all(
-        galois::iterate(nodesWithEdges), FirstItr_ConnectedComp{&_graph},
+        galois::iterate(masterNodes), FirstItr_ConnectedComp{&_graph},
         galois::steal(), galois::no_stats(),
         galois::loopname(
             syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
@@ -127,7 +127,7 @@ struct FirstItr_ConnectedComp {
                         Bitset_comp_current, async>("ConnectedComp");
     StatTimer_comm.stop();
 
-    galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_0", _graph.allNodesRange().end() - _graph.allNodesRange().begin());
+    galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_0", _graph.masterNodesRange().end() - _graph.masterNodesRange().begin());
     
     StatTimer_total.stop();
   }
@@ -174,7 +174,7 @@ struct ConnectedComp {
     unsigned _num_iterations = 1;
     DGTerminatorDetector dga;
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -190,7 +190,7 @@ struct ConnectedComp {
       
       StatTimer_compute.start();
       galois::do_all(
-          galois::iterate(nodesWithEdges), ConnectedComp(&_graph, dga),
+          galois::iterate(masterNodes), ConnectedComp(&_graph, dga),
           galois::no_stats(), galois::steal(),
           galois::loopname(
               syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
