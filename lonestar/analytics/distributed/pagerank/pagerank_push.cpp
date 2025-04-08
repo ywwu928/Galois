@@ -396,10 +396,9 @@ int main(int argc, char** argv) {
     galois::runtime::reportParam(REGION_NAME, "Tolerance", ss.str());
   }
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
+  StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
   StatTimer_preprocess.start();
-
-  StatTimer_total.start();
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void>();
