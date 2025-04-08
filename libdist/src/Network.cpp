@@ -30,6 +30,7 @@
 
 #include <iostream>
 #include <mutex>
+#include <chrono>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -232,8 +233,12 @@ bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
 template <typename ValTy>
 void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     // aggregate message
+    //auto start = std::chrono::high_resolution_clock::now();
     *((uint32_t*)buf + (msgCount << 1)) = lid;
     *((ValTy*)buf + (msgCount << 1) + 1) = val;
+    //auto end = std::chrono::high_resolution_clock::now();
+    //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    //galois::gPrint("Host ", ID, " : writeBuffer takes ", duration.count(), " ns (msgCount = ", msgCount, ")\n");
     msgCount += 1;
 
     if (msgCount == net->workCount) {
