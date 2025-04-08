@@ -31,6 +31,7 @@
 #include <iostream>
 #include <mutex>
 #include <chrono>
+#include <xmmintrin.h>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -192,6 +193,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 0, 3);
     }
   
 }
@@ -210,6 +212,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 0, 3);
         msgCount = 0;
     }
 }
@@ -238,7 +241,8 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     *((ValTy*)buf + (msgCount << 1) + 1) = val;
     //auto end = std::chrono::high_resolution_clock::now();
     //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    //galois::gPrint("Host ", ID, " : writeBuffer takes ", duration.count(), " ns (msgCount = ", msgCount, ")\n");
+    //if (msgCount == 0)
+    //    galois::gPrint("Host ", ID, " : writeBuffer takes ", duration.count(), " ns (msgCount = ", msgCount, ")\n");
     msgCount += 1;
 
     if (msgCount == net->workCount) {
@@ -249,6 +253,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 0, 3);
         msgCount = 0;
     }
 }
