@@ -188,9 +188,7 @@ struct PageRank {
 
     DGTerminatorDetector dga;
   
-#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
-#endif
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -229,6 +227,8 @@ struct PageRank {
       StatTimer_delta.start();
       PageRank_delta::go(_graph);
       StatTimer_delta.stop();
+
+      _net.prefetchBuffers();
 
 #ifndef GALOIS_FULL_MIRRORING
       StatTimer_reset_buf.start();
@@ -482,6 +482,8 @@ int main(int argc, char** argv) {
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    net.touchBufferPool();
 
     StatTimer_main.start();
     PageRank::go(*hg);
