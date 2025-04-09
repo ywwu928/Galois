@@ -1099,7 +1099,7 @@ private:
         pageCount = pageCount * factor;
 
         for (size_t i=0; i<pageCount; i++) {
-            void* region = mmap(NULL, hugePageSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
+            void* region = mmap(NULL, hugePageSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED | MAP_POPULATE, -1, 0);
             if (region == MAP_FAILED) {
                 alloc = false;
                 break;
