@@ -216,6 +216,8 @@ struct PageRank {
       PageRank_delta::go(_graph);
       StatTimer_delta.stop();
 
+      _net.prefetchBuffers();
+
       // launch all other threads to compute
       StatTimer_compute.start();
       galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
@@ -447,6 +449,8 @@ int main(int argc, char** argv) {
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    net.touchBufferPool();
 
     StatTimer_main.start();
     PageRank::go(*hg);

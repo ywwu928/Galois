@@ -193,7 +193,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
-        __builtin_prefetch(buf, 0, 3);
+        __builtin_prefetch(buf, 1, 3);
     }
   
 }
@@ -212,7 +212,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
-        __builtin_prefetch(buf, 0, 3);
+        __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
 }
@@ -253,7 +253,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
-        __builtin_prefetch(buf, 0, 3);
+        __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
 }
@@ -750,6 +750,24 @@ void NetworkInterface::reportMemUsage() const {
                                      memUsageTracker.getMaxMemUsage());
     galois::runtime::reportStat_Tmax("dGraph", str + "Max",
                                      memUsageTracker.getMaxMemUsage());
+}
+
+void NetworkInterface::touchBufferPool() {
+    galois::on_each([&](unsigned tid, unsigned) {
+        sendAllocators[tid].touch();
+
+        for (unsigned i=0; i<Num; i++) {
+            sendRemoteWork[i][tid].touchBuf();
+        }
+    });
+}
+
+void NetworkInterface::prefetchBuffers() {
+    galois::on_each([&](unsigned tid, unsigned) {
+        for (unsigned i=0; i<Num; i++) {
+            sendRemoteWork[i][tid].prefetchBuf();
+        }
+    });
 }
 
 NetworkInterface& getSystemNetworkInterface() {

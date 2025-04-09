@@ -1092,6 +1092,21 @@ public:
         buffers.push(buffer);
     }
 
+    void touch() {
+        std::stack<uint8_t*> temp;
+
+        buffers.consume_all([&temp](uint8_t* ptr) {
+            temp.push(ptr);
+        });
+
+        while (!temp.empty()) {
+            buffers.push(temp.top());
+            // touch the memory location of the pointer
+            *(temp.top()) = (uint8_t)0;
+            temp.pop();
+        }
+    }
+
 private:
     inline void allocateRegions(uint32_t factor) {
         // allocate new regions
@@ -1140,6 +1155,10 @@ public:
 
     void deallocate(uint8_t* ptr) {
         pool.deallocate(ptr);
+    }
+
+    void touch() {
+        pool.touch();
     }
 };
 
