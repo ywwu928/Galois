@@ -1076,13 +1076,19 @@ public:
     }
 
     inline uint8_t* allocate() {
-        if (buffers.empty() && alloc) {
-            galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
-            allocateRegions();
+        uint8_t* buffer;
+        bool success = buffers.pop(buffer);
+
+        if (!success) { // buffer pool is empty
+            if (alloc) {
+                galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
+                allocateRegions();
+            }
+
+            do {
+                success = buffers.pop(buffer);
+            } while(!success);
         }
-        
-        uint8_t* buffer = nullptr;
-        buffers.pop(buffer);
         
         return buffer;
     }
