@@ -142,6 +142,7 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
     bool success = fullMessages.try_dequeue(work);
+    __builtin_prefetch(work, 0, 3);
     return success;
 }
 
@@ -152,6 +153,7 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, si
         work = message.first;
         workLen = message.second;
     }
+    __builtin_prefetch(work, 0, 3);
 
     return success;
 }
@@ -268,12 +270,14 @@ void NetworkInterface::sendTrackComplete() {
 }
 
 void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
+    __builtin_prefetch(buf, 0, 3);
     MPI_Request req;
     int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
     handleError(rv);
 }
 
 void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
+    __builtin_prefetch(buf, 0, 3);
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
     int rv = MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
@@ -281,6 +285,7 @@ void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) 
 }
 
 void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
+    __builtin_prefetch(buf, 0, 3);
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
     int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
@@ -303,6 +308,7 @@ void NetworkInterface::recvProbe() {
             // allocate new buffer
             uint8_t* buf;
             buf = recvAllocator.allocate();
+            __builtin_prefetch(buf, 1, 3);
 
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
             auto& m = recvInflight.back();
@@ -310,6 +316,7 @@ void NetworkInterface::recvProbe() {
             handleError(rv);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
+            __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
             auto& m = recvInflight.back();
             rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
@@ -386,8 +393,12 @@ void NetworkInterface::workerThread() {
             hostOrder[i] = i + ID + 1;
         }
     }
+
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
+
+    recvAllocator.touch();
+
     while (ready != 3) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
