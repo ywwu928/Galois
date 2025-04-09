@@ -191,6 +191,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 1, 3);
     }
   
 }
@@ -209,6 +210,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
 }
@@ -244,6 +246,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         do {
             buf = net->sendAllocators[tid].allocate();
         } while (buf == nullptr);
+        __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
 }
