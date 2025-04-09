@@ -190,9 +190,7 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
   
     if (buf == nullptr) {
         // allocate new buffer
-        do {
-            buf = net->sendAllocators[tid].allocate();
-        } while (buf == nullptr);
+        buf = net->sendAllocators[tid].allocate();
         __builtin_prefetch(buf, 1, 3);
     }
   
@@ -209,9 +207,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         partialFlag = true;
     
         // allocate new buffer
-        do {
-            buf = net->sendAllocators[tid].allocate();
-        } while (buf == nullptr);
+        buf = net->sendAllocators[tid].allocate();
         __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
@@ -250,9 +246,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         flush += 1;
 
         // allocate new buffer
-        do {
-            buf = net->sendAllocators[tid].allocate();
-        } while (buf == nullptr);
+        buf = net->sendAllocators[tid].allocate();
         __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
@@ -315,9 +309,7 @@ void NetworkInterface::recvProbe() {
         if (status.MPI_TAG == (int)remoteWorkTag) {
             // allocate new buffer
             uint8_t* buf;
-            do {
-                buf = recvAllocator.allocate();
-            } while (buf == nullptr);
+            buf = recvAllocator.allocate();
 
             recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
             auto& m = recvInflight.back();
