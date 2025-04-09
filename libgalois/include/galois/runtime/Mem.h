@@ -1065,21 +1065,20 @@ public:
         freeRegions();
     }
 
-    void setup(size_t _bufferSize, size_t _bufferCount) {
+    inline void setup(size_t _bufferSize, size_t _bufferCount) {
         bufferSize = _bufferSize;
         bufferCount = _bufferCount;
 
         buffers.reserve(bufferCount);
-        allocateRegions(1);
         factor = 1;
+        allocateRegions();
         alloc = true;
     }
 
     inline uint8_t* allocate() {
         if (buffers.empty() && alloc) {
             galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
-            allocateRegions(factor);
-            factor = factor << 1;
+            allocateRegions();
         }
         
         uint8_t* buffer = nullptr;
@@ -1092,7 +1091,7 @@ public:
         buffers.push(buffer);
     }
 
-    void touch() {
+    inline void touch() {
         std::stack<uint8_t*> temp;
 
         buffers.consume_all([&temp](uint8_t* ptr) {
@@ -1108,7 +1107,7 @@ public:
     }
 
 private:
-    inline void allocateRegions(uint32_t factor) {
+    void allocateRegions() {
         // allocate new regions
         size_t pageCount = (bufferCount * bufferSize + hugePageSize - 1) / hugePageSize;
         pageCount = pageCount * factor;
@@ -1126,9 +1125,11 @@ private:
                 buffers.push(static_cast<uint8_t*>(region) + j);
             }
         }
+        
+        factor = factor << 1;
     }
     
-    inline void freeRegions() {
+    void freeRegions() {
         // free the regions
         for (auto region : regions) {
             if (munmap(region, hugePageSize) == -1) {
