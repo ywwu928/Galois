@@ -69,6 +69,7 @@ protected:
     unsigned wbegin, wend;
     std::atomic<int> done;
     std::atomic<int> fastRelease;
+    std::atomic<bool> startDedicated = false;
     ThreadTopoInfo topo;
 
     void wakeup(bool fastmode) {
@@ -166,9 +167,7 @@ public:
   
   //! wait until all dedicated threads are finished
   void waitDedicated() {
-      while (reserved != 0) {
-          asmPause();
-      }
+      while (reserved != 0) {}
   }
 
   // experimental: busy wait for work

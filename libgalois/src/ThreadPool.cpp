@@ -137,6 +137,10 @@ void ThreadPool::threadLoop(unsigned tid) {
   bool fastmode = false;
   auto& me      = my_box;
   do {
+    if (me.startDedicated) {
+        me.startDedicated = false;
+        --reserved;
+    }
     me.wait(fastmode);
     cascade(fastmode);
     try {
@@ -146,9 +150,8 @@ void ThreadPool::threadLoop(unsigned tid) {
     } catch (const fastmode_ty& fm) {
       fastmode = fm.mode;
     } catch (const dedicated_ty dt) {
-      me.done = 1;
+      me.startDedicated = true;
       dt.fn();
-      --reserved;
     } catch (const std::exception& exc) {
       // catch anything thrown within try block that derives from std::exception
       std::cerr << exc.what();
@@ -244,11 +247,8 @@ void ThreadPool::runDedicated(std::function<void(void)>& f) {
   auto child    = signals[getMaxThreads() - reserved];
   child->wbegin = 0;
   child->wend   = 0;
-  child->done   = 0;
   child->wakeup(masterFastmode);
-  while (!child->done) {
-    asmPause();
-  }
+  while (!child->startDedicated) {}
   work = nullptr;
 }
 
