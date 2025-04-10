@@ -207,11 +207,7 @@ struct PageRank {
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
-      //std::string print_process_str("PrintProcess_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_print_process(print_process_str.c_str(), REGION_NAME_RUN.c_str());
-      //StatTimer_print_process.start();
-      //galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 0\n");
-      //StatTimer_print_process.stop();
+      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 0\n");
 #endif
 
       StatTimer_total.start();
@@ -246,7 +242,6 @@ struct PageRank {
       galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                      galois::no_stats(), galois::steal(),
                      galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 1\n");
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
@@ -255,13 +250,11 @@ struct PageRank {
       syncSubstrate->net_flush();
 
       galois::substrate::getThreadPool().waitDedicated();
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 1.5\n");
 
       StatTimer_sync_buf.start();
       syncSubstrate->sync_update_buf<Reduce_add_residual>(0);
       StatTimer_sync_buf.stop();
 #endif
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 2\n");
 
       StatTimer_comm.start();
 #ifdef GALOIS_NO_MIRRORING     
@@ -269,7 +262,6 @@ struct PageRank {
 #else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>("PageRank");
 #endif
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, " Point 3\n");
       StatTimer_comm.stop();
       
       syncSubstrate->reset_termination();
