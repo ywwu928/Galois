@@ -50,10 +50,6 @@ cll::opt<uint32_t> recvBufCountExp("recvBufCountExp",
 namespace galois::runtime {
 
 uint32_t evilPhase = 4; // 0, 1, 2 and 3 is reserved
-uint32_t remoteWorkTag = 0; // 0 is reserved for remote work
-uint32_t workTerminationTag = 1; // 1 is reserved for remote work termination message
-uint32_t communicationTag = 2; // 2 is reserved for communication phase
-uint32_t dataTerminationTag = 3; // 3 is reserved for remote data termination message
 
 uint32_t NetworkInterface::ID  = 0;
 uint32_t NetworkInterface::Num = 1;
