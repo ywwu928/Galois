@@ -1961,7 +1961,6 @@ public:
         galois::on_each(
             [&](unsigned, unsigned) {
                 bool success;
-                bool fullFlag;
                 uint8_t* buf;
                 size_t bufLen;
 
@@ -1971,10 +1970,10 @@ public:
                 ValTy val;
 
                 while (!terminateFlag) {
-                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+                    success = net.receiveRemoteWork(terminateFlag, buf, bufLen);
 
                     if (success) { // received message
-                        if (fullFlag) {
+                        if (bufLen == net.aggMsgSize) {
                             msgCount = net.workCount;
                         }
                         else {
