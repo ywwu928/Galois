@@ -103,8 +103,7 @@ void NetworkInterface::finalizeMPI() {
 }
 
 RecvBuffer NetworkInterface::recvBufferData::pop() {
-    int rv = MPI_Wait(frontMsg.req, MPI_STATUS_IGNORE);
-    handleError(rv);
+    MPI_Wait(frontMsg.req, MPI_STATUS_IGNORE);
     net->reqAllocator.deallocate((uint8_t*)(frontMsg.req));
 
     frontTag = ~0U;
@@ -209,8 +208,7 @@ void NetworkInterface::sendTrackComplete() {
             int flag = 0;
             MPI_Status status;
             auto& f = sendInflight[t].front();
-            int rv  = MPI_Test(&f.req, &flag, &status);
-            handleError(rv);
+            MPI_Test(&f.req, &flag, &status);
             if (flag) {
                 // return buffer back to pool
                 sendAllocators[t].deallocate(f.buf);
@@ -224,24 +222,21 @@ void NetworkInterface::sendTrackComplete() {
 void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
     __builtin_prefetch(buf, 0, 3);
     MPI_Request req;
-    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
-    handleError(rv);
+    MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
 }
 
 void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
     __builtin_prefetch(buf, 0, 3);
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
-    handleError(rv);
+    MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
 void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
     __builtin_prefetch(buf, 0, 3);
     sendInflight[tid].emplace_back(buf);
     auto& f = sendInflight[tid].back();
-    int rv = MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
-    handleError(rv);
+    MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
 // FIXME: Does synchronous recieves overly halt forward progress?
@@ -249,12 +244,10 @@ void NetworkInterface::recvProbe() {
     int flag = 0;
     MPI_Status status;
     // check for new messages
-    int rv = MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
-    handleError(rv);
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
     if (flag) {
         int nbytes;
-        rv = MPI_Get_count(&status, MPI_BYTE, &nbytes);
-        handleError(rv);
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
 
         if (status.MPI_TAG == (int)remoteWorkTag) {
             // allocate new buffer
@@ -263,8 +256,7 @@ void NetworkInterface::recvProbe() {
             __builtin_prefetch(buf, 1, 3);
 
             MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
-            rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
-            handleError(rv);
+            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
 
             if ((uint64_t)nbytes == aggMsgSize) {
                 recvRemoteWorkFull.enqueue(ptokFull, std::make_pair(req, buf));
@@ -276,29 +268,25 @@ void NetworkInterface::recvProbe() {
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
             MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
-            rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
-            handleError(rv);
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
             recvCommunication.enqueue(req);
         }
         else if (status.MPI_TAG == (int)workTerminationTag) {
             MPI_Request req;
-            rv = MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            handleError(rv);
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
             MPI_Request_free(&req);
             hostWorkTermination[status.MPI_SOURCE] = true;
         }
         else if (status.MPI_TAG == (int)dataTerminationTag) {
             MPI_Request req;
-            rv = MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            handleError(rv);
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
             MPI_Request_free(&req);
             hostDataTermination[status.MPI_SOURCE] = true;
         }
         else {
             MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
             vTy data(nbytes);
-            rv = MPI_Irecv(data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
-            handleError(rv);
+            MPI_Irecv(data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
             recvData[status.MPI_SOURCE].add(req, status.MPI_TAG, std::move(data));
         }
     }
@@ -593,8 +581,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
         success = recvRemoteWorkFull.try_dequeue_from_producer(ptokFull, fullMessage);
         if (success) {
             req = fullMessage.first;
-            int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
-            handleError(rv);
+            MPI_Wait(req, MPI_STATUS_IGNORE);
             reqAllocator.deallocate((uint8_t*)req);
 
             work = fullMessage.second;
@@ -606,8 +593,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
         success = recvRemoteWorkPartial.try_dequeue_from_producer(ptokPartial, partialMessage);
         if (success) {
             req = std::get<0>(partialMessage);
-            int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
-            handleError(rv);
+            MPI_Wait(req, MPI_STATUS_IGNORE);
             reqAllocator.deallocate((uint8_t*)req);
 
             work = std::get<1>(partialMessage);
@@ -632,8 +618,7 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     } while(!success);
 
     MPI_Status status;
-    int rv = MPI_Wait(req, &status);
-    handleError(rv);
+    MPI_Wait(req, &status);
     reqAllocator.deallocate((uint8_t*)req);
 
     host = status.MPI_SOURCE;
