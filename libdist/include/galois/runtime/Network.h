@@ -169,8 +169,10 @@ private:
   
   moodycamel::ReaderWriterQueue<MPI_Request*> recvCommunication;
 
-  moodycamel::ProducerToken ptok;
-  moodycamel::ConcurrentQueue<std::tuple<MPI_Request*, uint8_t*, size_t>> recvRemoteWork;
+  moodycamel::ProducerToken ptokFull;
+  moodycamel::ConcurrentQueue<std::pair<MPI_Request*, uint8_t*>> recvRemoteWorkFull;
+  moodycamel::ProducerToken ptokPartial;
+  moodycamel::ConcurrentQueue<std::tuple<MPI_Request*, uint8_t*, size_t>> recvRemoteWorkPartial;
 
   /**
    * Single producer single consumer with multiple tags
@@ -336,7 +338,7 @@ public:
   std::optional<std::pair<uint32_t, RecvBuffer>>
   receiveTagged(bool& terminateFlag, uint32_t tag, int type = 0);
 
-  bool receiveRemoteWork(std::atomic<bool>& terminateFlag, uint8_t*& work, size_t& workLen);
+  bool receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
   
   void receiveComm(uint32_t& host, uint8_t*& work);
   

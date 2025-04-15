@@ -257,7 +257,13 @@ void NetworkInterface::recvProbe() {
 
             MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
             MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
-            recvRemoteWork.enqueue(ptok, std::make_tuple(req, buf, nbytes));
+
+            if ((uint64_t)nbytes == aggMsgSize) {
+                recvRemoteWorkFull.enqueue(ptokFull, std::make_pair(req, buf));
+            }
+            else { 
+                recvRemoteWorkPartial.enqueue(ptokPartial, std::make_tuple(req, buf, nbytes));
+            }
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
@@ -383,7 +389,8 @@ NetworkInterface::NetworkInterface()
       aggMsgSize(workSize * workCount),
       sendBufCount(1 << sendBufCountExp),
       recvBufCount(1 << recvBufCountExp),
-      ptok(recvRemoteWork) {
+      ptokFull(recvRemoteWorkFull),
+      ptokPartial(recvRemoteWorkPartial) {
     ready               = 0;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
@@ -565,20 +572,34 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
     return std::optional<std::pair<uint32_t, RecvBuffer>>();
 }
 
-bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, uint8_t*& work, size_t& workLen) {
-    std::tuple<MPI_Request*, uint8_t*, size_t> message;
+bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
+    std::pair<MPI_Request*, uint8_t*> fullMessage;
+    std::tuple<MPI_Request*, uint8_t*, size_t> partialMessage;
     MPI_Request* req;
     bool success;
     while(true) {
-        success = recvRemoteWork.try_dequeue_from_producer(ptok, message);
+        success = recvRemoteWorkFull.try_dequeue_from_producer(ptokFull, fullMessage);
         if (success) {
-            req = std::get<0>(message);
+            req = fullMessage.first;
             MPI_Wait(req, MPI_STATUS_IGNORE);
             reqAllocator.deallocate((uint8_t*)req);
 
-            work = std::get<1>(message);
+            work = fullMessage.second;
             __builtin_prefetch(work, 0, 3);
-            workLen = std::get<2>(message);
+            fullFlag = true;
+            return true;
+        }
+        
+        success = recvRemoteWorkPartial.try_dequeue_from_producer(ptokPartial, partialMessage);
+        if (success) {
+            req = std::get<0>(partialMessage);
+            MPI_Wait(req, MPI_STATUS_IGNORE);
+            reqAllocator.deallocate((uint8_t*)req);
+
+            work = std::get<1>(partialMessage);
+            __builtin_prefetch(work, 0, 3);
+            workLen = std::get<2>(partialMessage);
+            fullFlag = false;
             return true;;
         }
 
