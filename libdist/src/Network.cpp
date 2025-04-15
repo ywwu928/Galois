@@ -103,29 +103,66 @@ void NetworkInterface::finalizeMPI() {
 }
 
 RecvBuffer NetworkInterface::recvBufferData::pop() {
-    int rv = MPI_Wait(frontMsg.req, MPI_STATUS_IGNORE);
-    handleError(rv);
-    free(frontMsg.req);
-
     frontTag = ~0U;
 
     return RecvBuffer(std::move(frontMsg.data));
 }
 
 // Worker thread interface
-void NetworkInterface::recvBufferData::add(MPI_Request* req, uint32_t tag, vTy&& vec) {
-    messages.enqueue(recvMessage(req, tag, std::move(vec)));
+void NetworkInterface::recvBufferData::add(uint32_t tag, vTy&& vec) {
+    messages.enqueue(recvMessage(tag, std::move(vec)));
 }
       
 bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
     if (frontTag == ~0U) {
-        bool success = messages.try_dequeue(frontMsg);
-        if (success) {
-            frontTag = frontMsg.tag;
+        if (messages.size_approx() != 0) {
+            bool success = messages.try_dequeue(frontMsg);
+            if (success) {
+                frontTag = frontMsg.tag;
+            }
         }
     }
   
     return frontTag == tag;
+}
+
+bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_t*& work) {
+    std::pair<uint32_t, uint8_t*> message;
+    bool success = messages.try_dequeue(message);
+    host = message.first;
+    work = message.second;
+
+    return success;
+}
+
+// Worker thread interface
+void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work) {
+    messages.enqueue(std::make_pair(host, work));
+}
+
+bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
+    bool success = fullMessages.try_dequeue_from_producer(ptokFull, work);
+    __builtin_prefetch(work, 0, 3);
+    return success;
+}
+
+bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
+    std::pair<uint8_t*, size_t> message;
+    bool success = partialMessages.try_dequeue_from_producer(ptokPartial, message);
+    work = message.first;
+    workLen = message.second;
+    __builtin_prefetch(work, 0, 3);
+
+    return success;
+}
+
+// Worker thread interface
+void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
+    fullMessages.enqueue(ptokFull, work);
+}
+
+void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t workLen) {
+    partialMessages.enqueue(ptokPartial, std::make_pair(work, workLen));
 }
 
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
@@ -262,44 +299,55 @@ void NetworkInterface::recvProbe() {
             buf = recvAllocator.allocate();
             __builtin_prefetch(buf, 1, 3);
 
-            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
-            rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
+            auto& m = recvInflight.back();
+            rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
-
-            if ((uint64_t)nbytes == aggMsgSize) {
-                recvRemoteWorkFull.enqueue(ptokFull, std::make_pair(req, buf));
-            }
-            else { 
-                recvRemoteWorkPartial.enqueue(ptokPartial, std::make_tuple(req, buf, nbytes));
-            }
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
-            rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
+            auto& m = recvInflight.back();
+            rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
-            recvCommunication.enqueue(req);
-        }
-        else if (status.MPI_TAG == (int)workTerminationTag) {
-            MPI_Request req;
-            rv = MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            handleError(rv);
-            MPI_Request_free(&req);
-            hostWorkTermination[status.MPI_SOURCE] = true;
-        }
-        else if (status.MPI_TAG == (int)dataTerminationTag) {
-            MPI_Request req;
-            rv = MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            handleError(rv);
-            MPI_Request_free(&req);
-            hostDataTermination[status.MPI_SOURCE] = true;
         }
         else {
-            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
-            vTy data(nbytes);
-            rv = MPI_Irecv(data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+            auto& m = recvInflight.back();
+            rv = MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
             handleError(rv);
-            recvData[status.MPI_SOURCE].add(req, status.MPI_TAG, std::move(data));
+        }
+    }
+
+    // complete messages
+    if (!recvInflight.empty()) {
+        auto& m  = recvInflight.front();
+        int flag = 0;
+        rv       = MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+        handleError(rv);
+        if (flag) {
+            if (m.tag == workTerminationTag) {
+                hostWorkTermination[m.host] = true;
+            }
+            else if (m.tag == remoteWorkTag) {
+                if (m.bufLen == aggMsgSize) {
+                    recvRemoteWork.addFull(m.buf);
+                }
+                else {
+                    recvRemoteWork.addPartial(m.buf, m.bufLen);
+                }
+            }
+            else if (m.tag == communicationTag) {
+                recvCommunication.add(m.host, m.buf);
+            }
+            else if (m.tag == dataTerminationTag) {
+                hostDataTermination[m.host] = true;
+            }
+            else {
+                recvData[m.host].add(m.tag, std::move(m.data));
+            }
+            
+            recvInflight.pop_front();
         }
     }
 }
@@ -367,7 +415,6 @@ void NetworkInterface::workerThread() {
                         size_t workLen;
                         srw.popPartial(work, workLen);
                         sendPartialTrack(t, h, work, workLen);
-                        hostWorkEmpty = false;
                     }
                 }
             }
@@ -400,9 +447,7 @@ NetworkInterface::NetworkInterface()
     : workCount(1 << workCountExp),
       aggMsgSize(workSize * workCount),
       sendBufCount(1 << sendBufCountExp),
-      recvBufCount(1 << recvBufCountExp),
-      ptokFull(recvRemoteWorkFull),
-      ptokPartial(recvRemoteWorkPartial) {
+      recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
     worker = std::thread(&NetworkInterface::workerThread, this);
     numT = galois::getActiveThreads();
@@ -581,34 +626,16 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
 }
 
 bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen) {
-    std::pair<MPI_Request*, uint8_t*> fullMessage;
-    std::tuple<MPI_Request*, uint8_t*, size_t> partialMessage;
-    MPI_Request* req;
     bool success;
     while(true) {
-        success = recvRemoteWorkFull.try_dequeue_from_producer(ptokFull, fullMessage);
+        success = recvRemoteWork.tryPopFullMsg(work);
         if (success) {
-            req = fullMessage.first;
-            int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
-            handleError(rv);
-            free(req);
-
-            work = fullMessage.second;
-            __builtin_prefetch(work, 0, 3);
             fullFlag = true;
             return true;
         }
         
-        success = recvRemoteWorkPartial.try_dequeue_from_producer(ptokPartial, partialMessage);
+        success = recvRemoteWork.tryPopPartialMsg(work, workLen);
         if (success) {
-            req = std::get<0>(partialMessage);
-            int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
-            handleError(rv);
-            free(req);
-
-            work = std::get<1>(partialMessage);
-            __builtin_prefetch(work, 0, 3);
-            workLen = std::get<2>(partialMessage);
             fullFlag = false;
             return true;;
         }
@@ -621,20 +648,10 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
 }
 
 void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
-    MPI_Request* req;
     bool success;
     do {
-        success = recvCommunication.try_dequeue(req);
+        success = recvCommunication.tryPopMsg(host, work);
     } while(!success);
-
-    MPI_Status status;
-    int rv = MPI_Wait(req, &status);
-    handleError(rv);
-    free(req);
-
-    host = status.MPI_SOURCE;
-    work = recvCommBuffer[host];
-    __builtin_prefetch(work, 0, 3);
 }
 
 void NetworkInterface::flushRemoteWork() {

@@ -129,7 +129,6 @@ private:
   }
 
   struct recvMessage {
-      MPI_Request* req;
       uint32_t tag;  //!< tag on message indicating distinct communication phases
       vTy data;      //!< data portion of message
 
@@ -138,9 +137,12 @@ private:
       //! @param h Host to send message to
       //! @param t Tag to associate with message
       //! @param d Data to save in message
-      recvMessage(MPI_Request* _req, uint32_t _tag, vTy&& _data) : req(_req), tag(_tag), data(std::move(_data)) {}
+      recvMessage(uint32_t _tag, vTy&& _data) : tag(_tag), data(std::move(_data)) {}
   };
 
+  /**
+   * Receive buffers for the buffered network interface
+   */
   class recvBufferData {
       // single producer single consumer
       moodycamel::ReaderWriterQueue<recvMessage> messages;
@@ -153,19 +155,51 @@ private:
 
       RecvBuffer pop();
 
-      void add(MPI_Request* req, uint32_t tag, vTy&& vec);
+      void add(uint32_t tag, vTy&& vec);
       
       bool hasMsg(uint32_t tag);
   }; // end recv buffer class
 
   std::vector<recvBufferData> recvData;
   
-  moodycamel::ReaderWriterQueue<MPI_Request*> recvCommunication;
+  /**
+   * Receive buffers for the buffered network interface
+   */
+  class recvBufferCommunication {
+      // single producer single consumer
+      moodycamel::ReaderWriterQueue<std::pair<uint32_t, uint8_t*>> messages;
 
-  moodycamel::ProducerToken ptokFull;
-  moodycamel::ConcurrentQueue<std::pair<MPI_Request*, uint8_t*>> recvRemoteWorkFull;
-  moodycamel::ProducerToken ptokPartial;
-  moodycamel::ConcurrentQueue<std::tuple<MPI_Request*, uint8_t*, size_t>> recvRemoteWorkPartial;
+  public:
+      recvBufferCommunication() {}
+
+      bool tryPopMsg(uint32_t& host, uint8_t*& work);
+      
+      void add(uint32_t host, uint8_t* work);
+  }; // end recv buffer class
+
+  recvBufferCommunication recvCommunication;
+
+  /**
+   * Receive buffers for the buffered network interface
+   */
+  class recvBufferRemoteWork {
+      // single producer multiple consumer
+      moodycamel::ConcurrentQueue<uint8_t*> fullMessages;
+      moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> partialMessages;
+
+      moodycamel::ProducerToken ptokFull, ptokPartial;
+
+  public:
+      recvBufferRemoteWork() : ptokFull(fullMessages), ptokPartial(partialMessages) {}
+
+      bool tryPopFullMsg(uint8_t*& work);
+      bool tryPopPartialMsg(uint8_t*& work, size_t& workLen);
+
+      void addFull(uint8_t* work);
+      void addPartial(uint8_t* work, size_t workLen);
+  }; // end recv buffer class
+
+  recvBufferRemoteWork recvRemoteWork;
 
   /**
    * Single producer single consumer with multiple tags
@@ -250,6 +284,23 @@ private:
   void sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf);
   
   void sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
+
+  /**
+   * Message type to recv in this network IO layer.
+   */
+  struct mpiMessageRecv {
+      uint32_t host;
+      uint32_t tag;
+      vTy data;
+      uint8_t* buf;
+      size_t bufLen;
+      MPI_Request req;
+        
+      mpiMessageRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
+      mpiMessageRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
+  };
+  
+  std::deque<mpiMessageRecv> recvInflight;
   
   void recvProbe();
   
