@@ -105,7 +105,7 @@ void NetworkInterface::finalizeMPI() {
 RecvBuffer NetworkInterface::recvBufferData::pop() {
     int rv = MPI_Wait(frontMsg.req, MPI_STATUS_IGNORE);
     handleError(rv);
-    net->reqAllocator.deallocate((uint8_t*)(frontMsg.req));
+    free(frontMsg.req);
 
     frontTag = ~0U;
 
@@ -262,7 +262,7 @@ void NetworkInterface::recvProbe() {
             buf = recvAllocator.allocate();
             __builtin_prefetch(buf, 1, 3);
 
-            MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
+            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
             rv = MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
             handleError(rv);
 
@@ -275,7 +275,7 @@ void NetworkInterface::recvProbe() {
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-            MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
+            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
             rv = MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
             handleError(rv);
             recvCommunication.enqueue(req);
@@ -295,7 +295,7 @@ void NetworkInterface::recvProbe() {
             hostDataTermination[status.MPI_SOURCE] = true;
         }
         else {
-            MPI_Request* req = (MPI_Request*)(reqAllocator.allocate());
+            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
             vTy data(nbytes);
             rv = MPI_Irecv(data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
             handleError(rv);
@@ -411,13 +411,9 @@ NetworkInterface::NetworkInterface()
         sendAllocators[t].setup(aggMsgSize, sendBufCount);
     }
     recvAllocator.setup(aggMsgSize, recvBufCount);
-    reqAllocator.setup(sizeof(MPI_Request), recvBufCount);
     while (ready != 1) {};
 
     recvData = decltype(recvData)(Num);
-    for (unsigned i=0; i<Num; i++) {
-        recvData[i].setNet(this);
-    }
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
@@ -595,7 +591,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
             req = fullMessage.first;
             int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
             handleError(rv);
-            reqAllocator.deallocate((uint8_t*)req);
+            free(req);
 
             work = fullMessage.second;
             __builtin_prefetch(work, 0, 3);
@@ -608,7 +604,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
             req = std::get<0>(partialMessage);
             int rv = MPI_Wait(req, MPI_STATUS_IGNORE);
             handleError(rv);
-            reqAllocator.deallocate((uint8_t*)req);
+            free(req);
 
             work = std::get<1>(partialMessage);
             __builtin_prefetch(work, 0, 3);
@@ -634,7 +630,7 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     MPI_Status status;
     int rv = MPI_Wait(req, &status);
     handleError(rv);
-    reqAllocator.deallocate((uint8_t*)req);
+    free(req);
 
     host = status.MPI_SOURCE;
     work = recvCommBuffer[host];

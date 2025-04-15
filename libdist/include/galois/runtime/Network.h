@@ -87,7 +87,6 @@ public:
 private:
   std::vector<FixedSizeBufferAllocator> sendAllocators;
   FixedSizeBufferAllocator recvAllocator;
-  FixedSizeBufferAllocator reqAllocator;
 
   std::vector<uint8_t*> recvCommBuffer;
 
@@ -143,8 +142,6 @@ private:
   };
 
   class recvBufferData {
-      NetworkInterface* net;
-      
       // single producer single consumer
       moodycamel::ReaderWriterQueue<recvMessage> messages;
 
@@ -152,11 +149,7 @@ private:
       recvMessage frontMsg;
 
   public:
-      recvBufferData() : net(nullptr), frontTag(~0U) {}
-      
-      inline void setNet(NetworkInterface* _net) {
-          net = _net;
-      }
+      recvBufferData() : frontTag(~0U) {}
 
       RecvBuffer pop();
 
