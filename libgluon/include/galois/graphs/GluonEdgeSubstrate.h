@@ -270,10 +270,6 @@ private:
     }
 
     sendInfoToHost();
-
-    // do not track memory usage of partitioning
-    auto& net = galois::runtime::getSystemNetworkInterface();
-    net.resetMemUsage();
   }
 
   /**
@@ -1665,11 +1661,7 @@ private:
               size[x], MPI_BYTE, window[id]);
     }
 
-    auto& net = galois::runtime::getSystemNetworkInterface();
-    net.incrementMemUsage(send_buffers_size);
-
     MPI_Win_complete(window[id]);
-    net.decrementMemUsage(send_buffers_size);
 
     if (BitsetFnTy::is_valid() && syncType == syncBroadcast) {
       reset_bitset(&BitsetFnTy::reset_range);
@@ -2098,8 +2090,6 @@ private:
 
         MPI_Info_free(&info);
       }
-      auto& net = galois::runtime::getSystemNetworkInterface();
-      net.incrementMemUsage(recv_buffers_size);
 
       for (unsigned h = 1; h < numHosts; ++h) {
         unsigned x = (id + numHosts - h) % numHosts;

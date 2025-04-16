@@ -68,8 +68,7 @@ public:
     while (received < net.Num) {
       decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
       do {
-        net.handleReceives(); // flush all receives from net.sendMsg() or
-                              // net.sendSimple()
+        net.handleReceives(); // flush all receives
         p = net.receiveTagged(galois::runtime::evilPhase);
       } while (!p);
       assert(p->first != net.ID);
