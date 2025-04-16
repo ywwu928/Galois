@@ -141,14 +141,14 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
-    bool success = fullMessages.try_dequeue(work);
+    bool success = fullMessages.try_dequeue_from_producer(ptokFull, work);
     __builtin_prefetch(work, 0, 3);
     return success;
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = partialMessages.try_dequeue(message);
+    bool success = partialMessages.try_dequeue_from_producer(ptokPartial, message);
     if (success) {
         work = message.first;
         workLen = message.second;
@@ -160,11 +160,11 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, si
 
 // Worker thread interface
 void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
-    fullMessages.enqueue(work);
+    fullMessages.enqueue(ptokFull, work);
 }
 
 void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t workLen) {
-    partialMessages.enqueue(std::make_pair(work, workLen));
+    partialMessages.enqueue(ptokPartial, std::make_pair(work, workLen));
 }
 
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {

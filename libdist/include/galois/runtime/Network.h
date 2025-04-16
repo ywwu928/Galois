@@ -187,8 +187,10 @@ private:
       moodycamel::ConcurrentQueue<uint8_t*> fullMessages;
       moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> partialMessages;
 
+      moodycamel::ProducerToken ptokFull, ptokPartial;
+
   public:
-      recvBufferRemoteWork() {}
+      recvBufferRemoteWork() : ptokFull(fullMessages), ptokPartial(partialMessages) {}
 
       bool tryPopFullMsg(uint8_t*& work);
       bool tryPopPartialMsg(uint8_t*& work, size_t& workLen);
