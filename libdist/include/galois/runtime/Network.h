@@ -314,7 +314,7 @@ private:
   uint32_t hostWorkTerminationBase;
   std::atomic<uint32_t> hostWorkTerminationCount;
   
-  std::vector<std::atomic<bool>> hostDataTermination;
+  std::atomic<uint32_t> hostDataTerminationCount;
 
 public:
   //! This machine's host ID
@@ -394,12 +394,8 @@ public:
   void excludeHostWorkTermination();
   
   void resetWorkTermination();
-
-  bool checkWorkTermination();
   
   void resetDataTermination();
-
-  bool checkDataTermination();
   
   void signalDataTermination(uint32_t dest);
 

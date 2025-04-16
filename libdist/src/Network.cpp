@@ -335,7 +335,7 @@ void NetworkInterface::recvProbe() {
                     break;
                 }
                 case dataTerminationTag: {
-                    hostDataTermination[m.host] = true;
+                    hostDataTerminationCount.fetch_add(1);
                     break;
                 }
                 default: {
@@ -481,15 +481,7 @@ NetworkInterface::NetworkInterface()
             sendWorkTerminationValid[i] = true;
         }
     }
-    hostDataTermination = decltype(hostDataTermination)(Num);
-    for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            hostDataTermination[i] = true;
-        }
-        else {
-            hostDataTermination[i] = false;
-        }
-    }
+    hostDataTerminationCount = 1;
     sendInflight = decltype(sendInflight)(numT);
     ready    = 2;
 }
@@ -611,7 +603,7 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
         }
     }
   
-    if (checkDataTermination()) {
+    if (hostDataTerminationCount == Num) {
         terminateFlag = true;
     }
 
@@ -675,21 +667,7 @@ void NetworkInterface::resetWorkTermination() {
 }
 
 void NetworkInterface::resetDataTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
-        }
-        hostDataTermination[i] = false;
-    }
-}
-
-bool NetworkInterface::checkDataTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (hostDataTermination[i] == false) {
-            return false;
-        }
-    }
-    return true;
+    hostDataTerminationCount = 1;
 }
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {
