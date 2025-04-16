@@ -311,10 +311,10 @@ private:
   
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  std::vector<std::atomic<bool>> hostWorkTermination;
-  std::vector<bool> hostWorkTerminationValid;
+  uint32_t hostWorkTerminationBase;
+  std::atomic<uint32_t> hostWorkTerminationCount;
   
-  std::vector<std::atomic<bool>> hostDataTermination;
+  std::atomic<uint32_t> hostDataTerminationCount;
 
 public:
   //! This machine's host ID
@@ -393,15 +393,11 @@ public:
 
   void excludeSendWorkTermination(uint32_t host);
 
-  void excludeHostWorkTermination(uint32_t host);
+  void excludeHostWorkTermination();
   
   void resetWorkTermination();
-
-  bool checkWorkTermination();
   
   void resetDataTermination();
-
-  bool checkDataTermination();
   
   void signalDataTermination(uint32_t dest);
 

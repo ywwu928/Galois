@@ -497,7 +497,7 @@ private:
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, phantom_master_nodes_str, phantomMasterNodes[x].size());
       if (phantomMasterNodes[x].size() == 0) {
-        net.excludeHostWorkTermination(x);
+        net.excludeHostWorkTermination();
       }
     }
 
