@@ -276,26 +276,30 @@ void NetworkInterface::recvProbe() {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
 
-        if (status.MPI_TAG == (int)remoteWorkTag) {
-            // allocate new buffer
-            uint8_t* buf;
-            buf = recvAllocator.allocate();
-            __builtin_prefetch(buf, 1, 3);
+        switch((uint32_t)status.MPI_TAG) {
+            case remoteWorkTag: {
+                // allocate new buffer
+                uint8_t* buf;
+                buf = recvAllocator.allocate();
+                __builtin_prefetch(buf, 1, 3);
 
-            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
-            auto& m = recvInflight.back();
-            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
-        }
-        else if (status.MPI_TAG == (int)communicationTag) {
-            __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
-            auto& m = recvInflight.back();
-            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
-        }
-        else {
-            recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-            auto& m = recvInflight.back();
-            MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
+                auto& m = recvInflight.back();
+                MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+                break;
+            }
+            case communicationTag: {
+                __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
+                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
+                auto& m = recvInflight.back();
+                MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+                break;
+            }
+            default: {
+                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+                auto& m = recvInflight.back();
+                MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+            }
         }
     }
 
@@ -305,25 +309,31 @@ void NetworkInterface::recvProbe() {
         int flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
-            if (m.tag == workTerminationTag) {
-                hostWorkTermination[m.host] = true;
-            }
-            else if (m.tag == remoteWorkTag) {
-                if (m.bufLen == aggMsgSize) {
-                    recvRemoteWork.addFull(m.buf);
+            switch(m.tag) {
+                case workTerminationTag: {
+                    hostWorkTermination[m.host] = true;
+                    break;
                 }
-                else {
-                    recvRemoteWork.addPartial(m.buf, m.bufLen);
+                case remoteWorkTag: {
+                    if (m.bufLen == aggMsgSize) {
+                        recvRemoteWork.addFull(m.buf);
+                    }
+                    else {
+                        recvRemoteWork.addPartial(m.buf, m.bufLen);
+                    }
+                    break;
                 }
-            }
-            else if (m.tag == communicationTag) {
-                recvCommunication.add(m.host, m.buf);
-            }
-            else if (m.tag == dataTerminationTag) {
-                hostDataTermination[m.host] = true;
-            }
-            else {
-                recvData[m.host].add(m.tag, std::move(m.data));
+                case communicationTag: {
+                    recvCommunication.add(m.host, m.buf);
+                    break;
+                }
+                case dataTerminationTag: {
+                    hostDataTermination[m.host] = true;
+                    break;
+                }
+                default: {
+                    recvData[m.host].add(m.tag, std::move(m.data));
+                }
             }
             
             recvInflight.pop_front();
