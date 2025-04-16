@@ -311,8 +311,8 @@ private:
   
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  std::vector<std::atomic<bool>> hostWorkTermination;
-  std::vector<bool> hostWorkTerminationValid;
+  uint32_t hostWorkTerminationBase;
+  std::atomic<uint32_t> hostWorkTerminationCount;
   
   std::vector<std::atomic<bool>> hostDataTermination;
 
@@ -391,7 +391,7 @@ public:
   
   void excludeSendWorkTermination(uint32_t host);
   
-  void excludeHostWorkTermination(uint32_t host);
+  void excludeHostWorkTermination();
   
   void resetWorkTermination();
 

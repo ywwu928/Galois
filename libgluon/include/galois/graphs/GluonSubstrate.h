@@ -282,7 +282,7 @@ private:
           galois::no_stats());
 
       if (phantomMasterNodes[h].size() == 0) {
-          net.excludeHostWorkTermination(h);
+          net.excludeHostWorkTermination();
       }
     }
     
@@ -1970,7 +1970,7 @@ public:
                 uint32_t lid;
                 ValTy val;
 
-                while (!terminateFlag) {
+                while(!terminateFlag) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
                     if (success) { // received message

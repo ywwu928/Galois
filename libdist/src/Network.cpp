@@ -318,7 +318,7 @@ void NetworkInterface::recvProbe() {
         if (flag) {
             switch(m.tag) {
                 case workTerminationTag: {
-                    hostWorkTermination[m.host] = true;
+                    hostWorkTerminationCount.fetch_add(1);
                     break;
                 }
                 case remoteWorkTag: {
@@ -470,19 +470,15 @@ NetworkInterface::NetworkInterface()
     }
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
-    hostWorkTermination = decltype(hostWorkTermination)(Num);
-    hostWorkTerminationValid = decltype(hostWorkTerminationValid)(Num);
+    hostWorkTerminationBase = 0;
+    hostWorkTerminationCount = 0;
     for (unsigned i=0; i<Num; i++) {
         sendWorkTermination[i] = false;
         if (i == ID) {
             sendWorkTerminationValid[i] = false;
-            hostWorkTermination[i] = true;
-            hostWorkTerminationValid[i] = false;
         }
         else {
             sendWorkTerminationValid[i] = true;
-            hostWorkTermination[i] = false;
-            hostWorkTerminationValid[i] = true;
         }
     }
     hostDataTermination = decltype(hostDataTermination)(Num);
@@ -637,7 +633,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
             return true;;
         }
 
-        if (checkWorkTermination()) {
+        if (hostWorkTerminationCount == Num) {
             terminateFlag = true;
             return false;
         }
@@ -669,26 +665,13 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
     sendWorkTerminationValid[host] = false;
 }
   
-void NetworkInterface::excludeHostWorkTermination(uint32_t host) {
-    hostWorkTerminationValid[host] = false;
-    hostWorkTermination[host] = true;
+void NetworkInterface::excludeHostWorkTermination() {
+    hostWorkTerminationBase += 1;
+    hostWorkTerminationCount += 1;
 }
   
 void NetworkInterface::resetWorkTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (hostWorkTerminationValid[i]) {
-            hostWorkTermination[i] = false;
-        }
-    }
-}
-
-bool NetworkInterface::checkWorkTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (!hostWorkTermination[i]) {
-            return false;
-        }
-    }
-    return true;
+    hostWorkTerminationCount = hostWorkTerminationBase;
 }
 
 void NetworkInterface::resetDataTermination() {
