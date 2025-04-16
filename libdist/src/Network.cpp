@@ -171,7 +171,7 @@ bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t
     std::tuple<uint32_t, uint8_t*, size_t> message;
     bool success = messages.try_dequeue(message);
     if (success) {
-        flush -= 1;
+        flush.fetch_sub(1);
         tag = std::get<0>(message);
         data = std::get<1>(message);
         dataLen = std::get<2>(message);
@@ -182,7 +182,7 @@ bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t dataLen) {
     messages.enqueue(std::make_tuple(tag, data, dataLen));
-    flush += 1;
+    flush.fetch_add(1);
 }
 
 void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
@@ -203,7 +203,7 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         partialMessage = std::make_pair(buf, bufLen);
-        flush += 1;
+        flush.fetch_add(1);
         partialFlag = true;
 
         // allocate new buffer
@@ -217,13 +217,13 @@ void NetworkInterface::sendBufferRemoteWork::popPartial(uint8_t*& work, size_t& 
     work = partialMessage.first;
     workLen = partialMessage.second;
     partialFlag = false;
-    flush -= 1;
+    flush.fetch_sub(1);
 }
 
 bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
     bool success = messages.try_dequeue(work);
     if (success) {
-        flush -= 1;
+        flush.fetch_sub(1);
     }
 
     return success;
@@ -238,7 +238,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 
     if (msgCount == net->workCount) {
         messages.enqueue(buf);
-        flush += 1;
+        flush.fetch_add(1);
 
         // allocate new buffer
         buf = net->sendAllocators[tid].allocate();
@@ -352,7 +352,7 @@ void NetworkInterface::recvProbe() {
                 recvCommunication.add(m.host, m.buf);
             }
             else if (m.tag == dataTerminationTag) {
-                hostDataTermination[m.host] += 1;
+                hostDataTermination[m.host] = true;
             }
             else {
                 recvData[m.host].add(m.tag, std::move(m.data));
@@ -507,10 +507,10 @@ NetworkInterface::NetworkInterface()
     hostDataTermination = decltype(hostDataTermination)(Num);
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {
-            hostDataTermination[i] = 1;
+            hostDataTermination[i] = true;
         }
         else {
-            hostDataTermination[i] = 0;
+            hostDataTermination[i] = false;
         }
     }
     sendInflight = decltype(sendInflight)(numT);
@@ -736,13 +736,13 @@ void NetworkInterface::resetDataTermination() {
         if (i == ID) {
             continue;
         }
-        hostDataTermination[i] -= 1;
+        hostDataTermination[i] = false;
     }
 }
 
 bool NetworkInterface::checkDataTermination() {
     for (unsigned i=0; i<Num; i++) {
-        if (hostDataTermination[i] == 0) {
+        if (hostDataTermination[i] == false) {
             return false;
         }
     }

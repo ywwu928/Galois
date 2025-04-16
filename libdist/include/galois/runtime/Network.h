@@ -147,7 +147,7 @@ private:
       // single producer single consumer
       moodycamel::ReaderWriterQueue<recvMessage> messages;
 
-      std::atomic<uint32_t> frontTag;
+      uint32_t frontTag;
       recvMessage frontMsg;
 
   public:
@@ -322,11 +322,11 @@ private:
   std::atomic<int> ready;
   
   std::vector<std::atomic<bool>> sendWorkTermination;
-  std::vector<std::atomic<bool>> hostWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  
-  std::vector<std::atomic<uint32_t>> hostDataTermination;
+  std::vector<std::atomic<bool>> hostWorkTermination;
   std::vector<bool> hostWorkTerminationValid;
+  
+  std::vector<std::atomic<bool>> hostDataTermination;
 
 public:
   //! This machine's host ID
