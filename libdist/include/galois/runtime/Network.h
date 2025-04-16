@@ -207,14 +207,8 @@ private:
   class sendBufferData {
       moodycamel::ReaderWriterQueue<std::tuple<uint32_t, uint8_t*, size_t>> messages;
 
-      std::atomic<size_t> flush;
-
   public:
-      sendBufferData() : flush(0) {}
-    
-      bool checkFlush() {
-          return flush > 0;
-      }
+      sendBufferData() {}
     
       bool pop(uint32_t& tag, uint8_t*& data, size_t& dataLen);
 
@@ -237,25 +231,19 @@ private:
 
       std::pair<uint8_t*, size_t> partialMessage;
       std::atomic<bool> partialFlag;
-      
-      std::atomic<size_t> flush;
 
   public:
-      sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), msgCount(0), flush(0) {}
+      sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), msgCount(0) {}
 
       void setNet(NetworkInterface* _net);
       
-      void setTID(unsigned _tid) {
+      inline void setTID(unsigned _tid) {
           tid = _tid;
       }
       
       void setFlush();
-    
-      bool checkFlush() {
-          return flush > 0;
-      }
 
-      bool checkPartial() {
+      inline bool checkPartial() {
           return partialFlag;
       }
 

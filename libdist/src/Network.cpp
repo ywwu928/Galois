@@ -127,10 +127,8 @@ bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
 bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_t*& work) {
     std::pair<uint32_t, uint8_t*> message;
     bool success = messages.try_dequeue(message);
-    if (success) {
-        host = message.first;
-        work = message.second;
-    }
+    host = message.first;
+    work = message.second;
 
     return success;
 }
@@ -149,10 +147,8 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
 bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
     bool success = partialMessages.try_dequeue_from_producer(ptokPartial, message);
-    if (success) {
-        work = message.first;
-        workLen = message.second;
-    }
+    work = message.first;
+    workLen = message.second;
     __builtin_prefetch(work, 0, 3);
 
     return success;
@@ -170,30 +166,23 @@ void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t wo
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
     std::tuple<uint32_t, uint8_t*, size_t> message;
     bool success = messages.try_dequeue(message);
-    if (success) {
-        flush.fetch_sub(1);
-        tag = std::get<0>(message);
-        data = std::get<1>(message);
-        dataLen = std::get<2>(message);
-    }
+    tag = std::get<0>(message);
+    data = std::get<1>(message);
+    dataLen = std::get<2>(message);
 
     return success;
 }
 
 void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t dataLen) {
     messages.enqueue(std::make_tuple(tag, data, dataLen));
-    flush.fetch_add(1);
 }
 
 void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
     net = _net;
   
-    if (buf == nullptr) {
-        // allocate new buffer
-        buf = net->sendAllocators[tid].allocate();
-        __builtin_prefetch(buf, 1, 3);
-    }
-  
+    // allocate new buffer
+    buf = net->sendAllocators[tid].allocate();
+    __builtin_prefetch(buf, 1, 3);
 }
 
 void NetworkInterface::sendBufferRemoteWork::setFlush() {
@@ -203,7 +192,6 @@ void NetworkInterface::sendBufferRemoteWork::setFlush() {
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         partialMessage = std::make_pair(buf, bufLen);
-        flush.fetch_add(1);
         partialFlag = true;
 
         // allocate new buffer
@@ -217,15 +205,10 @@ void NetworkInterface::sendBufferRemoteWork::popPartial(uint8_t*& work, size_t& 
     work = partialMessage.first;
     workLen = partialMessage.second;
     partialFlag = false;
-    flush.fetch_sub(1);
 }
 
 bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
     bool success = messages.try_dequeue(work);
-    if (success) {
-        flush.fetch_sub(1);
-    }
-
     return success;
 }
 
@@ -238,7 +221,6 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 
     if (msgCount == net->workCount) {
         messages.enqueue(buf);
-        flush.fetch_add(1);
 
         // allocate new buffer
         buf = net->sendAllocators[tid].allocate();
@@ -413,21 +395,20 @@ void NetworkInterface::workerThread() {
                 recvProbe();
   
                 auto& srw = sendRemoteWork[h][t];
-                if (srw.checkFlush()) {
+              
+                uint8_t* work;
+                bool success = srw.pop(work);
+              
+                if (success) {
+                    sendFullTrack(t, h, work);
                     hostWorkEmpty = false;
-                  
-                    uint8_t* work;
-                    bool success = srw.pop(work);
-                  
-                    if (success) {
-                        sendFullTrack(t, h, work);
-                    }
-                    else {
-                        if (srw.checkPartial()) {
-                            size_t workLen;
-                            srw.popPartial(work, workLen);
-                            sendPartialTrack(t, h, work, workLen);
-                        }
+                }
+                else {
+                    if (srw.checkPartial()) {
+                        size_t workLen;
+                        srw.popPartial(work, workLen);
+                        sendPartialTrack(t, h, work, workLen);
+                        hostWorkEmpty = false;
                     }
                 }
             }
@@ -442,16 +423,13 @@ void NetworkInterface::workerThread() {
           
             // 3. data
             recvProbe();
-            auto& sd = sendData[h];
-            if (sd.checkFlush()) {
-                uint32_t tag;
-                uint8_t* data;
-                size_t dataLen;
-                bool success = sd.pop(tag, data, dataLen);
-              
-                if (success) {
-                    send(h, tag, data, dataLen);
-                }
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen);
             }
         }
     }
