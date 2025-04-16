@@ -401,6 +401,7 @@ void NetworkInterface::workerThread() {
                         size_t workLen;
                         srw.popPartial(work, workLen);
                         sendPartialTrack(t, h, work, workLen);
+                        hostWorkEmpty = false;
                     }
                 }
             }
