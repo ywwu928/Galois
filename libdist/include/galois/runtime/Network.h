@@ -28,7 +28,6 @@
 #define GALOIS_RUNTIME_NETWORK_H
 
 #include "galois/runtime/Serialize.h"
-#include "galois/runtime/MemUsage.h"
 #include "galois/substrate/Barrier.h"
 #include "galois/runtime/Mem.h"
 #include "galois/runtime/readerwriterqueue.h"
@@ -68,21 +67,6 @@ protected:
 
   //! Finalize the MPI system. Should only be called once per process.
   void finalizeMPI();
-
-  //! Memory usage tracker
-  MemUsageTracker memUsageTracker;
-
-#ifdef GALOIS_USE_BARE_MPI
-public:
-  //! Wrapper that calls into increment mem usage on the memory usage tracker
-  inline void incrementMemUsage(uint64_t size) {
-    memUsageTracker.incrementMemUsage(size);
-  }
-  //! Wrapper that calls into decrement mem usage on the memory usage tracker
-  inline void decrementMemUsage(uint64_t size) {
-    memUsageTracker.decrementMemUsage(size);
-  }
-#endif
 
 private:
   std::vector<FixedSizeBufferAllocator> sendAllocators;
@@ -333,19 +317,6 @@ public:
   ~NetworkInterface();
 
   //! Send a message to a given (dest) host.  A message is simply a
-  //! landing pad (recv, funciton pointer) and some data (buf)
-  //! on the receiver, recv(buf) will be called durring handleReceives()
-  //! buf is invalidated by this operation
-  void sendMsg(uint32_t dest, void (*recv)(uint32_t, RecvBuffer&),
-               SendBuffer& buf);
-
-  //! Send a message letting the network handle the serialization and
-  //! deserialization slightly slower
-  template <typename... Args>
-  void sendSimple(uint32_t dest, void (*recv)(uint32_t, Args...),
-                  Args... param);
-
-  //! Send a message to a given (dest) host.  A message is simply a
   //! tag (tag) and some data (buf)
   //! on the receiver, buf will be returned on a receiveTagged(tag)
   //! buf is invalidated by this operation
@@ -356,17 +327,6 @@ public:
   void sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val);
   
   void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len);
-
-  //! Send a message to all hosts.  A message is simply a
-  //! landing pad (recv) and some data (buf)
-  //! buf is invalidated by this operation
-  void broadcast(void (*recv)(uint32_t, RecvBuffer&), SendBuffer& buf,
-                 bool self = false);
-
-  //! Broadcast a message allowing the network to handle serialization and
-  //! deserialization
-  template <typename... Args>
-  void broadcastSimple(void (*recv)(uint32_t, Args...), Args... param);
 
   //! Receive and dispatch messages
   void handleReceives();
@@ -402,12 +362,6 @@ public:
   void signalDataTermination(uint32_t dest);
 
   void broadcastWorkTermination();
-
-  //! Wrapper to reset the mem usage tracker's stats
-  inline void resetMemUsage() { memUsageTracker.resetMemUsage(); }
-
-  //! Reports the memory usage tracker's statistics to the stat manager
-  void reportMemUsage() const;
 
   void touchBufferPool();
 
@@ -447,38 +401,6 @@ substrate::Barrier& getHostBarrier();
 //! Returns a fence that ensures all pending messages are delivered, acting
 //! like a memory-barrier
 substrate::Barrier& getHostFence();
-
-////////////////////////////////////////////////////////////////////////////////
-// Implementations
-////////////////////////////////////////////////////////////////////////////////
-namespace { // anon
-template <typename... Args>
-static void genericLandingPad(uint32_t src, RecvBuffer& buf) {
-  void (*fp)(uint32_t, Args...);
-  std::tuple<Args...> args;
-  gDeserialize(buf, fp, args);
-  std::apply([fp, src](Args... params) { fp(src, params...); }, args);
-}
-
-} // namespace
-
-template <typename... Args>
-void NetworkInterface::sendSimple(uint32_t dest,
-                                  void (*recv)(uint32_t, Args...),
-                                  Args... param) {
-  SendBuffer buf;
-  gSerialize(buf, (uintptr_t)recv, param...,
-             (uintptr_t)genericLandingPad<Args...>);
-  sendTagged(dest, 0, buf);
-}
-
-template <typename... Args>
-void NetworkInterface::broadcastSimple(void (*recv)(uint32_t, Args...),
-                                       Args... param) {
-  SendBuffer buf;
-  gSerialize(buf, (uintptr_t)recv, param...);
-  broadcast(genericLandingPad<Args...>, buf, false);
-}
 
 } // namespace galois::runtime
 #endif

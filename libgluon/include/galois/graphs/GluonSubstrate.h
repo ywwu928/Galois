@@ -502,9 +502,6 @@ private:
     }
 
     sendInfoToHost();
-
-    // do not track memory usage of partitioning
-    net.resetMemUsage();
   }
 
 public:

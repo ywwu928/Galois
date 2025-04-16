@@ -26,7 +26,6 @@
 
 #include "galois/runtime/Tracer.h"
 #include "galois/runtime/Network.h"
-#include "galois/runtime/NetworkIO.h"
 
 #include <iostream>
 #include <mutex>
@@ -54,19 +53,6 @@ uint32_t NetworkInterface::Num = 1;
 
 uint32_t getHostID() { return NetworkInterface::ID; }
 uint32_t getHostNum() { return NetworkInterface::Num; }
-
-NetworkIO::~NetworkIO() {}
-
-//! Receive broadcasted messages over the network
-static void bcastLandingPad(uint32_t src, RecvBuffer& buf);
-
-static void bcastLandingPad(uint32_t src, RecvBuffer& buf) {
-  uintptr_t fp;
-  gDeserialize(buf, fp);
-  auto recv = (void (*)(uint32_t, RecvBuffer&))fp;
-  trace("NetworkInterface::bcastLandingPad", (void*)recv);
-  recv(src, buf);
-}
 
 void NetworkInterface::initializeMPI() {
     int supportProvided;
@@ -490,13 +476,6 @@ NetworkInterface::~NetworkInterface() {
     }
 }
 
-void NetworkInterface::sendMsg(uint32_t dest,
-                               void (*recv)(uint32_t, RecvBuffer&),
-                               SendBuffer& buf) {
-    gSerialize(buf, recv);
-    sendTagged(dest, 0, buf);
-}
-
 void NetworkInterface::sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf, int phase) {
     tag += phase;
 
@@ -514,22 +493,6 @@ template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uin
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendData[dest].push(communicationTag, bufPtr, len);
-}
-
-void NetworkInterface::broadcast(void (*recv)(uint32_t, RecvBuffer&),
-                                 SendBuffer& buf, bool self) {
-    trace("NetworkInterface::broadcast", (void*)recv);
-    auto fp = (uintptr_t)recv;
-    for (unsigned x = 0; x < Num; ++x) {
-        if (x != ID) {
-            SendBuffer b;
-            gSerialize(b, fp, buf, (uintptr_t)&bcastLandingPad);
-            sendTagged(x, 0, b);
-        } else if (self) {
-            RecvBuffer rb(buf.begin(), buf.end());
-            recv(ID, rb);
-        }
-    }
 }
 
 void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
@@ -694,14 +657,6 @@ void NetworkInterface::broadcastWorkTermination() {
             sendWorkTermination[i] = true;
         }
     }
-}
-
-void NetworkInterface::reportMemUsage() const {
-    std::string str("CommunicationMemUsage");
-    galois::runtime::reportStat_Tmin("dGraph", str + "Min",
-                                     memUsageTracker.getMaxMemUsage());
-    galois::runtime::reportStat_Tmax("dGraph", str + "Max",
-                                     memUsageTracker.getMaxMemUsage());
 }
 
 void NetworkInterface::touchBufferPool() {
