@@ -233,5 +233,4 @@ add_subdirectory(tutorial_examples)
 
 add_subdirectory(analytics)
 add_subdirectory(eda)
-add_subdirectory(mining)
 add_subdirectory(scientific)

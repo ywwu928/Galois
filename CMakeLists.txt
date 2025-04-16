@@ -197,9 +197,7 @@ add_custom_target(lib)
 add_custom_target(apps)
 
 # Core libraries (lib)
-add_subdirectory(libsupport)
 add_subdirectory(libgalois)
-add_subdirectory(libpygalois)
 if (GALOIS_ENABLE_DIST)
   find_package(MPI REQUIRED)
   add_subdirectory(libdist)
@@ -219,7 +217,6 @@ if (GALOIS_ENABLE_GPU)
 
   add_subdirectory(libgpu)
 endif()
-add_subdirectory(libpangolin)
 
 # Applications (apps)
 add_subdirectory(lonestar)
