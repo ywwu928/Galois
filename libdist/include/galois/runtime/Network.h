@@ -422,14 +422,10 @@ public:
 //! currently on. Can be seen as a count of send/recv rounds that have occured.
 extern uint32_t evilPhase;
 
-//! Reserved tag for remote work
-extern uint32_t remoteWorkTag;
-//! Reserved tag for remote work termination message
-extern uint32_t workTerminationTag;
-//! Reserved tag for communication
-extern uint32_t communicationTag;
-//! Reserved tag for remote data termination message
-extern uint32_t dataTerminationTag;
+inline constexpr uint32_t remoteWorkTag = 0; // 0 is reserved for remote work
+inline constexpr uint32_t workTerminationTag = 1; // 1 is reserved for remote work termination message
+inline constexpr uint32_t communicationTag = 2; // 2 is reserved for communication phase
+inline constexpr uint32_t dataTerminationTag = 3; // 3 is reserved for remote data termination message
 
 //! Get the network interface
 //! @returns network interface
