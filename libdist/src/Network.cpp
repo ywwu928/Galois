@@ -281,6 +281,103 @@ void NetworkInterface::recvProbeData() {
     }
 }
 
+void NetworkInterface::recvProbeWork() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, (int)remoteWorkTag, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+
+        // allocate new buffer
+        uint8_t* buf;
+        buf = recvAllocator.allocate();
+        __builtin_prefetch(buf, 1, 3);
+
+        recvInflightWork.emplace_back(buf, nbytes);
+        auto& m = recvInflightWork.back();
+        MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+    }
+
+    // complete messages
+    if (!recvInflightWork.empty()) {
+        auto& m  = recvInflightWork.front();
+        flag = 0;
+        MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+        if (flag) {
+            if (m.bufLen == aggMsgSize) {
+                recvRemoteWork.addFull(m.buf);
+            }
+            else {
+                recvRemoteWork.addPartial(m.buf, m.bufLen);
+            }
+            
+            recvInflightWork.pop_front();
+
+            return;
+        }
+    }
+}
+
+void NetworkInterface::recvProbeWorkTermination() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+
+        if (status.MPI_TAG ==  (int)remoteWorkTag) {
+            // allocate new buffer
+            uint8_t* buf;
+            buf = recvAllocator.allocate();
+            __builtin_prefetch(buf, 1, 3);
+
+            recvInflightWork.emplace_back(buf, nbytes);
+            auto& m = recvInflightWork.back();
+            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+        }
+        else if (status.MPI_TAG == (int)communicationTag) {
+            __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
+
+            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
+            recvInflightComm.push_back(req);
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+        }
+        else { // workTerminationTag
+            MPI_Request req;
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Request_free(&req);
+            terminationCountTemp += 1;
+        }
+    }
+
+    // complete messages
+    if (!recvInflightWork.empty()) {
+        auto& m  = recvInflightWork.front();
+        flag = 0;
+        MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+        if (flag) {
+            if (m.bufLen == aggMsgSize) {
+                recvRemoteWork.addFull(m.buf);
+            }
+            else {
+                recvRemoteWork.addPartial(m.buf, m.bufLen);
+            }
+            
+            recvInflightWork.pop_front();
+
+            return;
+        }
+    }
+    else {
+        hostWorkTerminationCount.fetch_add(terminationCountTemp);
+        terminationCountTemp = 0;
+    }
+}
+
 void NetworkInterface::recvProbeWorkComm() {
     int flag = 0;
     MPI_Status status;
@@ -452,61 +549,79 @@ void NetworkInterface::workerThread() {
     
     recvAllocator.touch();
     
-    while (ready == 3) {
-        for (unsigned i = 0; i < Num - 1; ++i) {
-            unsigned h = hostOrder[i];
-            
-            // handle send queue
-            sendTrackComplete();
-            
-            // 1. remote work
-            bool hostWorkEmpty = true;
-            for (unsigned t=0; t<numT; t++) {
-                // push progress forward on the network IO
-                recvProbeWorkComm();
-  
-                auto& srw = sendRemoteWork[h][t];
+    uint32_t sendWorkTerminationCount;
+    while (ready < 5) {
+        // for sending and receiving work
+        sendWorkTerminationCount = sendWorkTerminationBase;
+        while (ready == 3) {
+            for (unsigned i = 0; i < Num - 1; ++i) {
+                unsigned h = hostOrder[i];
+                
+                // handle send queue
+                sendTrackComplete();
+                
+                // 1. remote work
+                bool hostWorkEmpty = true;
+                for (unsigned t=0; t<numT; t++) {
+                    // push progress forward on the network IO
+                    recvProbeWork();
+      
+                    auto& srw = sendRemoteWork[h][t];
 
-                uint8_t* work;
-                bool success = srw.pop(work);
-              
-                if (success) {
-                    sendFullTrack(t, h, work);
-                    hostWorkEmpty = false;
-                }
-                else {
-                    if (srw.checkPartial()) {
-                        size_t workLen;
-                        srw.popPartial(work, workLen);
-                        sendPartialTrack(t, h, work, workLen);
+                    uint8_t* work;
+                    bool success = srw.pop(work);
+                  
+                    if (success) {
+                        sendFullTrack(t, h, work);
                         hostWorkEmpty = false;
+                    }
+                    else {
+                        if (srw.checkPartial()) {
+                            size_t workLen;
+                            srw.popPartial(work, workLen);
+                            sendPartialTrack(t, h, work, workLen);
+                            hostWorkEmpty = false;
+                        }
+                    }
+                }
+
+                if(hostWorkEmpty) { // wait until all works are sent
+                    // 2. work termination
+                    if (sendWorkTermination[h]) {
+                        send(h, workTerminationTag, nullptr, 0);
+                        sendWorkTermination[h] = false;
+                        sendWorkTerminationCount += 1;
+
+                        if (sendWorkTerminationCount == Num) {
+                            ready = 4;
+                            break;
+                        }
                     }
                 }
             }
-
-            if(hostWorkEmpty) { // wait until all works are sent
-                // 2. work termination
-                if (sendWorkTermination[h]) {
-                    send(h, workTerminationTag, nullptr, 0);
-                    sendWorkTermination[h] = false;
+        }
+        
+        // for sending communication and receiving work and communication
+        while (ready == 4) {
+            for (unsigned i = 0; i < Num - 1; ++i) {
+                unsigned h = hostOrder[i];
+              
+                // data
+                recvProbeWorkComm();
+                uint32_t tag;
+                uint8_t* data;
+                size_t dataLen;
+                bool success = sendData[h].pop(tag, data, dataLen);
+              
+                if (success) {
+                    send(h, tag, data, dataLen);
                 }
-            }
-          
-            // 3. data
-            recvProbeWorkComm();
-            uint32_t tag;
-            uint8_t* data;
-            size_t dataLen;
-            bool success = sendData[h].pop(tag, data, dataLen);
-          
-            if (success) {
-                send(h, tag, data, dataLen);
             }
         }
     }
     
     // for collecting stats
-    while (ready == 4) {
+    while (ready == 5) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
@@ -557,6 +672,7 @@ NetworkInterface::NetworkInterface()
     }
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
+    sendWorkTerminationBase = 1;
     hostWorkTerminationBase = 0;
     hostWorkTerminationCount = 0;
     for (unsigned i=0; i<Num; i++) {
@@ -575,7 +691,7 @@ NetworkInterface::NetworkInterface()
 }
 
 NetworkInterface::~NetworkInterface() {
-    ready = 5;
+    ready = 6;
     worker.join();
 
     for (unsigned i=0; i<Num; i++) {
@@ -729,6 +845,7 @@ void NetworkInterface::flushRemoteWork() {
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
     sendWorkTerminationValid[host] = false;
+    sendWorkTerminationBase += 1;
 }
   
 void NetworkInterface::excludeHostWorkTermination() {
