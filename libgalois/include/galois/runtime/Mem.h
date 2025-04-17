@@ -1048,39 +1048,39 @@ public:
   SerialNumaAllocator() : Super(&heap) {}
 };
 
-class FixedSizeBufferPool {
+class FixedSizeBufferAllocator {
     size_t bufferSize;
     size_t bufferCount;
 
     const size_t pageSize = 4 * 1024;
     size_t regionSize;
     std::vector<void*> regions;
-    boost::lockfree::stack<uint8_t*> buffers;
+    boost::lockfree::stack<uint8_t*> bufferPool;
     uint32_t factor;
     bool alloc;
 
 public:
-    FixedSizeBufferPool() {}
+    FixedSizeBufferAllocator() {}
 
-    ~FixedSizeBufferPool() {
+    ~FixedSizeBufferAllocator() {
         freeRegions();
     }
 
-    inline void setup(size_t _bufferSize, size_t _bufferCount) {
+    void setup(size_t _bufferSize, size_t _bufferCount) {
         bufferSize = _bufferSize;
         bufferCount = _bufferCount;
         // closest multiple of 4k pages
         regionSize = (bufferCount * bufferSize + pageSize - 1) & ~(pageSize - 1);
 
-        buffers.reserve(bufferCount);
+        bufferPool.reserve(bufferCount);
         factor = 1;
         allocateRegions();
         alloc = true;
     }
 
-    inline uint8_t* allocate() {
+    uint8_t* allocate() {
         uint8_t* buffer;
-        bool success = buffers.pop(buffer);
+        bool success = bufferPool.pop(buffer);
         
         if (!success) { // buffer pool is empty
             if (alloc) {
@@ -1089,26 +1089,26 @@ public:
             }
             
             do {
-                success = buffers.pop(buffer);
+                success = bufferPool.pop(buffer);
             } while(!success);
         }
         
         return buffer;
     }
 
-    inline void deallocate(uint8_t* buffer) {
-        buffers.push(buffer);
+    void deallocate(uint8_t* buffer) {
+        bufferPool.push(buffer);
     }
 
-    inline void touch() {
+    void touch() {
         std::stack<uint8_t*> temp;
 
-        buffers.consume_all([&temp](uint8_t* ptr) {
+        bufferPool.consume_all([&temp](uint8_t* ptr) {
             temp.push(ptr);
         });
 
         while (!temp.empty()) {
-            buffers.push(temp.top());
+            bufferPool.push(temp.top());
             // touch the memory location of the pointer
             *(temp.top()) = (uint8_t)0;
             temp.pop();
@@ -1128,7 +1128,7 @@ private:
 
             // add all buffers in the new page to the free buffer stack
             for (size_t j=0; j<regionSize; j+=bufferSize) {
-                buffers.push(static_cast<uint8_t*>(region) + j);
+                bufferPool.push(static_cast<uint8_t*>(region) + j);
             }
         }
         
@@ -1142,30 +1142,6 @@ private:
                 GALOIS_SYS_DIE("Error unmapping region and freeing memory");
             }
         }
-    }
-};
-
-class FixedSizeBufferAllocator {
-    FixedSizeBufferPool pool;
-
-public:
-    FixedSizeBufferAllocator(){}
-    ~FixedSizeBufferAllocator() {}
-
-    void setup(size_t _bufferSize, size_t _bufferCount) {
-        pool.setup(_bufferSize, _bufferCount);
-    }
-
-    uint8_t* allocate() {
-        return pool.allocate();
-    }
-
-    void deallocate(uint8_t* ptr) {
-        pool.deallocate(ptr);
-    }
-
-    void touch() {
-        pool.touch();
     }
 };
 
