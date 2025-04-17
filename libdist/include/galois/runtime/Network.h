@@ -396,9 +396,6 @@ uint32_t getHostNum();
 //! @warning Should not be called within a parallel region; assumes only one
 //! thread is calling it
 substrate::Barrier& getHostBarrier();
-//! Returns a fence that ensures all pending messages are delivered, acting
-//! like a memory-barrier
-substrate::Barrier& getHostFence();
 
 } // namespace galois::runtime
 #endif
