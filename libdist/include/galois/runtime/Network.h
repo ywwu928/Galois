@@ -151,14 +151,14 @@ private:
    */
   class recvBufferCommunication {
       // single producer single consumer
-      moodycamel::ReaderWriterQueue<std::pair<uint32_t, uint8_t*>> messages;
+      moodycamel::ReaderWriterQueue<uint32_t> hosts;
 
   public:
       recvBufferCommunication() {}
 
-      bool tryPopMsg(uint32_t& host, uint8_t*& work);
+      bool tryPopMsg(uint32_t& host);
       
-      void add(uint32_t host, uint8_t* work);
+      void add(uint32_t host);
   }; // end recv buffer class
 
   recvBufferCommunication recvCommunication;
@@ -283,18 +283,17 @@ private:
   
   std::deque<mpiDataRecv> recvInflightData;
   
-  struct mpiBufRecv {
-      uint32_t host;
-      uint32_t tag;
+  struct mpiWorkRecv {
       uint8_t* buf;
       size_t bufLen;
       MPI_Request req;
         
-      mpiBufRecv(uint32_t host, uint32_t tag) : host(host), tag(tag), buf(nullptr), bufLen(0) {}
-      mpiBufRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
+      mpiWorkRecv(uint8_t* _buf, size_t _bufLen) : buf(_buf), bufLen(_bufLen) {}
   };
   
-  std::deque<mpiBufRecv> recvInflightBuf;
+  std::deque<mpiWorkRecv> recvInflightWork;
+  
+  std::deque<MPI_Request*> recvInflightComm;
   
   void recvProbeData();
   void recvProbeWorkComm();
