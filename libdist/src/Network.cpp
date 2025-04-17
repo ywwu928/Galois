@@ -279,13 +279,7 @@ void NetworkInterface::recvProbeData() {
         int flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
-            if (m.tag == (int)dataTerminationTag) {
-                hostDataTerminationCount.fetch_add(1);
-            }
-            else {
-                recvData[m.host].add(m.tag, std::move(m.data));
-            }
-            
+            recvData[m.host].add(m.tag, std::move(m.data));
             recvInflightData.pop_front();
         }
     }
@@ -347,6 +341,44 @@ void NetworkInterface::recvProbeWorkComm() {
             
             recvInflightBuf.pop_front();
         }
+    }
+}
+
+void NetworkInterface::recvProbeDataTermination() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+        
+        if (status.MPI_TAG ==  (int)dataTerminationTag) {
+            MPI_Request req;
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Request_free(&req);
+            terminationCountTemp += 1;
+        }
+        else {
+            recvInflightData.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+            auto& m = recvInflightData.back();
+            MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+        }
+    }
+
+    // complete messages
+    if (!recvInflightData.empty()) {
+        auto& m  = recvInflightData.front();
+        int flag = 0;
+        MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+        if (flag) {
+            recvData[m.host].add(m.tag, std::move(m.data));
+            recvInflightData.pop_front();
+        }
+    }
+    else {
+        hostDataTerminationCount.fetch_add(terminationCountTemp);
+        terminationCountTemp = 0;
     }
 }
 
@@ -464,7 +496,7 @@ void NetworkInterface::workerThread() {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
-            recvProbeData();
+            recvProbeDataTermination();
           
             // only data
             uint32_t tag;
@@ -523,6 +555,7 @@ NetworkInterface::NetworkInterface()
         }
     }
     hostDataTerminationCount = 1;
+    terminationCountTemp = 0;
     sendInflight = decltype(sendInflight)(numT);
     ready    = 2;
 }
