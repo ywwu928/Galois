@@ -296,8 +296,6 @@ private:
   std::deque<MPI_Request*> recvInflightComm;
   
   void recvProbeData();
-  void recvProbeWork();
-  void recvProbeWorkTermination();
   void recvProbeWorkComm();
   void recvProbeDataTermination();
   
@@ -308,8 +306,6 @@ private:
   
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
-  uint32_t sendWorkTerminationBase;
-
   uint32_t hostWorkTerminationBase;
   std::atomic<uint32_t> hostWorkTerminationCount;
   
@@ -336,13 +332,9 @@ public:
   inline void partitionDone() {
       ready = 3;
   }
-  
-  inline void syncDone() {
-      ready = 3;
-  }
 
   inline void applicationDone() {
-      ready = 5;
+      ready = 4;
   }
 
   //! Send a message to a given (dest) host.  A message is simply a
