@@ -272,21 +272,32 @@ private:
   /**
    * Message type to recv in this network IO layer.
    */
-  struct mpiMessageRecv {
+  struct mpiDataRecv {
       uint32_t host;
       uint32_t tag;
       vTy data;
+      MPI_Request req;
+        
+      mpiDataRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
+  };
+  
+  std::deque<mpiDataRecv> recvInflightData;
+  
+  struct mpiBufRecv {
+      uint32_t host;
+      uint32_t tag;
       uint8_t* buf;
       size_t bufLen;
       MPI_Request req;
         
-      mpiMessageRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
-      mpiMessageRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
+      mpiBufRecv(uint32_t host, uint32_t tag) : host(host), tag(tag), buf(nullptr), bufLen(0) {}
+      mpiBufRecv(uint32_t host, uint32_t tag, uint8_t* b, size_t len) : host(host), tag(tag), buf(b), bufLen(len) {}
   };
   
-  std::deque<mpiMessageRecv> recvInflight;
+  std::deque<mpiBufRecv> recvInflightBuf;
   
-  void recvProbe();
+  void recvProbeData();
+  void recvProbeWorkComm();
   
   void workerThread();
   
@@ -315,6 +326,14 @@ public:
    * Destructor destroys MPI (if it exists).
    */
   ~NetworkInterface();
+
+  inline void partitionDone() {
+      ready = 3;
+  }
+
+  inline void applicationDone() {
+      ready = 4;
+  }
 
   //! Send a message to a given (dest) host.  A message is simply a
   //! tag (tag) and some data (buf)

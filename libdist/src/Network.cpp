@@ -259,8 +259,39 @@ void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* bu
     MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
-// FIXME: Does synchronous recieves overly halt forward progress?
-void NetworkInterface::recvProbe() {
+void NetworkInterface::recvProbeData() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+        
+        recvInflightData.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+        auto& m = recvInflightData.back();
+        MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+    }
+
+    // complete messages
+    if (!recvInflightData.empty()) {
+        auto& m  = recvInflightData.front();
+        int flag = 0;
+        MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
+        if (flag) {
+            if (m.tag == (int)dataTerminationTag) {
+                hostDataTerminationCount.fetch_add(1);
+            }
+            else {
+                recvData[m.host].add(m.tag, std::move(m.data));
+            }
+            
+            recvInflightData.pop_front();
+        }
+    }
+}
+
+void NetworkInterface::recvProbeWorkComm() {
     int flag = 0;
     MPI_Status status;
     // check for new messages
@@ -269,67 +300,52 @@ void NetworkInterface::recvProbe() {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
 
-        switch((uint32_t)status.MPI_TAG) {
-            case remoteWorkTag: {
-                // allocate new buffer
-                uint8_t* buf;
-                buf = recvAllocator.allocate();
-                __builtin_prefetch(buf, 1, 3);
+        if (status.MPI_TAG ==  (int)remoteWorkTag) {
+            // allocate new buffer
+            uint8_t* buf;
+            buf = recvAllocator.allocate();
+            __builtin_prefetch(buf, 1, 3);
 
-                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
-                auto& m = recvInflight.back();
-                MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
-                break;
-            }
-            case communicationTag: {
-                __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
-                auto& m = recvInflight.back();
-                MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
-                break;
-            }
-            default: {
-                recvInflight.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-                auto& m = recvInflight.back();
-                MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
-            }
+            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
+            auto& m = recvInflightBuf.back();
+            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+        }
+        else if (status.MPI_TAG == (int)communicationTag) {
+            __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
+
+            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
+            auto& m = recvInflightBuf.back();
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+        }
+        else { // workTerminationTag
+            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG);
+            auto& m = recvInflightBuf.back();
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
         }
     }
 
     // complete messages
-    if (!recvInflight.empty()) {
-        auto& m  = recvInflight.front();
+    if (!recvInflightBuf.empty()) {
+        auto& m  = recvInflightBuf.front();
         int flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
-            switch(m.tag) {
-                case workTerminationTag: {
-                    hostWorkTerminationCount.fetch_add(1);
-                    break;
+            if (m.tag == remoteWorkTag) {
+                if (m.bufLen == aggMsgSize) {
+                    recvRemoteWork.addFull(m.buf);
                 }
-                case remoteWorkTag: {
-                    if (m.bufLen == aggMsgSize) {
-                        recvRemoteWork.addFull(m.buf);
-                    }
-                    else {
-                        recvRemoteWork.addPartial(m.buf, m.bufLen);
-                    }
-                    break;
-                }
-                case communicationTag: {
-                    recvCommunication.add(m.host, m.buf);
-                    break;
-                }
-                case dataTerminationTag: {
-                    hostDataTerminationCount.fetch_add(1);
-                    break;
-                }
-                default: {
-                    recvData[m.host].add(m.tag, std::move(m.data));
+                else {
+                    recvRemoteWork.addPartial(m.buf, m.bufLen);
                 }
             }
+            else if (m.tag == workTerminationTag) {
+                hostWorkTerminationCount.fetch_add(1);
+            }
+            else { // communicationTag
+                recvCommunication.add(m.host, m.buf);
+            }
             
-            recvInflight.pop_front();
+            recvInflightBuf.pop_front();
         }
     }
 }
@@ -368,9 +384,29 @@ void NetworkInterface::workerThread() {
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
     
+    // for graph partitioning
+    while (ready == 2) {
+        for (unsigned i = 0; i < Num - 1; ++i) {
+            unsigned h = hostOrder[i];
+            
+            recvProbeData();
+          
+            // only data
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen);
+            }
+        }
+    }
+    
+    // for program execution
     recvAllocator.touch();
     
-    while (ready != 3) {
+    while (ready == 3) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
@@ -381,7 +417,7 @@ void NetworkInterface::workerThread() {
             bool hostWorkEmpty = true;
             for (unsigned t=0; t<numT; t++) {
                 // push progress forward on the network IO
-                recvProbe();
+                recvProbeWorkComm();
   
                 auto& srw = sendRemoteWork[h][t];
 
@@ -411,7 +447,26 @@ void NetworkInterface::workerThread() {
             }
           
             // 3. data
-            recvProbe();
+            recvProbeWorkComm();
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen);
+            }
+        }
+    }
+    
+    // for collecting stats
+    while (ready == 4) {
+        for (unsigned i = 0; i < Num - 1; ++i) {
+            unsigned h = hostOrder[i];
+            
+            recvProbeData();
+          
+            // only data
             uint32_t tag;
             uint8_t* data;
             size_t dataLen;
@@ -473,7 +528,7 @@ NetworkInterface::NetworkInterface()
 }
 
 NetworkInterface::~NetworkInterface() {
-    ready = 3;
+    ready = 5;
     worker.join();
 
     for (unsigned i=0; i<Num; i++) {
