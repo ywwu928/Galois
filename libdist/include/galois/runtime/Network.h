@@ -54,7 +54,8 @@ using RecvBuffer = DeSerializeBuffer;
  */
 class NetworkInterface {
 public:
-  MPI_Comm comm_barrier, comm_comm;
+  MPI_Comm comm_barrier;
+  MPI_Comm comm_comm[2];
   
   uint32_t workCount;
   size_t aggMsgSize;
@@ -151,7 +152,7 @@ private:
    */
   class recvBufferCommunication {
       // single producer single consumer
-      moodycamel::ReaderWriterQueue<uint32_t> hosts;
+      moodycamel::ConcurrentQueue<uint32_t> hosts;
 
   public:
       recvBufferCommunication() {}
@@ -171,10 +172,8 @@ private:
       moodycamel::ConcurrentQueue<uint8_t*> fullMessages;
       moodycamel::ConcurrentQueue<std::pair<uint8_t*, size_t>> partialMessages;
 
-      moodycamel::ProducerToken ptokFull, ptokPartial;
-
   public:
-      recvBufferRemoteWork() : ptokFull(fullMessages), ptokPartial(partialMessages) {}
+      recvBufferRemoteWork() {}
 
       bool tryPopFullMsg(uint8_t*& work);
       bool tryPopPartialMsg(uint8_t*& work, size_t& workLen);
@@ -259,15 +258,15 @@ private:
       trackMessageSend(uint8_t* _buf) : buf(_buf) {}
   };
   
-  std::vector<std::deque<trackMessageSend>> sendInflight;
+  std::vector<std::deque<trackMessageSend>> sendInflight[2];
     
-  void sendTrackComplete();
+  void sendTrackComplete(uint32_t index);
 
-  void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
+  void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen, uint32_t index);
   
-  void sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf);
+  void sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf, uint32_t index);
   
-  void sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
+  void sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen, uint32_t index);
 
   /**
    * Message type to recv in this network IO layer.
@@ -281,7 +280,7 @@ private:
       mpiDataRecv(uint32_t host, uint32_t tag, size_t len) : host(host), tag(tag), data(len) {}
   };
   
-  std::deque<mpiDataRecv> recvInflightData;
+  std::deque<mpiDataRecv> recvInflightData[2];
   
   struct mpiWorkRecv {
       uint8_t* buf;
@@ -291,17 +290,18 @@ private:
       mpiWorkRecv(uint8_t* _buf, size_t _bufLen) : buf(_buf), bufLen(_bufLen) {}
   };
   
-  std::deque<mpiWorkRecv> recvInflightWork;
+  std::deque<mpiWorkRecv> recvInflightWork[2];
   
-  std::deque<MPI_Request*> recvInflightComm;
+  std::deque<MPI_Request*> recvInflightComm[2];
   
-  void recvProbeData();
-  void recvProbeWorkComm();
-  void recvProbeDataTermination();
+  void recvProbeData(uint32_t index);
+  void recvProbeWorkComm(uint32_t index);
+  void recvProbeDataTermination(uint32_t index);
   
-  void commThread();
+  void commThread0();
+  void commThread1();
   
-  std::thread comm;
+  std::thread comm0, comm1;
   std::atomic<int> ready;
   
   std::vector<std::atomic<bool>> sendWorkTermination;
@@ -311,7 +311,7 @@ private:
   
   std::atomic<uint32_t> hostDataTerminationCount;
   
-  uint32_t terminationCountTemp;
+  uint32_t terminationCountTemp[2];
 
 public:
   //! This machine's host ID

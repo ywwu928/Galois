@@ -67,11 +67,10 @@ void NetworkInterface::initializeMPI() {
     if (supportProvided != MPI_THREAD_MULTIPLE) {
         GALOIS_DIE("MPI_THREAD_MULTIPLE not supported.");
     }
-
+    
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &comm_barrier);
-    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &comm_comm);
 }
 
 void NetworkInterface::finalizeMPI() {
@@ -117,14 +116,14 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host) {
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
-    bool success = fullMessages.try_dequeue_from_producer(ptokFull, work);
+    bool success = fullMessages.try_dequeue(work);
     __builtin_prefetch(work, 0, 3);
     return success;
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, size_t& workLen) {
     std::pair<uint8_t*, size_t> message;
-    bool success = partialMessages.try_dequeue_from_producer(ptokPartial, message);
+    bool success = partialMessages.try_dequeue(message);
     work = message.first;
     workLen = message.second;
     __builtin_prefetch(work, 0, 3);
@@ -133,11 +132,11 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, si
 }
 
 void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
-    fullMessages.enqueue(ptokFull, work);
+    fullMessages.enqueue(work);
 }
 
 void NetworkInterface::recvBufferRemoteWork::addPartial(uint8_t* work, size_t workLen) {
-    partialMessages.enqueue(ptokPartial, std::make_pair(work, workLen));
+    partialMessages.enqueue(std::make_pair(work, workLen));
 }
 
 bool NetworkInterface::sendBufferData::pop(uint32_t& tag, uint8_t*& data, size_t& dataLen) {
@@ -215,74 +214,74 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
     
-void NetworkInterface::sendTrackComplete() {
+void NetworkInterface::sendTrackComplete(uint32_t index) {
     for (unsigned t=0; t<numT; t++) {
-        if (!sendInflight[t].empty()) {
+        if (!sendInflight[index][t].empty()) {
             int flag = 0;
             MPI_Status status;
-            auto& f = sendInflight[t].front();
+            auto& f = sendInflight[index][t].front();
             MPI_Test(&f.req, &flag, &status);
             if (flag) {
                 // return buffer back to pool
                 sendAllocators[t].deallocate(f.buf);
 
-                sendInflight[t].pop_front();
+                sendInflight[index][t].pop_front();
             }
         }
     }
 }
 
-void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
+void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen, uint32_t index) {
     __builtin_prefetch(buf, 0, 3);
     MPI_Request req;
-    MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
+    MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm[index], &req);
 }
 
-void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
+void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf, uint32_t index) {
     __builtin_prefetch(buf, 0, 3);
-    sendInflight[tid].emplace_back(buf);
-    auto& f = sendInflight[tid].back();
-    MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
+    sendInflight[index][tid].emplace_back(buf);
+    auto& f = sendInflight[index][tid].back();
+    MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm[index], &f.req);
 }
 
-void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
+void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen, uint32_t index) {
     __builtin_prefetch(buf, 0, 3);
-    sendInflight[tid].emplace_back(buf);
-    auto& f = sendInflight[tid].back();
-    MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
+    sendInflight[index][tid].emplace_back(buf);
+    auto& f = sendInflight[index][tid].back();
+    MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm[index], &f.req);
 }
 
-void NetworkInterface::recvProbeData() {
+void NetworkInterface::recvProbeData(uint32_t index) {
     int flag = 0;
     MPI_Status status;
     // check for new messages
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm[index], &flag, &status);
     if (flag) {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
         
-        recvInflightData.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-        auto& m = recvInflightData.back();
-        MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+        recvInflightData[index].emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+        auto& m = recvInflightData[index].back();
+        MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], &m.req);
     }
 
     // complete messages
-    if (!recvInflightData.empty()) {
-        auto& m  = recvInflightData.front();
+    if (!recvInflightData[index].empty()) {
+        auto& m  = recvInflightData[index].front();
         int flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
             recvData[m.host].add(m.tag, std::move(m.data));
-            recvInflightData.pop_front();
+            recvInflightData[index].pop_front();
         }
     }
 }
 
-void NetworkInterface::recvProbeWorkComm() {
+void NetworkInterface::recvProbeWorkComm(uint32_t index) {
     int flag = 0;
     MPI_Status status;
     // check for new messages
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm[index], &flag, &status);
     if (flag) {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
@@ -293,28 +292,28 @@ void NetworkInterface::recvProbeWorkComm() {
             buf = recvAllocator.allocate();
             __builtin_prefetch(buf, 1, 3);
 
-            recvInflightWork.emplace_back(buf, nbytes);
-            auto& m = recvInflightWork.back();
-            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+            recvInflightWork[index].emplace_back(buf, nbytes);
+            auto& m = recvInflightWork[index].back();
+            MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], &m.req);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
 
             MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
-            recvInflightComm.push_back(req);
-            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+            recvInflightComm[index].push_back(req);
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], req);
         }
         else { // workTerminationTag
             MPI_Request req;
-            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], &req);
             MPI_Request_free(&req);
-            terminationCountTemp += 1;
+            terminationCountTemp[index] += 1;
         }
     }
 
     // complete messages
-    if (!recvInflightWork.empty()) {
-        auto& m  = recvInflightWork.front();
+    if (!recvInflightWork[index].empty()) {
+        auto& m  = recvInflightWork[index].front();
         flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
@@ -325,72 +324,73 @@ void NetworkInterface::recvProbeWorkComm() {
                 recvRemoteWork.addPartial(m.buf, m.bufLen);
             }
             
-            recvInflightWork.pop_front();
+            recvInflightWork[index].pop_front();
 
             return;
         }
     }
     else {
-        hostWorkTerminationCount.fetch_add(terminationCountTemp);
-        terminationCountTemp = 0;
+        hostWorkTerminationCount.fetch_add(terminationCountTemp[index]);
+        terminationCountTemp[index] = 0;
     }
     
-    if (!recvInflightComm.empty()) {
-        MPI_Request* req  = recvInflightComm.front();
+    if (!recvInflightComm[index].empty()) {
+        MPI_Request* req  = recvInflightComm[index].front();
         flag = 0;
         MPI_Test(req, &flag, &status);
         if (flag) {
             recvCommunication.add(status.MPI_SOURCE);
             free(req);
-            recvInflightComm.pop_front();
+            recvInflightComm[index].pop_front();
         }
     }
 }
 
-void NetworkInterface::recvProbeDataTermination() {
+void NetworkInterface::recvProbeDataTermination(uint32_t index) {
     int flag = 0;
     MPI_Status status;
     // check for new messages
-    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm, &flag, &status);
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_comm[index], &flag, &status);
     if (flag) {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
         
         if (status.MPI_TAG ==  (int)dataTerminationTag) {
             MPI_Request req;
-            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], &req);
             MPI_Request_free(&req);
-            terminationCountTemp += 1;
+            terminationCountTemp[index] += 1;
         }
         else {
-            recvInflightData.emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
-            auto& m = recvInflightData.back();
-            MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+            recvInflightData[index].emplace_back(status.MPI_SOURCE, status.MPI_TAG, nbytes);
+            auto& m = recvInflightData[index].back();
+            MPI_Irecv(m.data.data(), nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm[index], &m.req);
         }
     }
 
     // complete messages
-    if (!recvInflightData.empty()) {
-        auto& m  = recvInflightData.front();
+    if (!recvInflightData[index].empty()) {
+        auto& m  = recvInflightData[index].front();
         int flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
             recvData[m.host].add(m.tag, std::move(m.data));
-            recvInflightData.pop_front();
+            recvInflightData[index].pop_front();
         }
     }
     else {
-        hostDataTerminationCount.fetch_add(terminationCountTemp);
-        terminationCountTemp = 0;
+        hostDataTerminationCount.fetch_add(terminationCountTemp[index]);
+        terminationCountTemp[index] = 0;
     }
 }
 
-void NetworkInterface::commThread() {
+void NetworkInterface::commThread0() {
+    uint32_t index = 0;
 
     // Set thread affinity
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);           // Clear the CPU set
-    CPU_SET(commCoreID, &cpuset);   // Set the specified core
+    CPU_SET(commCoreID0, &cpuset);   // Set the specified core
 
     // Get the native handle of the std::thread
     pthread_t thread = pthread_self();
@@ -401,30 +401,38 @@ void NetworkInterface::commThread() {
         return;
     }
 
-    initializeMPI();
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &(comm_comm[0]));
+
     ID = getID();
     Num = getNum();
 
     ready = 1;
-    std::vector<unsigned> hostOrder(Num - 1);
-    for (unsigned i = 0; i < Num - 1; i++) {
-        if (i + ID + 1 >= Num) {
-            hostOrder[i] = i + ID + 1 - Num;
-        } else {
-            hostOrder[i] = i + ID + 1;
+    
+    // odd hosts
+    std::vector<unsigned> hostOrder;
+    for (unsigned i = ID + 1; i <= Num - 1; i++) {
+        if (i % 2 == 1) {
+            hostOrder.push_back(i);
         }
     }
+    for (unsigned i = 0; i < ID; i++) {
+        if (i % 2 == 1) {
+            hostOrder.push_back(i);
+        }
+    }
+    unsigned hostNum = hostOrder.size();
 
     while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
     
     // for graph partitioning
     while (ready == 2) {
-        for (unsigned i = 0; i < Num - 1; ++i) {
+        for (unsigned i = 0; i < hostNum; ++i) {
             unsigned h = hostOrder[i];
             
-            recvProbeData();
+            recvProbeData(index);
           
             // only data
             uint32_t tag;
@@ -433,34 +441,32 @@ void NetworkInterface::commThread() {
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                send(h, tag, data, dataLen, index);
             }
         }
     }
     
     // for program execution
-    for (unsigned i=0; i<Num; i++) {
-        if (i == ID) {
-            continue;
-        }
+    for (unsigned i=0; i<hostNum; i++) {
+        unsigned h = hostOrder[i];
 
-        *(recvCommBuffer[i]) = (uint8_t)0;
+        *(recvCommBuffer[h]) = (uint8_t)0;
     }
     
     recvAllocator.touch();
     
     while (ready == 3) {
-        for (unsigned i = 0; i < Num - 1; ++i) {
+        for (unsigned i = 0; i < hostNum; ++i) {
             unsigned h = hostOrder[i];
             
             // handle send queue
-            sendTrackComplete();
+            sendTrackComplete(index);
             
             // 1. remote work
             bool hostWorkEmpty = true;
             for (unsigned t=0; t<numT; t++) {
                 // push progress forward on the network IO
-                recvProbeWorkComm();
+                recvProbeWorkComm(index);
   
                 auto& srw = sendRemoteWork[h][t];
 
@@ -468,14 +474,14 @@ void NetworkInterface::commThread() {
                 bool success = srw.pop(work);
               
                 if (success) {
-                    sendFullTrack(t, h, work);
+                    sendFullTrack(t, h, work, index);
                     hostWorkEmpty = false;
                 }
                 else {
                     if (srw.checkPartial()) {
                         size_t workLen;
                         srw.popPartial(work, workLen);
-                        sendPartialTrack(t, h, work, workLen);
+                        sendPartialTrack(t, h, work, workLen, index);
                         hostWorkEmpty = false;
                     }
                 }
@@ -484,30 +490,30 @@ void NetworkInterface::commThread() {
             if(hostWorkEmpty) { // wait until all works are sent
                 // 2. work termination
                 if (sendWorkTermination[h]) {
-                    send(h, workTerminationTag, nullptr, 0);
+                    send(h, workTerminationTag, nullptr, 0, index);
                     sendWorkTermination[h] = false;
                 }
             }
           
             // 3. data
-            recvProbeWorkComm();
+            recvProbeWorkComm(index);
             uint32_t tag;
             uint8_t* data;
             size_t dataLen;
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                send(h, tag, data, dataLen, index);
             }
         }
     }
     
     // for collecting stats
     while (ready == 4) {
-        for (unsigned i = 0; i < Num - 1; ++i) {
+        for (unsigned i = 0; i < hostNum; ++i) {
             unsigned h = hostOrder[i];
             
-            recvProbeDataTermination();
+            recvProbeDataTermination(index);
           
             // only data
             uint32_t tag;
@@ -516,12 +522,150 @@ void NetworkInterface::commThread() {
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                send(h, tag, data, dataLen, index);
             }
         }
     }
+}
+
+void NetworkInterface::commThread1() {
+    uint32_t index = 1;
+
+    // Set thread affinity
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);           // Clear the CPU set
+    CPU_SET(commCoreID1, &cpuset);   // Set the specified core
+
+    // Get the native handle of the std::thread
+    pthread_t thread = pthread_self();
+
+    // Set the CPU affinity of the thread
+    if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
+        std::cerr << "Error setting thread affinity" << std::endl;
+        return;
+    }
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_split(MPI_COMM_WORLD, 2, rank, &(comm_comm[1]));
+
+    while (ready < 1) {};
+    
+    // even hosts
+    std::vector<unsigned> hostOrder;
+    for (unsigned i = ID + 1; i <= Num - 1; i++) {
+        if (i % 2 == 0) {
+            hostOrder.push_back(i);
+        }
+    }
+    for (unsigned i = 0; i < ID; i++) {
+        if (i % 2 == 0) {
+            hostOrder.push_back(i);
+        }
+    }
+    unsigned hostNum = hostOrder.size();
+
+    while (ready < 2) {};
+    
+    // for graph partitioning
+    while (ready == 2) {
+        for (unsigned i = 0; i < hostNum; ++i) {
+            unsigned h = hostOrder[i];
+            
+            recvProbeData(index);
+          
+            // only data
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen, index);
+            }
+        }
+    }
+    
+    // for program execution
+    for (unsigned i=0; i<hostNum; i++) {
+        unsigned h = hostOrder[i];
+
+        *(recvCommBuffer[h]) = (uint8_t)0;
+    }
+    
+    recvAllocator.touch();
+    
+    while (ready == 3) {
+        for (unsigned i = 0; i < hostNum; ++i) {
+            unsigned h = hostOrder[i];
+            
+            // handle send queue
+            sendTrackComplete(index);
+            
+            // 1. remote work
+            bool hostWorkEmpty = true;
+            for (unsigned t=0; t<numT; t++) {
+                // push progress forward on the network IO
+                recvProbeWorkComm(index);
   
-    finalizeMPI();
+                auto& srw = sendRemoteWork[h][t];
+
+                uint8_t* work;
+                bool success = srw.pop(work);
+              
+                if (success) {
+                    sendFullTrack(t, h, work, index);
+                    hostWorkEmpty = false;
+                }
+                else {
+                    if (srw.checkPartial()) {
+                        size_t workLen;
+                        srw.popPartial(work, workLen);
+                        sendPartialTrack(t, h, work, workLen, index);
+                        hostWorkEmpty = false;
+                    }
+                }
+            }
+
+            if(hostWorkEmpty) { // wait until all works are sent
+                // 2. work termination
+                if (sendWorkTermination[h]) {
+                    send(h, workTerminationTag, nullptr, 0, index);
+                    sendWorkTermination[h] = false;
+                }
+            }
+          
+            // 3. data
+            recvProbeWorkComm(index);
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen, index);
+            }
+        }
+    }
+    
+    // for collecting stats
+    while (ready == 4) {
+        for (unsigned i = 0; i < hostNum; ++i) {
+            unsigned h = hostOrder[i];
+            
+            recvProbeDataTermination(index);
+          
+            // only data
+            uint32_t tag;
+            uint8_t* data;
+            size_t dataLen;
+            bool success = sendData[h].pop(tag, data, dataLen);
+          
+            if (success) {
+                send(h, tag, data, dataLen, index);
+            }
+        }
+    }
 }
 
 NetworkInterface::NetworkInterface()
@@ -530,7 +674,9 @@ NetworkInterface::NetworkInterface()
       sendBufCount(1 << sendBufCountExp),
       recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
-    comm = std::thread(&NetworkInterface::commThread, this);
+    initializeMPI();
+    comm0 = std::thread(&NetworkInterface::commThread0, this);
+    comm1 = std::thread(&NetworkInterface::commThread1, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
     for (unsigned t=0; t<numT; t++) {
@@ -566,14 +712,21 @@ NetworkInterface::NetworkInterface()
         }
     }
     hostDataTerminationCount = 1;
-    terminationCountTemp = 0;
-    sendInflight = decltype(sendInflight)(numT);
+    terminationCountTemp[0] = 0;
+    terminationCountTemp[1] = 0;
+    //sendInflight[0] = decltype(sendInflight[0])(numT);
+    //sendInflight[1] = decltype(sendInflight[1])(numT);
+    sendInflight[0].resize(numT);
+    sendInflight[1].resize(numT);
     ready    = 2;
 }
 
 NetworkInterface::~NetworkInterface() {
     ready = 5;
-    comm.join();
+    comm0.join();
+    comm1.join();
+  
+    finalizeMPI();
 
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {

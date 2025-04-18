@@ -42,8 +42,9 @@
 #include <sched.h>
 #endif
 
-int commThreadNum = 1;
-cll::opt<unsigned int> commCoreID("commCoreID", cll::desc("The core ID to pin the communication thread to"), cll::init(27));
+int commThreadNum = 2;
+cll::opt<unsigned int> commCoreID0("commCoreID0", cll::desc("The core ID to pin communication thread 0 to"), cll::init(27));
+cll::opt<unsigned int> commCoreID1("commCoreID1", cll::desc("The core ID to pin communication thread 1 to"), cll::init(12));
 
 namespace {
 
@@ -246,7 +247,7 @@ galois::substrate::HWTopoInfo makeHWTopo() {
   unsigned mid = 0; // max socket id
   unsigned cur_tid = 0;
   for (unsigned i = 0; i < info.size(); ++i) {
-    if (info[i].proc == commCoreID) {
+    if (info[i].proc == commCoreID0 || info[i].proc == commCoreID1) {
         continue;
     }
     else {

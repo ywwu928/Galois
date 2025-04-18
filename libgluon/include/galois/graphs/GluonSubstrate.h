@@ -1316,13 +1316,17 @@ private:
 
     TsyncReduce.start();
 
+    galois::gPrint("Host ", id, " : point 0\n");
     syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
+    galois::gPrint("Host ", id, " : point 1\n");
 
 #ifndef GALOIS_FULL_MIRRORING
     poll_for_remote_work<ReduceFnTy>();
+    galois::gPrint("Host ", id, " : point 2\n");
 #endif
 
     syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
+    galois::gPrint("Host ", id, " : point 3\n");
 
     TsyncReduce.stop();
   }
