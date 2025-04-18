@@ -90,7 +90,6 @@ RecvBuffer NetworkInterface::recvBufferData::pop() {
     return RecvBuffer(std::move(frontMsg.data));
 }
 
-// Worker thread interface
 void NetworkInterface::recvBufferData::add(uint32_t tag, vTy&& vec) {
     messages.enqueue(recvMessage(tag, std::move(vec)));
 }
@@ -113,7 +112,6 @@ bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host) {
     return success;
 }
 
-// Worker thread interface
 void NetworkInterface::recvBufferCommunication::add(uint32_t host) {
     hosts.enqueue(host);
 }
@@ -134,7 +132,6 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, si
     return success;
 }
 
-// Worker thread interface
 void NetworkInterface::recvBufferRemoteWork::addFull(uint8_t* work) {
     fullMessages.enqueue(ptokFull, work);
 }
@@ -388,7 +385,7 @@ void NetworkInterface::recvProbeDataTermination() {
     }
 }
 
-void NetworkInterface::workerThread() {
+void NetworkInterface::commThread() {
 
     // Set thread affinity
     cpu_set_t cpuset;
@@ -533,7 +530,7 @@ NetworkInterface::NetworkInterface()
       sendBufCount(1 << sendBufCountExp),
       recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
-    worker = std::thread(&NetworkInterface::workerThread, this);
+    comm = std::thread(&NetworkInterface::commThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
     for (unsigned t=0; t<numT; t++) {
@@ -576,7 +573,7 @@ NetworkInterface::NetworkInterface()
 
 NetworkInterface::~NetworkInterface() {
     ready = 5;
-    worker.join();
+    comm.join();
 
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {
