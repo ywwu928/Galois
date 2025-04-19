@@ -28,8 +28,7 @@
 
 namespace cll = llvm::cl;
 extern int commThreadNum;
-extern cll::opt<unsigned int> commCoreID0;
-extern cll::opt<unsigned int> commCoreID1;
+extern cll::opt<unsigned int> commCoreID;
 
 namespace galois::substrate {
 
