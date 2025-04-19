@@ -30,7 +30,7 @@
 #include <iostream>
 #include <mutex>
 #include <chrono>
-#include <xmmintrin.h>
+#include <cstdio>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -68,10 +68,18 @@ void NetworkInterface::initializeMPI() {
         GALOIS_DIE("MPI_THREAD_MULTIPLE not supported.");
     }
 
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_split(MPI_COMM_WORLD, 0, rank, &comm_barrier);
-    MPI_Comm_split(MPI_COMM_WORLD, 1, rank, &comm_comm);
+    MPI_Info_create(&info);
+
+    MPI_Comm_dup(MPI_COMM_WORLD, &comm_main);
+    MPI_Comm_dup(MPI_COMM_WORLD, &comm_comm);
+
+    char s[16];
+    sprintf(s, "%d", 0);
+    MPI_Info_set(info, "thread_id", s);
+    MPI_Comm_set_info(comm_main, info);
+    sprintf(s, "%d", 1);
+    MPI_Info_set(info, "thread_id", s);
+    MPI_Comm_set_info(comm_comm, info);
 }
 
 void NetworkInterface::finalizeMPI() {
