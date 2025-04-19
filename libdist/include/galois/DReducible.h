@@ -54,25 +54,25 @@ class DGAccumulator {
   inline void reduce_mpi() {
     if (typeid(Ty) == typeid(int32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_INT, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(int64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED_LONG, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(float)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_FLOAT, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_DOUBLE, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(long double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG_DOUBLE, MPI_SUM,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else {
       static_assert(true,
                     "Type of DGAccumulator not supported for MPI reduction");
@@ -195,25 +195,25 @@ class DGReduceMax {
   inline void reduce_mpi() {
     if (typeid(Ty) == typeid(int32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_INT, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(int64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED_LONG, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(float)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_FLOAT, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_DOUBLE, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(long double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG_DOUBLE, MPI_MAX,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else {
       static_assert(true, "Type of DGReduceMax not supported for MPI "
                           "reduction");
@@ -317,25 +317,25 @@ class DGReduceMin {
   inline void reduce_mpi() {
     if (typeid(Ty) == typeid(int32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_INT, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(int64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint32_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(uint64_t)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_UNSIGNED_LONG, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(float)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_FLOAT, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_DOUBLE, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else if (typeid(Ty) == typeid(long double)) {
       MPI_Allreduce(&local_mdata, &global_mdata, 1, MPI_LONG_DOUBLE, MPI_MIN,
-                    net.comm_main);
+                    MPI_COMM_WORLD);
     } else {
       static_assert(true, "Type of DGReduceMin not supported for MPI "
                           "reduction");

@@ -54,9 +54,7 @@ using RecvBuffer = DeSerializeBuffer;
  */
 class NetworkInterface {
 public:
-  MPI_Info info;
-  MPI_Comm comm_main;
-  MPI_Comm comm_comm;
+  MPI_Comm comm_barrier, comm_comm;
   
   uint32_t workCount;
   size_t aggMsgSize;
