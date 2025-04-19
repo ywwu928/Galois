@@ -24,7 +24,6 @@
  */
 #include "galois/runtime/DistStats.h"
 #include "galois/runtime/Serialize.h"
-#include "galois/DTerminationDetector.h"
 
 using namespace galois::runtime;
 
@@ -95,10 +94,9 @@ void DistStatManager::mergeStats(void) {
 
 void DistStatManager::combineAtHost_0_helper_total(void) {
   const bool IS_HOST0 = getHostID() == 0;
+  auto& net = getSystemNetworkInterface();
 
   if (!IS_HOST0) {
-    auto& net = getSystemNetworkInterface();
-
     const auto& hTotalMap = hostTotalTypes.mergedMap();
     
     for (auto i = hTotalMap.cbegin(), end_i = hTotalMap.cend(); i != end_i;
@@ -110,6 +108,11 @@ void DistStatManager::combineAtHost_0_helper_total(void) {
     }
 
     net.signalDataTermination(0);
+  }
+  else {
+      // receive from other hosts
+      receiveAtHost_0_helper_total();
+      net.resetDataTermination();
   }
 }
 
@@ -139,6 +142,11 @@ void DistStatManager::combineAtHost_0_helper_int(void) {
     
   if (!IS_HOST0) {
     net.signalDataTermination(0);
+  }
+  else {
+      // receive from other hosts
+      receiveAtHost_0_helper_int();
+      net.resetDataTermination();
   }
 }
 
@@ -170,6 +178,11 @@ void DistStatManager::combineAtHost_0_helper_fp(void) {
   if (!IS_HOST0) {
     net.signalDataTermination(0);
   }
+  else {
+      // receive from other hosts
+      receiveAtHost_0_helper_fp();
+      net.resetDataTermination();
+  }
 }
 
 void DistStatManager::combineAtHost_0_helper_str(void) {
@@ -199,6 +212,11 @@ void DistStatManager::combineAtHost_0_helper_str(void) {
   if (!IS_HOST0) {
     net.signalDataTermination(0);
   }
+  else {
+      // receive from other hosts
+      receiveAtHost_0_helper_str();
+      net.resetDataTermination();
+  }
 }
 
 void DistStatManager::receiveAtHost_0_helper_total(void) {
@@ -220,12 +238,6 @@ void DistStatManager::receiveAtHost_0_helper_total(void) {
               gDeserialize(b, region, category, totalTy);
 
               StatRecvHelper::recvAtHost_0_hostTotalTy(region, category, totalTy);
-
-
-
-
-
-
           }
       } while (p);
 
@@ -256,14 +268,7 @@ void DistStatManager::receiveAtHost_0_helper_int(void) {
               galois::gstl::Vector<int64_t> thrdVals;
               gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
 
-              StatRecvHelper::recvAtHost_0_int(hostID, ln, cat, thrdTotal, totalTy,
-                                             thrdVals);
-
-
-
-
-
-
+              StatRecvHelper::recvAtHost_0_int(hostID, ln, cat, thrdTotal, totalTy, thrdVals);
           }
       } while (p);
 
@@ -294,14 +299,7 @@ void DistStatManager::receiveAtHost_0_helper_fp(void) {
               galois::gstl::Vector<double> thrdVals;
               gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
 
-              StatRecvHelper::recvAtHost_0_fp(hostID, ln, cat, thrdTotal, totalTy,
-                                             thrdVals);
-
-
-
-
-
-
+              StatRecvHelper::recvAtHost_0_fp(hostID, ln, cat, thrdTotal, totalTy, thrdVals);
           }
       } while (p);
 
@@ -332,14 +330,7 @@ void DistStatManager::receiveAtHost_0_helper_str(void) {
               galois::gstl::Vector<Str> thrdVals;
               gDeserialize(b, ln, cat, thrdTotal, totalTy, thrdVals);
 
-              StatRecvHelper::recvAtHost_0_str(hostID, ln, cat, thrdTotal, totalTy,
-                                             thrdVals);
-
-
-
-
-
-
+              StatRecvHelper::recvAtHost_0_str(hostID, ln, cat, thrdTotal, totalTy, thrdVals);
           }
       } while (p);
 
@@ -350,25 +341,9 @@ void DistStatManager::receiveAtHost_0_helper_str(void) {
 }
 
 void DistStatManager::combineAtHost_0(void) {
-  auto& net = getSystemNetworkInterface();
-  galois::DGTerminator<unsigned int> td;
-
   // host 0 reads stats from Base class
   // other hosts send stats to host 0
   combineAtHost_0_helper_total();
-
-  // work done before check
-  td += 1;
-
-  // barrier
-  while (td.reduce()) {
-    td.reset();
-    if (getHostID() == 0) {
-      // receive from other hosts
-      receiveAtHost_0_helper_total();
-      net.resetDataTermination();
-    }
-  }
 
   // explicit barrier after logical barrier is required
   // as next async phase begins immediately
@@ -378,19 +353,6 @@ void DistStatManager::combineAtHost_0(void) {
   // other hosts send stats to host 0
   combineAtHost_0_helper_int();
 
-  td += 1;
-
-  // barrier
-  while (td.reduce()) {
-    td.reset();
-
-    if (getHostID() == 0) {
-      // receive from other hosts
-      receiveAtHost_0_helper_int();
-      net.resetDataTermination();
-    }
-  }
-
   // explicit barrier after logical barrier is required
   // as next async phase begins immediately
   getHostBarrier().wait();
@@ -399,19 +361,6 @@ void DistStatManager::combineAtHost_0(void) {
   // other hosts send stats to host 0
   combineAtHost_0_helper_fp();
 
-  td += 1;
-
-  // barrier
-  while (td.reduce()) {
-    td.reset();
-
-    if (getHostID() == 0) {
-      // receive from other hosts
-      receiveAtHost_0_helper_fp();
-      net.resetDataTermination();
-    }
-  }
-
   // explicit barrier after logical barrier is required
   // as next async phase begins immediately
   getHostBarrier().wait();
@@ -419,19 +368,6 @@ void DistStatManager::combineAtHost_0(void) {
   // host 0 reads stats from Base class
   // other hosts send stats to host 0
   combineAtHost_0_helper_str();
-
-  td += 1;
-
-  // barrier
-  while (td.reduce()) {
-    td.reset();
-
-    if (getHostID() == 0) {
-      // receive from other hosts
-      receiveAtHost_0_helper_str();
-      net.resetDataTermination();
-    }
-  }
 
   // explicit barrier after logical barrier is required
   // as next async phase begins immediately
@@ -509,7 +445,6 @@ void DistStatManager::printHeader(std::ostream& out) const {
 void DistStatManager::printStats(std::ostream& out) {
   mergeStats();
 
-  galois::DGTerminator<unsigned int> td;
   if (getHostID() == 0) {
     printHeader(out);
 
@@ -517,7 +452,5 @@ void DistStatManager::printStats(std::ostream& out) {
     fpDistStats.print(out);
     strDistStats.print(out);
   }
-  // all hosts must wait for host 0 to finish printing stats
-  while (td.reduce()) {
-  };
+  getHostBarrier().wait();
 }

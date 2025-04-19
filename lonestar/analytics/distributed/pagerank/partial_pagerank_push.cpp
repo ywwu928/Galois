@@ -22,7 +22,6 @@
 #include "galois/DistGalois.h"
 #include "galois/gstl.h"
 #include "galois/DReducible.h"
-#include "galois/DTerminationDetector.h"
 #include "galois/runtime/Tracer.h"
 #include "galois/runtime/Profile.h"
 
