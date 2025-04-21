@@ -401,7 +401,6 @@ void NetworkInterface::commThread() {
         return;
     }
 
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
     ID = getID();
     Num = getNum();
 
