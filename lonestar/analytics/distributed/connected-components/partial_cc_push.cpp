@@ -21,7 +21,6 @@
 #include "DistBench/Start.h"
 #include "galois/DistGalois.h"
 #include "galois/DReducible.h"
-#include "galois/DTerminationDetector.h"
 #include "galois/gstl.h"
 #include "galois/runtime/Tracer.h"
 
@@ -202,7 +201,7 @@ struct ConnectedComp {
     DGTerminatorDetector dga;
 
     const auto& masterNodes = _graph.masterNodesRange();
-  
+    
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
     do {
@@ -371,6 +370,8 @@ int main(int argc, char** argv) {
 
   hg->sortEdgesByDestination();
 
+  net.partitionDone();
+
   bitset_comp_current.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
@@ -386,6 +387,8 @@ int main(int argc, char** argv) {
     galois::gPrint("[", net.ID, "] ConnectedComp::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME.c_str());
+
+    net.touchBufferPool();
 
     StatTimer_main.start();
     ConnectedComp::go(*hg);
@@ -405,6 +408,8 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+  
+  net.applicationDone();
 
   if (output) {
     std::vector<uint32_t> results = makeResults(hg);
