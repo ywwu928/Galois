@@ -349,6 +349,7 @@ private:
     uint64_t host_master_nodes = userGraph.numMasters();
     uint64_t host_mirror_nodes = userGraph.numMirrors();
     uint64_t host_phantom_nodes = userGraph.numPhantoms();
+    uint64_t host_edges = userGraph.sizeEdges();
   
 #ifdef GALOIS_HOST_STATS
     constexpr bool HOST_STATS = true;
@@ -364,6 +365,8 @@ private:
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_nodes_str, host_phantom_nodes);
     std::string phantom_master_nodes_str = "PhantomMasterNodes_Host_" + std::to_string(id);
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, phantom_master_nodes_str, phantomMasterCount);
+    std::string edges_str = "Edges_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, edges_str, host_edges);
         
     if (net.ID == 0) {
         uint64_t global_total_mirror_nodes = host_mirror_nodes;
