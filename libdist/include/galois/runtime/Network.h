@@ -298,6 +298,7 @@ private:
   
   void recvProbeData();
   void recvProbeWorkComm();
+  void recvProbeDataTermination();
   
   void workerThread();
   
@@ -310,6 +311,8 @@ private:
   std::atomic<uint32_t> hostWorkTerminationCount;
   
   std::atomic<uint32_t> hostDataTerminationCount;
+
+  uint32_t terminationCountTemp;
 
 public:
   //! This machine's host ID
