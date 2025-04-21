@@ -299,9 +299,9 @@ private:
   void recvProbeWorkComm();
   void recvProbeDataTermination();
   
-  void workerThread();
+  void commThread();
   
-  std::thread worker;
+  std::thread comm;
   std::atomic<int> ready;
   
   std::vector<std::atomic<bool>> sendWorkTermination;
