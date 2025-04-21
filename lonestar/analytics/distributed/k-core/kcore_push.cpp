@@ -32,15 +32,8 @@
 #include <iostream>
 #include <limits>
 
-#ifdef GALOIS_ENABLE_GPU
-#include "kcore_push_cuda.h"
-struct CUDA_Context* cuda_ctx;
-#else
-enum { CPU, GPU_CUDA };
-int personality = CPU;
-#endif
-
-constexpr static const char* const REGION_NAME = "KCore";
+static std::string REGION_NAME = "KCore";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -97,29 +90,13 @@ struct InitializeGraph2 {
 
   /* Initialize the entire graph node-by-node */
   void static go(Graph& _graph) {
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("InitializeGraph2_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      InitializeGraph2_nodesWithEdges_cuda(cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(nodesWithEdges), InitializeGraph2{&_graph},
-          galois::steal(), galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph2").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(masterNodes), InitializeGraph2{&_graph},
+        galois::steal(), galois::no_stats());
 
-    syncSubstrate->sync<writeDestination, readSource, Reduce_add_current_degree,
-                        Bitset_current_degree>("InitializeGraph2");
+    syncSubstrate->sync<writeDestination, readSource, Reduce_add_current_degree, Bitset_current_degree>("InitializeGraph2");
   }
 
   /* Calculate degree of nodes by checking how many nodes have it as a dest and
@@ -146,24 +123,11 @@ struct InitializeGraph1 {
   void static go(Graph& _graph) {
     const auto& allNodes = _graph.allNodesRange();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("InitializeGraph1_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      InitializeGraph1_allNodes_cuda(cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
-          InitializeGraph1{&_graph}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph1").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(allNodes.begin(), allNodes.end()),
+        InitializeGraph1{&_graph}, galois::no_stats());
+
+    galois::runtime::getHostBarrier().wait();
 
     // degree calculation
     InitializeGraph2::go(_graph);
@@ -187,23 +151,12 @@ struct KCoreStep2 {
   KCoreStep2(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("KCore_" + (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      KCoreStep2_nodesWithEdges_cuda(cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(nodesWithEdges.begin(), nodesWithEdges.end()),
-          KCoreStep2{&_graph}, galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("KCore").c_str()));
-    }
+    const auto& allNodes = _graph.allNodesRange();
+    
+    galois::do_all(
+        galois::iterate(allNodes),
+        KCoreStep2{&_graph}, galois::no_stats(),
+        galois::loopname(syncSubstrate->get_run_identifier("KCore").c_str()));
   }
 
   void operator()(GNode src) const {
@@ -239,54 +192,62 @@ struct KCoreStep1 {
       : local_k_core_num(_kcore), graph(_graph), active_vertices(_dga) {}
 
   void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
     unsigned iterations = 0;
+
     DGTerminatorDetector dga;
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     do {
-      syncSubstrate->set_num_round(iterations);
-      dga.reset();
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        std::string impl_str("KCore_" + (syncSubstrate->get_run_identifier()));
-        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-        StatTimer_cuda.start();
-        unsigned int __retval = 0;
-        KCoreStep1_nodesWithEdges_cuda(__retval, k_core_num, cuda_ctx);
-        dga += __retval;
-        StatTimer_cuda.stop();
-#else
-        abort();
+      std::string total_str("Total_Round_" + std::to_string(iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string step2_str("Step2_Round_" + std::to_string(iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_step2(step2_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+#ifdef GALOIS_PRINT_PROCESS
+      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
-      } else if (personality == CPU) {
-        galois::do_all(galois::iterate(nodesWithEdges),
-                       KCoreStep1{k_core_num, &_graph, dga}, galois::steal(),
-                       galois::no_stats(),
-                       galois::loopname(
-                           syncSubstrate->get_run_identifier("KCore").c_str()));
-      }
+
+      StatTimer_total.start();
+      syncSubstrate->set_num_round(iterations);
+
+      dga.reset();
+
+      StatTimer_compute.start();
+      galois::do_all(galois::iterate(masterNodes),
+                     KCoreStep1{k_core_num, &_graph, dga}, galois::steal(),
+                     galois::no_stats(),
+                     galois::loopname(syncSubstrate->get_run_identifier("KCore").c_str()));
+      StatTimer_compute.stop();
 
       // do the trim sync; readSource because in symmetric graph
       // source=destination; not a readAny because any will grab non
       // source/dest nodes (which have degree 0, so they won't have a trim
       // anyways)
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim,
-                          Bitset_trim, async>("KCore");
+      StatTimer_comm.start();
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim, async>("KCore");
+      StatTimer_comm.stop();
 
       // handle trimming (locally)
+      StatTimer_step2.start();
       KCoreStep2::go(_graph);
+      StatTimer_step2.stop();
 
       iterations++;
+
+      StatTimer_total.stop();
     } while ((async || (iterations < maxIterations)) &&
              dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::runtime::reportStat_Single(
-          REGION_NAME,
-          "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-          (unsigned long)iterations);
-    }
   }
 
   void operator()(GNode src) const {
@@ -329,20 +290,9 @@ struct KCoreSanityCheck {
   void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
     dga.reset();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      uint64_t sum;
-      KCoreSanityCheck_masterNodes_cuda(sum, cuda_ctx);
-      dga += sum;
-#else
-      abort();
-#endif
-    } else {
-      galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                     _graph.masterNodesRange().end()),
-                     KCoreSanityCheck(&_graph, dga), galois::no_stats(),
-                     galois::loopname("KCoreSanityCheck"));
-    }
+    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
+                                   _graph.masterNodesRange().end()),
+                   KCoreSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_nodes = dga.reduce();
 
@@ -367,7 +317,7 @@ struct KCoreSanityCheck {
 /* Make results */
 /******************************************************************************/
 
-std::vector<unsigned> makeResultsCPU(std::unique_ptr<Graph>& hg) {
+std::vector<unsigned> makeResults(std::unique_ptr<Graph>& hg) {
   std::vector<unsigned> values;
 
   values.reserve(hg->numMasters());
@@ -376,34 +326,6 @@ std::vector<unsigned> makeResultsCPU(std::unique_ptr<Graph>& hg) {
   }
 
   return values;
-}
-
-#ifdef GALOIS_ENABLE_GPU
-std::vector<unsigned> makeResultsGPU(std::unique_ptr<Graph>& hg) {
-  std::vector<unsigned> values;
-
-  values.reserve(hg->numMasters());
-  for (auto node : hg->masterNodesRange()) {
-    values.push_back(get_node_flag_cuda(cuda_ctx, node));
-  }
-
-  return values;
-}
-#else
-std::vector<unsigned> makeResultsGPU(std::unique_ptr<Graph>& /*unused*/) {
-  abort();
-}
-#endif
-
-std::vector<unsigned> makeResults(std::unique_ptr<Graph>& hg) {
-  switch (personality) {
-  case CPU:
-    return makeResultsCPU(hg);
-  case GPU_CUDA:
-    return makeResultsGPU(hg);
-  default:
-    abort();
-  }
 }
 
 /******************************************************************************/
@@ -420,36 +342,35 @@ int main(int argc, char** argv) {
   DistBenchStart(argc, argv, name, desc, url);
 
   auto& net = galois::runtime::getSystemNetworkInterface();
+
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
   }
 
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
-
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> h_graph;
-#ifdef GALOIS_ENABLE_GPU
-  std::tie(h_graph, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>(&cuda_ctx);
-#else
-  std::tie(h_graph, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>();
-#endif
+  std::tie(h_graph, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>();
 
   bitset_current_degree.resize(h_graph->size());
   bitset_trim.resize(h_graph->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go functions called\n");
+
   InitializeGraph1::go((*h_graph));
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> dga;
 
   for (auto run = 0; run < numRuns; ++run) {
-    galois::gPrint("[", net.ID, "] KCoreStep1::go run ", run, " called\n");
+    REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
+    galois::gPrint("[", net.ID, "] KCore::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     StatTimer_main.start();
     if (execution == Async) {
@@ -458,6 +379,7 @@ int main(int argc, char** argv) {
       KCoreStep1<false>::go(*h_graph);
     }
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " KCore run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     // sanity check
     KCoreSanityCheck::go(*h_graph, dga);
@@ -466,18 +388,10 @@ int main(int argc, char** argv) {
     if ((run + 1) != numRuns) {
       (*syncSubstrate).set_num_run(run + 1);
 
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        bitset_current_degree_reset_cuda(cuda_ctx);
-        bitset_trim_reset_cuda(cuda_ctx);
-#else
-        abort();
-#endif
-      } else {
-        bitset_current_degree.reset();
-        bitset_trim.reset();
-      }
+      bitset_current_degree.reset();
+      bitset_trim.reset();
 
+      galois::gPrint("[", net.ID, "] InitializeGraph::go functions called\n");
       InitializeGraph1::go(*h_graph);
       galois::runtime::getHostBarrier().wait();
     }
