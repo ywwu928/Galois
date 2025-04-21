@@ -135,6 +135,8 @@ struct FirstItr_BFS {
     
     StatTimer_total.start();
     syncSubstrate->set_num_round(0);
+
+    _net.prefetchBuffers();
     
     StatTimer_compute.start();
     if (_graph.isOwned(src_node)) {
@@ -233,9 +235,7 @@ struct BFS {
     DGTerminatorDetector dga;
     DGAccumulatorTy work_edges;
     
-#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
-#endif
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -271,6 +271,8 @@ struct BFS {
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
+
+      _net.prefetchBuffers();
 
       // launch all other threads to compute
       StatTimer_compute.start();

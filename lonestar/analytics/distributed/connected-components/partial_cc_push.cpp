@@ -102,9 +102,7 @@ struct FirstItr_ConnectedComp {
     const auto& masterNodes = _graph.masterNodesRange();
 #endif
     
-#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
-#endif
      
     std::string total_str("Total_Round_0");
     galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
@@ -134,6 +132,8 @@ struct FirstItr_ConnectedComp {
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
+
+    _net.prefetchBuffers();
     
     // launch all other threads to compute
     StatTimer_compute.start();
@@ -231,9 +231,7 @@ struct ConnectedComp {
     const auto& masterNodes = _graph.masterNodesRange();
 #endif
   
-#ifdef GALOIS_PRINT_PROCESS
     auto& _net = galois::runtime::getSystemNetworkInterface();
-#endif
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -266,6 +264,8 @@ struct ConnectedComp {
       };
       galois::substrate::getThreadPool().runDedicated(func);
 #endif
+
+      _net.prefetchBuffers();
       
       // launch all other threads to compute
       StatTimer_compute.start();
