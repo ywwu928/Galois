@@ -248,8 +248,7 @@ struct ConnectedCompSanityCheck {
 
     galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
                                    _graph.masterNodesRange().end()),
-                   ConnectedCompSanityCheck(&_graph, dga), galois::no_stats(),
-                   galois::loopname("ConnectedCompSanityCheck"));
+                   ConnectedCompSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_components = dga.reduce();
 
