@@ -114,6 +114,8 @@ struct FirstItr_ConnectedComp {
     
     StatTimer_total.start();
     syncSubstrate->set_num_round(0);
+
+    _net.prefetchBuffers();
       
     // launch all other threads to compute
     StatTimer_compute.start();
@@ -220,6 +222,8 @@ struct ConnectedComp {
       syncSubstrate->set_num_round(_num_iterations);
 
       dga.reset();
+
+      _net.prefetchBuffers();
       
       // launch all other threads to compute
       StatTimer_compute.start();

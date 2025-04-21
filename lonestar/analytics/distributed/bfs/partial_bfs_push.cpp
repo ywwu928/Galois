@@ -135,6 +135,8 @@ struct FirstItr_BFS {
     
     StatTimer_total.start();
     syncSubstrate->set_num_round(0);
+
+    _net.prefetchBuffers();
       
     StatTimer_compute.start();
     if (_graph.isOwned(src_node)) {
@@ -251,6 +253,8 @@ struct BFS {
 
       dga.reset();
       work_edges.reset();
+
+      _net.prefetchBuffers();
       
       // launch all other threads to compute
       StatTimer_compute.start();
