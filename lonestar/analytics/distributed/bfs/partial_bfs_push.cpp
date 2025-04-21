@@ -60,14 +60,6 @@ static cll::opt<uint32_t>
           cll::desc("Shift value for the delta step (default value 0)"),
           cll::init(0));
 
-enum Exec { Sync, Async };
-
-static cll::opt<Exec> execution(
-    "exec", cll::desc("Distributed Execution Model (default value Async):"),
-    cll::values(clEnumVal(Sync, "Bulk-synchronous Parallel (BSP)"),
-                clEnumVal(Async, "Bulk-asynchronous Parallel (BASP)")),
-    cll::init(Sync));
-
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
