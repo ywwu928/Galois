@@ -167,13 +167,8 @@ struct PageRank {
 
   galois::runtime::NetworkInterface& net;
 
-  galois::GAccumulator<uint64_t>& mirrorCount;
-  galois::GAccumulator<uint64_t>& mirrorTime;
-  galois::GAccumulator<uint64_t>& phantomCount;
-  galois::GAccumulator<uint64_t>& phantomTime;
-
-  PageRank(Graph* _g, DGTerminatorDetector& _dga, galois::GAccumulator<uint64_t>& _mirrorCount, galois::GAccumulator<uint64_t>& _mirrorTime, galois::GAccumulator<uint64_t>& _phantomCount, galois::GAccumulator<uint64_t>& _phantomTime)
-      : graph(_g), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()), mirrorCount(_mirrorCount), mirrorTime(_mirrorTime), phantomCount(_phantomCount), phantomTime(_phantomTime) {}
+  PageRank(Graph* _g, DGTerminatorDetector& _dga)
+      : graph(_g), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -189,11 +184,6 @@ struct PageRank {
     DGTerminatorDetector dga;
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
-
-    galois::GAccumulator<uint64_t> mirrorCount;
-    galois::GAccumulator<uint64_t> mirrorTime;
-    galois::GAccumulator<uint64_t> phantomCount;
-    galois::GAccumulator<uint64_t> phantomTime;
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -227,26 +217,12 @@ struct PageRank {
 
       _net.prefetchBuffers();
 
-      mirrorCount.reset();
-      mirrorTime.reset();
-      phantomCount.reset();
-      phantomTime.reset();
-
       // launch all other threads to compute
       StatTimer_compute.start();
-      galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga, mirrorCount, mirrorTime, phantomCount, phantomTime},
+      galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
                      galois::no_stats(), galois::steal(),
                      galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
       StatTimer_compute.stop();
-      if (_num_iterations == 0) {
-          galois::gPrint("Host ", _net.ID, " : compute time = ", StatTimer_compute.get(), " ms\n");
-          
-          galois::on_each(
-              [&](unsigned tid, unsigned) {
-                  galois::gPrint("Host ", _net.ID, " thread ", tid, " : average atomicAdd time = ", mirrorTime.getLocal()/mirrorCount.getLocal(), " ns", ", average phantom time = ", phantomTime.getLocal()/phantomCount.getLocal(), " ns\n");
-              }
-          );
-      }
 
 #ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
@@ -274,7 +250,6 @@ struct PageRank {
   }
 
   void operator()(WorkItem src) const {
-    uint64_t count = 0;
     NodeData& sdata = graph->getData(src);
     if (sdata.delta > 0) {
       float _delta = sdata.delta;
@@ -283,32 +258,21 @@ struct PageRank {
       active_vertices += 1; // this should be moved to Pagerank_delta operator
 
       for (auto nbr : graph->edges(src)) {
-          count += 1;
         GNode dst       = graph->getEdgeDst(nbr);
 #ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
-            phantomCount += 1;
-            auto start = std::chrono::high_resolution_clock::now();
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
             //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
             //unsigned tid = galois::substrate::ThreadPool::getTID();
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            phantomTime += duration.count();
         }
         else {
 #endif
-            mirrorCount += 1;
             NodeData& ddata = graph->getData(dst);
 
-            auto start = std::chrono::high_resolution_clock::now();
             galois::atomicAddVoid(ddata.residual, _delta);
-            auto end = std::chrono::high_resolution_clock::now();
 
             bitset_residual.set(dst);
-            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-            mirrorTime += duration.count();
 #ifndef GALOIS_FULL_MIRRORING     
         }
 #endif
