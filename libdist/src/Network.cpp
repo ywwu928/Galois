@@ -106,18 +106,14 @@ bool NetworkInterface::recvBufferData::hasMsg(uint32_t tag) {
     return frontTag == tag;
 }
 
-bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host, uint8_t*& work) {
-    std::pair<uint32_t, uint8_t*> message;
-    bool success = messages.try_dequeue(message);
-    host = message.first;
-    work = message.second;
-
+bool NetworkInterface::recvBufferCommunication::tryPopMsg(uint32_t& host) {
+    bool success = hosts.try_dequeue(host);
     return success;
 }
 
 // Worker thread interface
-void NetworkInterface::recvBufferCommunication::add(uint32_t host, uint8_t* work) {
-    messages.enqueue(std::make_pair(host, work));
+void NetworkInterface::recvBufferCommunication::add(uint32_t host) {
+    hosts.enqueue(host);
 }
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
@@ -293,46 +289,56 @@ void NetworkInterface::recvProbeWorkComm() {
             buf = recvAllocator.allocate();
             __builtin_prefetch(buf, 1, 3);
 
-            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG, buf, nbytes);
-            auto& m = recvInflightBuf.back();
+            recvInflightWork.emplace_back(buf, nbytes);
+            auto& m = recvInflightWork.back();
             MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
 
-            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG, recvCommBuffer[status.MPI_SOURCE], nbytes);
-            auto& m = recvInflightBuf.back();
-            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+            MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
+            recvInflightComm.push_back(req);
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
         }
         else { // workTerminationTag
-            recvInflightBuf.emplace_back(status.MPI_SOURCE, status.MPI_TAG);
-            auto& m = recvInflightBuf.back();
-            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
+            MPI_Request req;
+            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Request_free(&req);
+            terminationCountTemp += 1;
         }
     }
 
     // complete messages
-    if (!recvInflightBuf.empty()) {
-        auto& m  = recvInflightBuf.front();
-        int flag = 0;
+    if (!recvInflightWork.empty()) {
+        auto& m  = recvInflightWork.front();
+        flag = 0;
         MPI_Test(&m.req, &flag, MPI_STATUS_IGNORE);
         if (flag) {
-            if (m.tag == remoteWorkTag) {
-                if (m.bufLen == aggMsgSize) {
-                    recvRemoteWork.addFull(m.buf);
-                }
-                else {
-                    recvRemoteWork.addPartial(m.buf, m.bufLen);
-                }
+            if (m.bufLen == aggMsgSize) {
+                recvRemoteWork.addFull(m.buf);
             }
-            else if (m.tag == workTerminationTag) {
-                hostWorkTerminationCount.fetch_add(1);
-            }
-            else { // communicationTag
-                recvCommunication.add(m.host, m.buf);
+            else {
+                recvRemoteWork.addPartial(m.buf, m.bufLen);
             }
 
-            recvInflightBuf.pop_front();
+            recvInflightWork.pop_front();
+
+            return;
+        }
+    }
+    else {
+        hostWorkTerminationCount.fetch_add(terminationCountTemp);
+        terminationCountTemp = 0;
+    }
+
+    if (!recvInflightComm.empty()) {
+        MPI_Request* req  = recvInflightComm.front();
+        flag = 0;
+        MPI_Test(req, &flag, &status);
+        if (flag) {
+            recvCommunication.add(status.MPI_SOURCE);
+            free(req);
+            recvInflightComm.pop_front();
         }
     }
 }
@@ -429,6 +435,14 @@ void NetworkInterface::workerThread() {
     }
 
     // for program execution
+    for (unsigned i=0; i<Num; i++) {
+        if (i == ID) {
+            continue;
+        }
+
+        *(recvCommBuffer[i]) = (uint8_t)0;
+    }
+
     recvAllocator.touch();
 
     while (ready == 3) {
@@ -558,9 +572,11 @@ NetworkInterface::~NetworkInterface() {
     worker.join();
 
     for (unsigned i=0; i<Num; i++) {
-        if (recvCommBuffer[i] != nullptr){
-            free(recvCommBuffer[i]);
+        if (i == ID) {
+            continue;
         }
+
+        free(recvCommBuffer[i]);
     }
 }
 
@@ -584,12 +600,17 @@ void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
 }
 
 void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
+    recvCommBuffer.resize(Num, nullptr);
     for (unsigned i=0; i<Num; i++) {
+        if (i == ID) {
+            continue;
+        }
+
         void* ptr = malloc(alloc_size);
         if (ptr == nullptr) {
             galois::gError("Failed to allocate memory for the communication receive work buffer\n");
         }
-        recvCommBuffer.push_back(static_cast<uint8_t*>(ptr));
+        recvCommBuffer[i] = (uint8_t*)ptr;
     }
 }
 
@@ -700,8 +721,10 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
 void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     bool success;
     do {
-        success = recvCommunication.tryPopMsg(host, work);
+        success = recvCommunication.tryPopMsg(host);
     } while(!success);
+
+    work = recvCommBuffer[host];
 }
 
 void NetworkInterface::flushRemoteWork() {
