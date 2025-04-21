@@ -910,6 +910,17 @@ protected:
     // make sure this hasn't been called before
     assert(masterRanges.size() == 0);
     masterRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
+
+    auto& edgePrefixSum = graph.getEdgePrefixSum();
+    for (unsigned i=0; i<galois::getActiveThreads(); i++) {
+        uint32_t node_start = masterRanges[i];
+        uint32_t node_end = masterRanges[i+1];
+        uint64_t edge_num = edgePrefixSum[node_end] - edgePrefixSum[node_start];
+
+        if (id == 7) {
+            galois::gPrint("Host 7 : thread ", i, " has ", edge_num, " edges\n");
+        }
+    }
   }
   
   /**
