@@ -520,7 +520,6 @@ NetworkInterface::NetworkInterface()
       recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
     initializeMPI();
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
     comm = std::thread(&NetworkInterface::commThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
