@@ -394,8 +394,6 @@ void NetworkInterface::commThread() {
         return;
     }
 
-    initializeMPI();
-    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
     ID = getID();
     Num = getNum();
 
@@ -513,8 +511,6 @@ void NetworkInterface::commThread() {
             }
         }
     }
-  
-    finalizeMPI();
 }
 
 NetworkInterface::NetworkInterface()
@@ -523,6 +519,8 @@ NetworkInterface::NetworkInterface()
       sendBufCount(1 << sendBufCountExp),
       recvBufCount(1 << recvBufCountExp) {
     ready               = 0;
+    initializeMPI();
+    galois::gDebug("[", NetworkInterface::ID, "] MPI initialized");
     comm = std::thread(&NetworkInterface::commThread, this);
     numT = galois::getActiveThreads();
     sendAllocators = decltype(sendAllocators)(numT);
@@ -567,6 +565,8 @@ NetworkInterface::NetworkInterface()
 NetworkInterface::~NetworkInterface() {
     ready = 5;
     comm.join();
+  
+    finalizeMPI();
 
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {
