@@ -213,6 +213,7 @@ private:
   void sendInfoToHost() {
     uint64_t host_master_nodes = userGraph.numMasters();
     uint64_t host_mirror_nodes = userGraph.numMirrors();
+    uint64_t host_edges = userGraph.sizeEdges();
 
 #ifdef GALOIS_HOST_STATS
     constexpr bool HOST_STATS = true;
@@ -224,6 +225,8 @@ private:
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, master_nodes_str, host_master_nodes);
     std::string mirror_nodes_str = "MirrorNodes_Host_" + std::to_string(id);
     galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, mirror_nodes_str, host_mirror_nodes);
+    std::string edges_str = "Edges_Host_" + std::to_string(id);
+    galois::runtime::reportStatCond_Single<HOST_STATS>(RNAME, edges_str, host_edges);
 
     auto& net = galois::runtime::getSystemNetworkInterface();
 
