@@ -453,6 +453,8 @@ int main(int argc, char** argv) {
 
   hg->sortEdgesByDestination();
 
+  net.partitionDone();
+
   bitset_residual.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
@@ -498,6 +500,8 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+
+  net.applicationDone();
 
   if (output) {
     std::vector<float> results = makeResults(hg);
