@@ -27,7 +27,7 @@
 #include <iostream>
 
 // type of short path
-using ShortPathType = double;
+using ShortPathType = float;
 
 /**
  * Structure for holding data calculated during BC
@@ -38,7 +38,8 @@ struct BCData {
   galois::CopyableAtomic<float> dependencyValue;
 };
 
-constexpr static const char* const REGION_NAME = "MRBC";
+static std::string REGION_NAME = "BetweennessCentrality";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -123,8 +124,6 @@ void InitializeGraph(Graph& graph) {
         cur_data.sourceData.resize(vectorSize);
         cur_data.bc = 0.0;
       },
-      galois::loopname(
-          syncSubstrate->get_run_identifier("InitializeGraph").c_str()),
       galois::no_stats()); // Only stats the runtime by loopname
 }
 
@@ -159,8 +158,6 @@ void InitializeIteration(Graph& graph,
           }
         }
       },
-      galois::loopname(
-          syncSubstrate->get_run_identifier("InitializeIteration").c_str()),
       galois::no_stats());
 };
 
@@ -192,10 +189,6 @@ void FindMessageToSync(Graph& graph, const uint32_t roundNumber,
           dga += 1;
         }
       },
-      galois::loopname(syncSubstrate
-                           ->get_run_identifier(std::string(REGION_NAME) +
-                                                "_FindMessageToSync")
-                           .c_str()),
       galois::steal(), galois::no_stats());
 }
 
@@ -217,10 +210,6 @@ void ConfirmMessageToSend(Graph& graph, const uint32_t roundNumber) {
           cur_data.dTree.markSent(roundNumber);
         }
       },
-      galois::loopname(syncSubstrate
-                           ->get_run_identifier(std::string(REGION_NAME) +
-                                                "_ConfirmMessageToSend")
-                           .c_str()),
       galois::no_stats());
 }
 
@@ -275,10 +264,6 @@ void SendAPSPMessages(Graph& graph, galois::DGAccumulator<uint32_t>& dga) {
   galois::do_all(
       galois::iterate(allNodesWithEdges),
       [&](GNode dst) { SendAPSPMessagesOp(dst, graph, dga); },
-      galois::loopname(syncSubstrate
-                           ->get_run_identifier(std::string(REGION_NAME) +
-                                                "_SendAPSPMessages")
-                           .c_str()),
       galois::steal(), galois::no_stats());
 }
 
@@ -338,10 +323,6 @@ void RoundUpdate(Graph& graph) {
         NodeData& cur_data = graph.getData(node);
         cur_data.dTree.prepForBackPhase();
       },
-      galois::loopname(
-          syncSubstrate
-              ->get_run_identifier(std::string(REGION_NAME) + "_RoundUpdate")
-              .c_str()),
       galois::no_stats());
 }
 
@@ -376,10 +357,6 @@ void BackFindMessageToSend(Graph& graph, const uint32_t roundNumber,
           }
         }
       },
-      galois::loopname(syncSubstrate
-                           ->get_run_identifier(std::string(REGION_NAME) +
-                                                "_BackFindMessageToSend")
-                           .c_str()),
       galois::no_stats());
 }
 
@@ -444,10 +421,6 @@ void BackProp(Graph& graph, const uint32_t lastRoundNumber) {
     galois::do_all(
         galois::iterate(allNodesWithEdges),
         [&](GNode dst) { BackPropOp(dst, graph); },
-        galois::loopname(
-            syncSubstrate
-                ->get_run_identifier(std::string(REGION_NAME) + "_BackProp")
-                .c_str()),
         galois::steal(), galois::no_stats());
 
     currentRound++;
@@ -477,8 +450,6 @@ void BC(Graph& graph, const std::vector<uint64_t>& nodesToConsider) {
           }
         }
       },
-      galois::loopname(
-          syncSubstrate->get_run_identifier(std::string(REGION_NAME)).c_str()),
       galois::no_stats());
 };
 
@@ -505,7 +476,7 @@ void Sanity(Graph& graph) {
         DGA_min.update(sdata.bc);
         DGA_sum += sdata.bc;
       },
-      galois::no_stats(), galois::loopname("Sanity"));
+      galois::no_stats());
 
   float max_bc = DGA_max.reduce();
   float min_bc = DGA_min.reduce();
@@ -552,14 +523,14 @@ int main(int argc, char** argv) {
   auto& net = galois::runtime::getSystemNetworkInterface();
 
   // Total timer
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
-  galois::gPrint("[", net.ID, "] InitializeGraph\n");
   std::unique_ptr<Graph> hg;
   // false = iterate over in edges
-  std::tie(hg, syncSubstrate) =
-      distGraphInitialization<NodeData, void, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, false>();
 
   if (totalNumSources == 0) {
     galois::gDebug("Total num sources unspecified");
@@ -581,12 +552,10 @@ int main(int argc, char** argv) {
   uint64_t origNumRoundSources = numSourcesPerRound;
 
   // Start graph initialization
-  galois::StatTimer StatTimer_graph_init("TIMER_GRAPH_INIT", REGION_NAME);
-  StatTimer_graph_init.start();
   InitializeGraph(*hg);
-  StatTimer_graph_init.stop();
 
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   // shared DG accumulator among all steps
   galois::DGAccumulator<uint32_t> dga;
@@ -620,11 +589,8 @@ int main(int argc, char** argv) {
                                      std::string("NumSources"),
                                      (unsigned int)totalNumSources);
   for (auto run = 0; run < numRuns; ++run) {
-    galois::gPrint("[", net.ID, "] Run ", run, " started\n");
-
-    // Timer per RUN
-    std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
+    galois::gPrint("[", net.ID, "] BetweennessCentrality Run ", run, " started\n");
 
     // Associated to totalNumSources
     uint64_t totalSourcesFound = 0;
@@ -678,18 +644,21 @@ int main(int argc, char** argv) {
       }
 
       // accumulate time per batch
-      StatTimer_main.start();
       InitializeIteration(*hg, nodesToConsider);
+      
+      std::string timer_str("Timer_" + std::to_string(run));
+      galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
       // APSP returns total number of rounds taken
       // subtract 2 to get to last round where message was sent (round
       // after that is empty round where nothing is done)
+      StatTimer_main.start();
       uint32_t lastRoundNumber = APSP(*hg, dga) - 2;
       RoundUpdate(*hg);
       BackProp(*hg, lastRoundNumber);
       BC(*hg, nodesToConsider);
-
       StatTimer_main.stop();
+      galois::gPrint("Host ", net.ID, " BetweennessCentrality run ", run, " batch #", macroRound, " time: ", StatTimer_main.get(), " ms\n");
 
       syncSubstrate->set_num_round(0);
       // report num rounds
