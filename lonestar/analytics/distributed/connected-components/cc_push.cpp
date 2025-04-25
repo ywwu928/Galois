@@ -319,7 +319,6 @@ int main(int argc, char** argv) {
 
   InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
-  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> active_vertices64;
 
