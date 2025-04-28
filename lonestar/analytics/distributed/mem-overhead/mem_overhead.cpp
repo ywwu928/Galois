@@ -21,7 +21,6 @@
 #include "galois/DistGalois.h"
 #include "galois/gstl.h"
 #include "galois/DReducible.h"
-#include "galois/DTerminationDetector.h"
 #include "galois/runtime/Tracer.h"
 #include <algorithm>
 #include <iostream>
@@ -52,10 +51,14 @@ constexpr static const char* const url = 0;
 int main(int argc, char** argv) {
   galois::DistMemSys G;
   DistBenchStart(argc, argv, name, desc, url);
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
-  StatTimer_total.start();
+
+  auto& net = galois::runtime::getSystemNetworkInterface();
+  net.allocateRecvCommBuffer(64);
+
   distGraphMemOverheadSweep<NodeData, void>();
+
+  net.applicationDone();
+  galois::runtime::getHostBarrier().wait();
   
-  StatTimer_total.stop();
   return 0;
 }
