@@ -1330,6 +1330,26 @@ private:
     TsyncReduce.stop();
   }
 
+  template <WriteLocation writeLocation1, ReadLocation readLocation1, typename ReduceFnTy1, typename BitsetFnTy1, WriteLocation writeLocation2, ReadLocation readLocation2, typename ReduceFnTy2, typename BitsetFnTy2, typename PollFnTy>
+  inline void reduce2(std::string loopName) {
+    std::string timer_str("Reduce_" + get_run_identifier(loopName));
+    galois::CondStatTimer<GALOIS_COMM_STATS> TsyncReduce(timer_str.c_str(), RNAME);
+
+    TsyncReduce.start();
+
+    syncSend<writeLocation1, readLocation1, syncReduce, ReduceFnTy1, BitsetFnTy1>(loopName);
+    syncSend<writeLocation2, readLocation2, syncReduce, ReduceFnTy2, BitsetFnTy2>(loopName);
+
+#ifndef GALOIS_FULL_MIRRORING
+    poll_for_remote_work2<PollFnTy>();
+#endif
+
+    syncRecv<writeLocation1, readLocation1, syncReduce, ReduceFnTy1, BitsetFnTy1>(loopName);
+    syncRecv<writeLocation2, readLocation2, syncReduce, ReduceFnTy2, BitsetFnTy2>(loopName);
+
+    TsyncReduce.stop();
+  }
+
   /**
    * Does a broadcast of data from master to mirror nodes.
    *
@@ -1621,6 +1641,12 @@ public:
         }
       }
     }
+  }
+  
+  template <typename SyncFnTy1, typename BitsetFnTy1, typename SyncFnTy2, typename BitsetFnTy2, typename PollFnTy>
+  inline void sync2(std::string loopName) {
+      reduce2<writeDestination, readAny, SyncFnTy1, BitsetFnTy1, writeDestination, readSource, SyncFnTy2, BitsetFnTy2, PollFnTy>(loopName);
+      broadcast<writeDestination, readAny, SyncFnTy1, BitsetFnTy1>(loopName);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1975,7 +2001,7 @@ public:
 
                     if (success) { // received message
                         if (fullFlag) {
-                            msgCount = net.workCount;
+                            msgCount = net.workCount << 1;
                         }
                         else {
                             msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
@@ -1985,6 +2011,48 @@ public:
                             lid = *((uint32_t*)buf + (i << 1));
                             val = *((typename FnTy::ValTy*)buf + (i << 1) + 1);
                             FnTy::reduce_atomic_void(userGraph.getData(lid), val);
+                        }
+                        
+                        net.deallocateRecvBuffer(buf);
+                    }
+                }
+            }
+        );
+    }
+
+    template<typename FnTy>
+    void poll_for_remote_work2() {
+        std::atomic<bool> terminateFlag = false;
+
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
+
+                uint32_t msgCount;
+                
+                uint32_t lid;
+                typename FnTy::ValTy1 val1;
+                typename FnTy::ValTy2 val2;
+
+                while(!terminateFlag) {
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+
+                    if (success) { // received message
+                        if (fullFlag) {
+                            msgCount = net.workCount;
+                        }
+                        else {
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                        }
+                        
+                        for (uint32_t i=0; i<msgCount; i++) {
+                            lid = *((uint32_t*)buf + (i << 2));
+                            val1 = *((typename FnTy::ValTy1*)buf + (i << 2) + 1);
+                            val2 = *((typename FnTy::ValTy2*)buf + (i << 1) + 1);
+                            FnTy::reduce_atomic_void(userGraph.getData(lid), val1, val2);
                         }
                         
                         net.deallocateRecvBuffer(buf);
