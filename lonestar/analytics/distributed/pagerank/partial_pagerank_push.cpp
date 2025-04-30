@@ -239,8 +239,7 @@ struct PageRank {
       // launch all other threads to compute
       StatTimer_compute.start();
       galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
-                     galois::no_stats(), galois::steal(),
-                     galois::loopname(syncSubstrate->get_run_identifier("PageRank").c_str()));
+                     galois::no_stats(), galois::steal());
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     

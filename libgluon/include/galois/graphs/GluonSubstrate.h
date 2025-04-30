@@ -227,9 +227,6 @@ private:
           [&](size_t n) {
             masterNodes[h][n] = userGraph.getLID(masterNodes[h][n]);
           },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("MasterNodes").c_str()),
-#endif
           galois::no_stats());
     }
 
@@ -239,9 +236,6 @@ private:
           [&](size_t n) {
             mirrorNodes[h][n] = userGraph.getLID(mirrorNodes[h][n]);
           },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("MirrorNodes").c_str()),
-#endif
           galois::no_stats());
     }
     
@@ -279,9 +273,6 @@ private:
           [&](size_t n) {
             phantomMasterNodes[h][n] = userGraph.getLID(phantomMasterNodes[h][n]);
           },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("PhantomMasterNodes").c_str()),
-#endif
           galois::no_stats());
     }
     
@@ -303,9 +294,6 @@ private:
           [&](size_t n) {
             phantomNodes[h][n] = userGraph.getLID(phantomNodes[h][n]);
           },
-#if GALOIS_COMM_STATS
-          galois::loopname(get_run_identifier("PhantomNodes").c_str()),
-#endif
           galois::no_stats());
     }
 

@@ -283,8 +283,7 @@ struct BFS {
               dga, 
               work_edges), 
           galois::steal(),
-          galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("BFS").c_str()));
+          galois::no_stats());
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     

@@ -190,8 +190,7 @@ struct KCoreStep2 {
     
     galois::do_all(
         galois::iterate(presentNodes),
-        KCoreStep2{&_graph}, galois::no_stats(),
-        galois::loopname(syncSubstrate->get_run_identifier("KCore").c_str()));
+        KCoreStep2{&_graph}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -282,9 +281,7 @@ struct KCoreStep1 {
       StatTimer_compute.start();
       galois::do_all(galois::iterate(masterNodes),
                      KCoreStep1{k_core_num, &_graph, dga}, galois::steal(),
-                     galois::no_stats(),
-                     galois::loopname(
-                         syncSubstrate->get_run_identifier("KCore").c_str()));
+                     galois::no_stats());
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
