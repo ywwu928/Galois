@@ -429,7 +429,7 @@ int main(int argc, char** argv) {
 
   net.partitionDone();
 
-  bitset_residual.resize(hg->size());
+  bitset_residual.resize(hg->actualSize());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 

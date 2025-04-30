@@ -403,8 +403,8 @@ int main(int argc, char** argv) {
 
   net.partitionDone();
 
-  bitset_current_degree.resize(h_graph->size());
-  bitset_trim.resize(h_graph->size());
+  bitset_current_degree.resize(h_graph->actualSize());
+  bitset_trim.resize(h_graph->actualSize());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go functions called\n");
   

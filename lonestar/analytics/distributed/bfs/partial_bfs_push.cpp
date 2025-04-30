@@ -433,7 +433,7 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
 
   // bitset comm setup
-  bitset_dist_current.resize(hg->size());
+  bitset_dist_current.resize(hg->actualSize());
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
