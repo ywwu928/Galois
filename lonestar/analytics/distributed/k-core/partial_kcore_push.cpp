@@ -118,7 +118,7 @@ struct InitializeGraph2 {
 #ifdef GALOIS_NO_MIRRORING     
     syncSubstrate->poll_for_remote_work<Reduce_add_current_degree>();
 #else
-    syncSubstrate->sync<writeDestination, readSource, Reduce_add_current_degree, Bitset_current_degree>("InitializeGraph2");
+    syncSubstrate->sync<writeDestination, readSource, Reduce_add_current_degree, Bitset_current_degree>();
 #endif
       
     syncSubstrate->reset_termination();
@@ -304,7 +304,7 @@ struct KCoreStep1 {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_trim>();
 #else
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>("KCore");
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
 #endif
       StatTimer_comm.stop();
       

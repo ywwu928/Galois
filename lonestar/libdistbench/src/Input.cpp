@@ -92,10 +92,6 @@ cll::opt<int> mirrorThreshold("mirrorThreshold",
                                   cll::init(0));
 #endif
 
-cll::opt<uint32_t> dataSizeRatio("dataSizeRatio",
-                                  cll::desc("The ratio of the node data size to the edge data size"),
-                                  cll::init(1));
-
 cll::opt<uint32_t> stopThreshold("stopThreshold",
                                  cll::desc("Threshold to stop sweeping memory overhead"),
                                  cll::init(1));
