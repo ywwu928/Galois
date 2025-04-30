@@ -178,7 +178,7 @@ struct FirstItr_BFS {
 #ifdef GALOIS_NO_MIRRORING     
     syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
 #else
-    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>("BFS");
+    syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>();
 #endif
     StatTimer_comm.stop();
     
@@ -279,7 +279,7 @@ struct BFS {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
 #else
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>("BFS");
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>();
 #endif
       StatTimer_comm.stop();
       

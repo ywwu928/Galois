@@ -36,11 +36,6 @@ cll::opt<int> numRuns("runs", cll::desc("Number of runs (default 3)"),
 cll::opt<std::string>
     statFile("statFile", cll::desc("Optional output file to print stats to"));
 
-cll::opt<bool>
-    partitionAgnostic("partitionAgnostic",
-                      cll::desc("Do not use partition-aware optimizations"),
-                      cll::init(false), cll::Hidden);
-
 // TODO: use enums
 cll::opt<DataCommMode> commMetadata(
     "metadata", cll::desc("Communication metadata"),

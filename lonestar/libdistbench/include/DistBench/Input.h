@@ -121,9 +121,6 @@ extern int mirrorThreshold;
 extern cll::opt<int> mirrorThreshold;
 #endif
 
-//! size ratio of node data to edge data
-extern cll::opt<uint32_t> dataSizeRatio;
-
 //! threshold to stop sweeping memory overhead
 extern cll::opt<uint32_t> stopThreshold;
 

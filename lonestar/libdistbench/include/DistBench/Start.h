@@ -41,8 +41,6 @@ namespace cll = llvm::cl;
 extern cll::opt<int> numThreads;
 extern cll::opt<int> numRuns;
 extern cll::opt<std::string> statFile;
-//! If set, ignore partitioning comm optimizations
-extern cll::opt<bool> partitionAgnostic;
 //! Set method for metadata sends
 extern cll::opt<DataCommMode> commMetadata;
 //! Where to write output if output is set
@@ -235,7 +233,7 @@ distGraphInitialization() {
   g = loadDistGraph<NodeData, EdgeData, iterateOutEdges>(scaleFactor);
   // load substrate
   const auto& net = galois::runtime::getSystemNetworkInterface();
-  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(), dataSizeRatio, g->cartesianGrid(), partitionAgnostic, commMetadata);
+  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(), commMetadata);
 
 // marshal graph to GPU as necessary
 #ifdef GALOIS_ENABLE_GPU
@@ -283,7 +281,7 @@ symmetricDistGraphInitialization() {
   g = loadSymmetricDistGraph<NodeData, EdgeData>(scaleFactor);
   // load substrate
   const auto& net = galois::runtime::getSystemNetworkInterface();
-  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(), dataSizeRatio, g->cartesianGrid(), partitionAgnostic, commMetadata);
+  s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(), commMetadata);
 
 // marshal graph to GPU as necessary
 #ifdef GALOIS_ENABLE_GPU
