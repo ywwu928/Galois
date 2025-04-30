@@ -121,8 +121,7 @@ struct FirstItr_ConnectedComp {
     StatTimer_compute.start();
     galois::do_all(
         galois::iterate(masterNodes), FirstItr_ConnectedComp{&_graph},
-        galois::steal(), galois::no_stats(),
-        galois::loopname(syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
+        galois::steal(), galois::no_stats());
     StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
@@ -229,8 +228,7 @@ struct ConnectedComp {
       StatTimer_compute.start();
       galois::do_all(
           galois::iterate(masterNodes), ConnectedComp(&_graph, dga),
-          galois::no_stats(), galois::steal(),
-          galois::loopname(syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
+          galois::no_stats(), galois::steal());
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING     
