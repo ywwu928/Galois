@@ -151,7 +151,7 @@ private:
   }
 
   //! Increments evilPhase, a phase counter used by communication.
-  void inline incrementEvilPhase() {
+  void incrementEvilPhase() {
     ++galois::runtime::evilPhase;
     // limit defined by MPI or LCI
     if (galois::runtime::evilPhase >= static_cast<uint32_t>(std::numeric_limits<int16_t>::max())) {
@@ -529,7 +529,7 @@ private:
    */
   /* Reduction extract resets the value afterwards */
   template <typename FnTy, SyncType syncType>
-  inline ValTy extractWrapper(size_t lid) {
+  ValTy extractWrapper(size_t lid) {
     if (syncType == syncReduce) {
       auto val = FnTy::extract(lid, userGraph.getData(lid));
       FnTy::reset(lid, userGraph.getData(lid));
@@ -555,7 +555,7 @@ private:
    * if reduction causes a change
    */
   template <typename FnTy, SyncType syncType>
-  inline void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet& bit_set_compute) {
+  void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet& bit_set_compute) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
           if (bit_set_compute.size() != 0)
@@ -964,7 +964,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename ReduceFnTy, typename BitsetFnTy>
-  inline void reduce() {
+  void reduce() {
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
 
 #ifndef GALOIS_FULL_MIRRORING
@@ -981,7 +981,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename BroadcastFnTy, typename BitsetFnTy>
-  inline void broadcast() {
+  void broadcast() {
       syncSend<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
       syncRecv<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
   }
@@ -993,7 +993,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_src_to_src() {
+  void sync_src_to_src() {
     // do nothing for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
@@ -1009,7 +1009,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_src_to_dst() {
+  void sync_src_to_dst() {
     // only broadcast for OEC
     // only reduce for IEC
     // reduce and broadcast for CVC, UVC
@@ -1033,7 +1033,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_src_to_any() {
+  void sync_src_to_any() {
     // only broadcast for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
@@ -1049,7 +1049,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_dst_to_src() {
+  void sync_dst_to_src() {
     // only reduce for OEC
     // only broadcast for IEC
     // reduce and broadcast for CVC, UVC
@@ -1073,7 +1073,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_dst_to_dst() {
+  void sync_dst_to_dst() {
     // do nothing for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
@@ -1089,7 +1089,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_dst_to_any() {
+  void sync_dst_to_any() {
     // only broadcast for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
@@ -1105,7 +1105,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_any_to_src() {
+  void sync_any_to_src() {
     // only reduce for OEC
     // reduce and broadcast for IEC, CVC, UVC
     reduce<SyncFnTy, BitsetFnTy>();
@@ -1121,7 +1121,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_any_to_dst() {
+  void sync_any_to_dst() {
     // only reduce for IEC
     // reduce and broadcast for OEC, CVC, UVC
     reduce<SyncFnTy, BitsetFnTy>();
@@ -1138,7 +1138,7 @@ private:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <typename SyncFnTy, typename BitsetFnTy>
-  inline void sync_any_to_any() {
+  void sync_any_to_any() {
     // reduce and broadcast for OEC, IEC, CVC, UVC
     reduce<SyncFnTy, BitsetFnTy>();
     broadcast<SyncFnTy, BitsetFnTy>();
@@ -1161,7 +1161,7 @@ public:
    */
   template <WriteLocation writeLocation, ReadLocation readLocation,
             typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy>
-  inline void sync() {
+  void sync() {
       if (writeLocation == writeSource) {
         if (readLocation == readSource) {
           sync_src_to_src<SyncFnTy, BitsetFnTy>();
