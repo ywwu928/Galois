@@ -232,7 +232,7 @@ template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
 
 template <typename ValTy1, typename ValTy2>
-void NetworkInterface::sendBufferRemoteWork::add2(uint32_t lid, ValTy1 val1, ValTy val2) {
+void NetworkInterface::sendBufferRemoteWork::add2(uint32_t lid, ValTy1 val1, ValTy2 val2) {
     // aggregate message
     //auto start = std::chrono::high_resolution_clock::now();
     *((uint32_t*)buf + (msgCount << 2)) = lid;
@@ -636,14 +636,17 @@ void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy
     sendRemoteWork[dest][tid].add<ValTy>(lid, val);
 }
 
+// explicit instantiation
+template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
+template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
+
 template <typename ValTy1, typename ValTy2>
 void NetworkInterface::sendWork2(unsigned tid, uint32_t dest, uint32_t lid, ValTy1 val1, ValTy2 val2) {
     sendRemoteWork[dest][tid].add2<ValTy1, ValTy2>(lid, val1, val2);
 }
 
 // explicit instantiation
-template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
-template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
+template void NetworkInterface::sendWork2<uint32_t, double>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val1, double val2);
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendData[dest].push(communicationTag, bufPtr, len);

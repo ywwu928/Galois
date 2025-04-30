@@ -139,12 +139,26 @@ const Ty atomicAdd(std::atomic<Ty>& val, Ty delta) {
   return old_val;
 }
 
+// wrong
+template <typename Ty>
+const Ty atomicAdd(Ty& a, const Ty& b) {
+  Ty old_a = a;
+  a += b;
+  return old_a;
+}
+
 template <typename Ty>
 void atomicAddVoid(std::atomic<Ty>& val, Ty delta) {
   Ty old_val = val.load(std::memory_order_relaxed);
   while (!val.compare_exchange_weak(old_val, old_val + delta,
                                     std::memory_order_relaxed))
     ;
+}
+
+// wrong
+template <typename Ty>
+void atomicAddVoid(Ty& a, const Ty& b) {
+  a += b;
 }
 
 template <typename Ty>
@@ -191,6 +205,24 @@ const Ty atomicSubtract(std::atomic<Ty>& val, Ty delta) {
   return old_val;
 }
 
+/** galois::Set **/
+template <typename Ty>
+const Ty atomicSet(std::atomic<Ty>& a, const Ty b) {
+  Ty old_a = a.load(std::memory_order_relaxed);
+  while (old_a != b &&
+         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+    ;
+  return old_a;
+}
+
+template <typename Ty>
+void atomicSetVoid(std::atomic<Ty>& a, const Ty b) {
+  Ty old_a = a.load(std::memory_order_relaxed);
+  while (old_a != b &&
+         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+    ;
+}
+
 template <typename Ty>
 const Ty set(Ty& a, const Ty& b) {
   a = b;
@@ -198,9 +230,19 @@ const Ty set(Ty& a, const Ty& b) {
 }
 
 template <typename Ty>
+void setVoid(Ty& a, const Ty& b) {
+  a = b;
+}
+
+template <typename Ty>
 const Ty set(std::atomic<Ty>& a, const Ty& b) {
   a.store(b, std::memory_order_relaxed);
   return a;
+}
+
+template <typename Ty>
+void setVoid(std::atomic<Ty>& a, const Ty& b) {
+  a.store(b, std::memory_order_relaxed);
 }
 
 /** Pair Wise Average function **/

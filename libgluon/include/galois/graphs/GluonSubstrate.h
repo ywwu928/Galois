@@ -120,6 +120,9 @@ private:
   //! Phantom nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& phantomNodes;
+  std::vector<std::vector<size_t>> phantomMasterNodes;
+  std::vector<std::vector<size_t>> masterNodesFull;
+  std::vector<std::vector<size_t>>& mirrorNodesFull;
   
   std::vector<uint8_t*> sendCommBuffer;
   std::vector<size_t> sendCommBufferLen;
@@ -196,6 +199,7 @@ private:
     }
 
     // receive the mirror nodes
+    masterNodes.resize(numHosts);
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
         continue;
@@ -237,6 +241,59 @@ private:
           galois::no_stats());
     }
     
+    // send off the mirror nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, mirrorNodesFull[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, b);
+    }
+
+    // receive the mirror nodes
+    masterNodesFull.resize(numHosts);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.receiveTagged(galois::runtime::evilPhase);
+      } while (!p);
+
+      galois::runtime::gDeserialize(p->second, masterNodesFull[p->first]);
+    }
+    
+    incrementEvilPhase();
+    
+    // convert the global ids stored in the master/mirror nodes arrays to local
+    // ids
+    // TODO: use 32-bit distinct vectors for masters and mirrors from here on
+    for (uint32_t h = 0; h < masterNodesFull.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, masterNodesFull[h].size()),
+          [&](size_t n) {
+            masterNodesFull[h][n] = userGraph.getLID(masterNodesFull[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("MasterNodesFull").c_str()),
+#endif
+          galois::no_stats());
+    }
+
+    for (uint32_t h = 0; h < mirrorNodesFull.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, mirrorNodesFull[h].size()),
+          [&](size_t n) {
+            mirrorNodesFull[h][n] = userGraph.getLID(mirrorNodesFull[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("MirrorNodesFull").c_str()),
+#endif
+          galois::no_stats());
+    }
+    
 #ifndef GALOIS_FULL_MIRRORING     
     // send off the phantom nodes
     for (unsigned x = 0; x < numHosts; ++x) {
@@ -253,7 +310,6 @@ private:
     }
 
     // receive the phantom master nodes
-    std::vector<std::vector<size_t>> phantomMasterNodes;
     phantomMasterNodes.resize(numHosts);
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -447,9 +503,6 @@ private:
           "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, master_nodes_str, masterNodes[x].size());
-      if (masterNodes[x].size() > maxSharedSize) {
-        maxSharedSize = masterNodes[x].size();
-      }
     }
 
     for (auto x = 0U; x < mirrorNodes.size(); ++x) {
@@ -459,9 +512,6 @@ private:
           "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, mirror_nodes_str, mirrorNodes[x].size());
-      if (mirrorNodes[x].size() > maxSharedSize) {
-        maxSharedSize = mirrorNodes[x].size();
-      }
     }
 
     for (auto x = 0U; x < phantomNodes.size(); ++x) {
@@ -471,6 +521,31 @@ private:
           "PhantomNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, phantom_nodes_str, phantomNodes[x].size());
+    }
+
+    for (auto x = 0U; x < phantomMasterNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string phantom_master_nodes_str =
+          "PhantomMasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, phantom_master_nodes_str, phantomMasterNodes[x].size());
+    }
+    
+    for (auto x = 0U; x < masterNodesFull.size(); ++x) {
+      if (x == id)
+        continue;
+      if (masterNodesFull[x].size() > maxSharedSize) {
+        maxSharedSize = masterNodesFull[x].size();
+      }
+    }
+
+    for (auto x = 0U; x < mirrorNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      if (mirrorNodesFull[x].size() > maxSharedSize) {
+        maxSharedSize = mirrorNodesFull[x].size();
+      }
     }
 
     sendInfoToHost();
@@ -508,6 +583,7 @@ public:
         num_round(0), currentBVFlag(nullptr),
         mirrorNodes(userGraph.getMirrorNodes()),
         phantomNodes(userGraph.getPhantomNodes()),
+        mirrorNodesFull(userGraph.getMirrorNodesFull()),
         recvCommBufferOffset(0),
         dataSizeRatio(dataSizeRatio) {
     if (cartesianGrid.first != 0 && cartesianGrid.second != 0) {
@@ -526,8 +602,6 @@ public:
     // set this global value for use on GPUs mostly
     enforcedDataMode = _enforcedDataMode;
 
-    // master setup from mirrors done by setupCommunication call
-    masterNodes.resize(numHosts);
     // setup proxy communication
     galois::CondStatTimer<MORE_DIST_STATS> Tgraph_construct_comm(
         "GraphCommSetupTime", RNAME);
@@ -596,11 +670,9 @@ private:
    * @param x Host to send to
    * @param b OUTPUT: Buffer that will hold data to send
    */
-  template <
-      SyncType syncType, typename SyncFnTy, typename BitsetFnTy,
-      typename std::enable_if<!BitsetFnTy::is_vector_bitset()>::type* = nullptr>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full = false>
   void getSendBuffer(std::string loopName, unsigned x) {
-    auto& sharedNodes = (syncType == syncReduce) ? mirrorNodes : masterNodes;
+    auto& sharedNodes = full ? ((syncType == syncReduce) ? mirrorNodesFull : masterNodesFull) : ((syncType == syncReduce) ? mirrorNodes : masterNodes);
 
     syncExtract<syncType, SyncFnTy, BitsetFnTy>(loopName, x, sharedNodes[x]);
 
@@ -714,20 +786,9 @@ private:
    * destination (or both)
    * @returns true if there is nothing to send to a host, false otherwise
    */
-  bool nothingToSend(unsigned host, SyncType syncType,
-                     WriteLocation writeLocation, ReadLocation readLocation) {
-    auto& sharedNodes = (syncType == syncReduce) ? mirrorNodes : masterNodes;
-    // TODO refactor (below)
-    if (!isCartCut) {
-      return (sharedNodes[host].size() == 0);
-    } else {
-      // TODO If CVC, call is not comm partner else use default above
-      if (sharedNodes[host].size() > 0) {
-        return isNotCommPartnerCVC(host, syncType, writeLocation, readLocation);
-      } else {
-        return true;
-      }
-    }
+  bool nothingToSend(unsigned host, SyncType syncType, bool full) {
+    auto& sharedNodes = full ? ((syncType == syncReduce) ? mirrorNodesFull : masterNodesFull) : ((syncType == syncReduce) ? mirrorNodes : masterNodes);
+    return (sharedNodes[host].size() == 0);
   }
 
   /**
@@ -743,19 +804,9 @@ private:
    * destination (or both)
    * @returns true if there is nothing to receive from a host, false otherwise
    */
-  bool nothingToRecv(unsigned host, SyncType syncType,
-                     WriteLocation writeLocation, ReadLocation readLocation) {
-    auto& sharedNodes = (syncType == syncReduce) ? masterNodes : mirrorNodes;
-    // TODO refactor (above)
-    if (!isCartCut) {
-      return (sharedNodes[host].size() == 0);
-    } else {
-      if (sharedNodes[host].size() > 0) {
-        return isNotCommPartnerCVC(host, syncType, writeLocation, readLocation);
-      } else {
-        return true;
-      }
-    }
+  bool nothingToRecv(unsigned host, SyncType syncType, bool full) {
+    auto& sharedNodes = full ? ((syncType == syncReduce) ? masterNodesFull : mirrorNodesFull) : ((syncType == syncReduce) ? masterNodes : mirrorNodes);
+    return (sharedNodes[host].size() == 0);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -833,9 +884,7 @@ private:
    * @param b OUTPUT: buffer that will be sent over the network; contains data
    * based on set bits in bitset
    */
-  template <
-      SyncType syncType, typename SyncFnTy, typename BitsetFnTy,
-      typename std::enable_if<!BitsetFnTy::is_vector_bitset()>::type* = nullptr>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
   void syncExtract(std::string loopName, unsigned from_id, std::vector<size_t>& indices) {
     uint32_t num = indices.size();
 
@@ -1013,8 +1062,7 @@ private:
    *
    * @param loopName used to name timers created by this sync send
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncNetSend(std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statNumMessages_str(syncTypeStr + "NumMessages_" +
@@ -1024,10 +1072,10 @@ private:
     for (unsigned h = 1; h < numHosts; ++h) {
       unsigned x = (id + h) % numHosts;
 
-      if (nothingToSend(x, syncType, writeLocation, readLocation))
+      if (nothingToSend(x, syncType, full))
         continue;
 
-      getSendBuffer<syncType, SyncFnTy, BitsetFnTy>(loopName, x);
+      getSendBuffer<syncType, SyncFnTy, BitsetFnTy, full>(loopName, x);
 
       net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
       sendCommBufferLen[x] = 0;
@@ -1053,16 +1101,57 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncSend(std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     galois::CondStatTimer<GALOIS_COMM_STATS> TSendTime(
         (syncTypeStr + "Send_" + get_run_identifier(loopName)).c_str(), RNAME);
 
     TSendTime.start();
-    syncNetSend<writeLocation, readLocation, syncType, SyncFnTy, BitsetFnTy>(loopName);
+    syncNetSend<syncType, SyncFnTy, BitsetFnTy, full>(loopName);
     TSendTime.stop();
+  }
+  
+  template <typename SyncFnTy>
+  void syncSendPhantom() {
+    for (unsigned h = 1; h < numHosts; ++h) {
+      unsigned x = (id + h) % numHosts;
+
+      if (phantomMasterNodes[x].size() == 0)
+        continue;
+
+      syncBitsetLen = phantomMasterNodes[x].size();
+            
+      data_mode = onlyData;
+        
+      uint8_t* bufPtr = sendCommBuffer[x];
+      size_t& bufOffset = sendCommBufferLen[x];
+
+      galois::on_each([&](unsigned tid, unsigned nthreads) {
+          unsigned int block_size = syncBitsetLen / nthreads;
+          if ((syncBitsetLen % nthreads) > 0)
+              ++block_size;
+          assert((block_size * nthreads) >= syncBitsetLen);
+
+          unsigned int start = tid * block_size;
+          unsigned int end   = (tid + 1) * block_size;
+          if (end > syncBitsetLen)
+              end = syncBitsetLen;
+
+          size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+          for (unsigned int i = start; i < end; ++i) {
+              size_t lid = phantomMasterNodes[x][i];
+              typename SyncFnTy::ValTy val = SyncFnTy::extract(lid, userGraph.getData(lid));
+              *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset)) = val;
+              threadOffset += sizeof(typename SyncFnTy::ValTy);
+          }
+      });
+            
+      bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+
+      net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
+      sendCommBufferLen[x] = 0;
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1084,15 +1173,13 @@ private:
    * @param buf Buffer that contains received message from other host
    * @param loopName used to name timers for statistics
    */
-  template <
-      SyncType syncType, typename SyncFnTy, typename BitsetFnTy,
-      typename std::enable_if<!BitsetFnTy::is_vector_bitset()>::type* = nullptr>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full = false>
   void syncRecvApply(uint32_t from_id, uint8_t* bufPtr, std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string set_timer_str(syncTypeStr + "Set_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> Tset(set_timer_str.c_str(), RNAME);
 
-    auto& sharedNodes = (syncType == syncReduce) ? masterNodes : mirrorNodes;
+    auto& sharedNodes = full ? ((syncType == syncReduce) ? masterNodesFull : mirrorNodesFull) : ((syncType == syncReduce) ? masterNodes : mirrorNodes);
     auto& indices = sharedNodes[from_id];
     uint32_t num = indices.size();
 
@@ -1250,8 +1337,7 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncNetRecv(std::string loopName) {
       std::string wait_timer_str("Wait_" + get_run_identifier(loopName));
       galois::CondStatTimer<GALOIS_COMM_STATS> Twait(wait_timer_str.c_str(), RNAME);
@@ -1261,7 +1347,7 @@ private:
       for (unsigned x = 0; x < numHosts; ++x) {
           if (x == id)
               continue;
-          if (nothingToRecv(x, syncType, writeLocation, readLocation))
+          if (nothingToRecv(x, syncType, full))
               continue;
 
           Twait.start();
@@ -1269,7 +1355,7 @@ private:
           Twait.stop();
 
           recvCommBufferOffset = 0;
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(host, work, loopName);
+          syncRecvApply<syncType, SyncFnTy, BitsetFnTy, full>(host, work, loopName);
       }
       incrementEvilPhase();
   }
@@ -1286,15 +1372,59 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncRecv(std::string loopName) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     galois::CondStatTimer<GALOIS_COMM_STATS> TRecvTime((syncTypeStr + "Recv_" + get_run_identifier(loopName)).c_str(), RNAME);
 
     TRecvTime.start();
-    syncNetRecv<writeLocation, readLocation, syncType, SyncFnTy, BitsetFnTy>(loopName);
+    syncNetRecv<syncType, SyncFnTy, BitsetFnTy, full>(loopName);
     TRecvTime.stop();
+  }
+  
+  template <typename SyncFnTy>
+  void syncRecvPhantom() {
+      uint32_t host;
+      uint8_t* work;
+      for (unsigned x = 0; x < numHosts; ++x) {
+          if (x == id)
+              continue;
+          if (phantomNodes[x].size() == 0)
+              continue;
+
+          net.receiveComm(host, work);
+
+          recvCommBufferOffset = 0;
+
+          size_t& bufOffset = recvCommBufferOffset;
+
+          syncBitsetLen = phantomNodes[x].size();
+      
+          // onlyData : data_mode + dirty data
+          galois::on_each([&](unsigned tid, unsigned nthreads) {
+              unsigned int block_size = syncBitsetLen / nthreads;
+              if ((syncBitsetLen % nthreads) > 0)
+                  ++block_size;
+              assert((block_size * nthreads) >= syncBitsetLen);
+
+              unsigned int start = tid * block_size;
+              unsigned int end   = (tid + 1) * block_size;
+              if (end > syncBitsetLen)
+                  end = syncBitsetLen;
+
+              size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+              for (unsigned int i = start; i < end; ++i) {
+                  size_t lid = phantomNodes[x][i];
+                  typename SyncFnTy::ValTy val = *((typename SyncFnTy::ValTy*)(work + threadOffset));
+                  threadOffset += sizeof(typename SyncFnTy::ValTy);
+                  SyncFnTy::setVal(lid, userGraph.getData(lid), val);
+              }
+          });
+                
+          bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+      }
+
+      incrementEvilPhase();
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1311,41 +1441,40 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            typename ReduceFnTy, typename BitsetFnTy>
+  template <typename ReduceFnTy, typename BitsetFnTy, bool full>
   inline void reduce(std::string loopName) {
     std::string timer_str("Reduce_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> TsyncReduce(timer_str.c_str(), RNAME);
 
     TsyncReduce.start();
 
-    syncSend<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
+    syncSend<syncReduce, ReduceFnTy, BitsetFnTy, full>(loopName);
 
 #ifndef GALOIS_FULL_MIRRORING
     poll_for_remote_work<ReduceFnTy>();
 #endif
 
-    syncRecv<writeLocation, readLocation, syncReduce, ReduceFnTy, BitsetFnTy>(loopName);
+    syncRecv<syncReduce, ReduceFnTy, BitsetFnTy, full>(loopName);
 
     TsyncReduce.stop();
   }
 
-  template <WriteLocation writeLocation1, ReadLocation readLocation1, typename ReduceFnTy1, typename BitsetFnTy1, WriteLocation writeLocation2, ReadLocation readLocation2, typename ReduceFnTy2, typename BitsetFnTy2, typename PollFnTy>
+  template <typename ReduceFnTy1, typename BitsetFnTy1, typename ReduceFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
   inline void reduce2(std::string loopName) {
     std::string timer_str("Reduce_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> TsyncReduce(timer_str.c_str(), RNAME);
 
     TsyncReduce.start();
 
-    syncSend<writeLocation1, readLocation1, syncReduce, ReduceFnTy1, BitsetFnTy1>(loopName);
-    syncSend<writeLocation2, readLocation2, syncReduce, ReduceFnTy2, BitsetFnTy2>(loopName);
+    syncSend<syncReduce, ReduceFnTy1, BitsetFnTy1, full>(loopName);
 
 #ifndef GALOIS_FULL_MIRRORING
     poll_for_remote_work2<PollFnTy>();
 #endif
 
-    syncRecv<writeLocation1, readLocation1, syncReduce, ReduceFnTy1, BitsetFnTy1>(loopName);
-    syncRecv<writeLocation2, readLocation2, syncReduce, ReduceFnTy2, BitsetFnTy2>(loopName);
+    syncRecv<syncReduce, ReduceFnTy1, BitsetFnTy1, full>(loopName);
+    syncSend<syncReduce, ReduceFnTy2, BitsetFnTy2, full>(loopName);
+    syncRecv<syncReduce, ReduceFnTy2, BitsetFnTy2, full>(loopName);
 
     TsyncReduce.stop();
   }
@@ -1360,8 +1489,7 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <WriteLocation writeLocation, ReadLocation readLocation,
-            typename BroadcastFnTy, typename BitsetFnTy>
+  template <typename BroadcastFnTy, typename BitsetFnTy, bool full>
   inline void broadcast(std::string loopName) {
     std::string timer_str("Broadcast_" + get_run_identifier(loopName));
     galois::CondStatTimer<GALOIS_COMM_STATS> TsyncBroadcast(timer_str.c_str(),
@@ -1369,38 +1497,8 @@ private:
 
     TsyncBroadcast.start();
 
-    bool use_bitset = true;
-
-    if (currentBVFlag != nullptr) {
-      if (readLocation == readSource &&
-          galois::runtime::src_invalid(*currentBVFlag)) {
-        use_bitset     = false;
-        *currentBVFlag = BITVECTOR_STATUS::NONE_INVALID;
-        currentBVFlag  = nullptr;
-      } else if (readLocation == readDestination &&
-                 galois::runtime::dst_invalid(*currentBVFlag)) {
-        use_bitset     = false;
-        *currentBVFlag = BITVECTOR_STATUS::NONE_INVALID;
-        currentBVFlag  = nullptr;
-      } else if (readLocation == readAny &&
-                 *currentBVFlag != BITVECTOR_STATUS::NONE_INVALID) {
-        // the bitvector flag being non-null means this call came from
-        // sync on demand; sync on demand will NEVER use readAny
-        // if location is read Any + one of src or dst is invalid
-        GALOIS_DIE("readAny + use of bitvector flag without none_invalid "
-                   "should never happen");
-      }
-    }
-
-      if (use_bitset) {
-        syncSend<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-                 BitsetFnTy>(loopName);
-      } else {
-        syncSend<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-                 galois::InvalidBitsetFnTy>(loopName);
-      }
-      syncRecv<writeLocation, readLocation, syncBroadcast, BroadcastFnTy,
-               BitsetFnTy>(loopName);
+    syncSend<syncBroadcast, BroadcastFnTy, BitsetFnTy, full>(loopName);
+    syncRecv<syncBroadcast, BroadcastFnTy, BitsetFnTy, full>(loopName);
 
     TsyncBroadcast.stop();
   }
@@ -1413,13 +1511,13 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_src_to_src(std::string loopName) {
     // do nothing for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
-      reduce<writeSource, readSource, SyncFnTy, BitsetFnTy>(loopName);
-      broadcast<writeSource, readSource, SyncFnTy, BitsetFnTy>(loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     }
   }
 
@@ -1431,25 +1529,21 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_src_to_dst(std::string loopName) {
     // only broadcast for OEC
     // only reduce for IEC
     // reduce and broadcast for CVC, UVC
     if (transposed) {
-      reduce<writeSource, readDestination, SyncFnTy, BitsetFnTy>(
-          loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
       if (isVertexCut) {
-        broadcast<writeSource, readDestination, SyncFnTy, BitsetFnTy>(
-            loopName);
+        broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
       }
     } else {
       if (isVertexCut) {
-        reduce<writeSource, readDestination, SyncFnTy, BitsetFnTy>(
-            loopName);
+        reduce<SyncFnTy, BitsetFnTy, full>(loopName);
       }
-      broadcast<writeSource, readDestination, SyncFnTy, BitsetFnTy>(
-          loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     }
   }
 
@@ -1461,14 +1555,14 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_src_to_any(std::string loopName) {
     // only broadcast for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
-      reduce<writeSource, readAny, SyncFnTy, BitsetFnTy>(loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
     }
-    broadcast<writeSource, readAny, SyncFnTy, BitsetFnTy>(loopName);
+    broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
   }
 
   /**
@@ -1479,24 +1573,20 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_dst_to_src(std::string loopName) {
     // only reduce for OEC
     // only broadcast for IEC
     // reduce and broadcast for CVC, UVC
     if (transposed) {
       if (isVertexCut) {
-        reduce<writeDestination, readSource, SyncFnTy, BitsetFnTy>(
-            loopName);
+        reduce<SyncFnTy, BitsetFnTy, full>(loopName);
       }
-      broadcast<writeDestination, readSource, SyncFnTy, BitsetFnTy>(
-          loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     } else {
-      reduce<writeDestination, readSource, SyncFnTy, BitsetFnTy>(
-          loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
       if (isVertexCut) {
-        broadcast<writeDestination, readSource, SyncFnTy, BitsetFnTy>(
-            loopName);
+        broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
       }
     }
   }
@@ -1509,15 +1599,13 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_dst_to_dst(std::string loopName) {
     // do nothing for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
-      reduce<writeDestination, readDestination, SyncFnTy, BitsetFnTy>(
-          loopName);
-      broadcast<writeDestination, readDestination, SyncFnTy, BitsetFnTy>(
-          loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     }
   }
 
@@ -1529,14 +1617,14 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_dst_to_any(std::string loopName) {
     // only broadcast for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
-      reduce<writeDestination, readAny, SyncFnTy, BitsetFnTy>(loopName);
+      reduce<SyncFnTy, BitsetFnTy, full>(loopName);
     }
-    broadcast<writeDestination, readAny, SyncFnTy, BitsetFnTy>(loopName);
+    broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
   }
 
   /**
@@ -1547,13 +1635,13 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_any_to_src(std::string loopName) {
     // only reduce for OEC
     // reduce and broadcast for IEC, CVC, UVC
-    reduce<writeAny, readSource, SyncFnTy, BitsetFnTy>(loopName);
+    reduce<SyncFnTy, BitsetFnTy, full>(loopName);
     if (transposed || isVertexCut) {
-      broadcast<writeAny, readSource, SyncFnTy, BitsetFnTy>(loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     }
   }
 
@@ -1565,15 +1653,14 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_any_to_dst(std::string loopName) {
     // only reduce for IEC
     // reduce and broadcast for OEC, CVC, UVC
-    reduce<writeAny, readDestination, SyncFnTy, BitsetFnTy>(loopName);
+    reduce<SyncFnTy, BitsetFnTy, full>(loopName);
 
     if (!transposed || isVertexCut) {
-      broadcast<writeAny, readDestination, SyncFnTy, BitsetFnTy>(
-          loopName);
+      broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
     }
   }
 
@@ -1585,11 +1672,11 @@ private:
    *
    * @param loopName used to name timers for statistics
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   inline void sync_any_to_any(std::string loopName) {
     // reduce and broadcast for OEC, IEC, CVC, UVC
-    reduce<writeAny, readAny, SyncFnTy, BitsetFnTy>(loopName);
-    broadcast<writeAny, readAny, SyncFnTy, BitsetFnTy>(loopName);
+    reduce<SyncFnTy, BitsetFnTy, full>(loopName);
+    broadcast<SyncFnTy, BitsetFnTy, full>(loopName);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1610,43 +1697,55 @@ public:
    * @param loopName used to name timers for statistics
    */
   template <WriteLocation writeLocation, ReadLocation readLocation,
-            typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy>
+            typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy, bool full>
   inline void sync(std::string loopName) {
     if (partitionAgnostic) {
-      sync_any_to_any<SyncFnTy, BitsetFnTy>(loopName);
+      sync_any_to_any<SyncFnTy, BitsetFnTy, full>(loopName);
     } else {
       if (writeLocation == writeSource) {
         if (readLocation == readSource) {
-          sync_src_to_src<SyncFnTy, BitsetFnTy>(loopName);
+          sync_src_to_src<SyncFnTy, BitsetFnTy, full>(loopName);
         } else if (readLocation == readDestination) {
-          sync_src_to_dst<SyncFnTy, BitsetFnTy>(loopName);
+          sync_src_to_dst<SyncFnTy, BitsetFnTy, full>(loopName);
         } else { // readAny
-          sync_src_to_any<SyncFnTy, BitsetFnTy>(loopName);
+          sync_src_to_any<SyncFnTy, BitsetFnTy, full>(loopName);
         }
       } else if (writeLocation == writeDestination) {
         if (readLocation == readSource) {
-          sync_dst_to_src<SyncFnTy, BitsetFnTy>(loopName);
+          sync_dst_to_src<SyncFnTy, BitsetFnTy, full>(loopName);
         } else if (readLocation == readDestination) {
-          sync_dst_to_dst<SyncFnTy, BitsetFnTy>(loopName);
+          sync_dst_to_dst<SyncFnTy, BitsetFnTy, full>(loopName);
         } else { // readAny
-          sync_dst_to_any<SyncFnTy, BitsetFnTy>(loopName);
+          sync_dst_to_any<SyncFnTy, BitsetFnTy, full>(loopName);
         }
       } else { // writeAny
         if (readLocation == readSource) {
-          sync_any_to_src<SyncFnTy, BitsetFnTy>(loopName);
+          sync_any_to_src<SyncFnTy, BitsetFnTy, full>(loopName);
         } else if (readLocation == readDestination) {
-          sync_any_to_dst<SyncFnTy, BitsetFnTy>(loopName);
+          sync_any_to_dst<SyncFnTy, BitsetFnTy, full>(loopName);
         } else { // readAny
-          sync_any_to_any<SyncFnTy, BitsetFnTy>(loopName);
+          sync_any_to_any<SyncFnTy, BitsetFnTy, full>(loopName);
         }
       }
     }
   }
   
-  template <typename SyncFnTy1, typename BitsetFnTy1, typename SyncFnTy2, typename BitsetFnTy2, typename PollFnTy>
+  template <typename SyncFnTy1, typename BitsetFnTy1, typename SyncFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
   inline void sync2(std::string loopName) {
-      reduce2<writeDestination, readAny, SyncFnTy1, BitsetFnTy1, writeDestination, readSource, SyncFnTy2, BitsetFnTy2, PollFnTy>(loopName);
-      broadcast<writeDestination, readAny, SyncFnTy1, BitsetFnTy1>(loopName);
+      reduce2<SyncFnTy1, BitsetFnTy1, SyncFnTy2, BitsetFnTy2, PollFnTy, full>(loopName);
+      broadcast<SyncFnTy1, BitsetFnTy1, full>(loopName);
+  }
+  
+  template <typename BroadcastFnTy1, typename BroadcastFnTy2, typename BroadcastFnTy3>
+  inline void broadcast3() {
+      syncSendPhantom<BroadcastFnTy1>();
+      syncRecvPhantom<BroadcastFnTy1>();
+      
+      syncSendPhantom<BroadcastFnTy2>();
+      syncRecvPhantom<BroadcastFnTy2>();
+
+      syncSendPhantom<BroadcastFnTy3>();
+      syncRecvPhantom<BroadcastFnTy3>();
   }
 
   ////////////////////////////////////////////////////////////////////////////////

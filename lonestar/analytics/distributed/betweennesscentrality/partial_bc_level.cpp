@@ -185,9 +185,11 @@ struct ForwardPass {
   galois::DGAccumulator<uint32_t>& dga;
   uint32_t local_r;
 
+  galois::runtime::NetworkInterface& net;
+
   ForwardPass(Graph* _graph, galois::DGAccumulator<uint32_t>& _dga,
               uint32_t roundNum)
-      : graph(_graph), dga(_dga), local_r(roundNum) {}
+      : graph(_graph), dga(_dga), local_r(roundNum), net(galois::runtime::getSystemNetworkInterface()) {}
 
   /**
    * Level by level BFS while also finding number of shortest paths to a
@@ -232,7 +234,7 @@ struct ForwardPass {
       galois::do_all(
           galois::iterate(masterNodes),
           ForwardPass(&_graph, _dga, globalRoundNumber),
-          galois::loopname(syncSubstrate->get_run_identifier("ForwardPass").c_str()),
+          galois::loopname("ForwardPass"),
           galois::steal(), galois::no_stats());
       StatTimer_compute.stop();
 
@@ -250,7 +252,7 @@ struct ForwardPass {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work2<ForwardReduce>();
 #else
-      syncSubstrate->sync2<Reduce_min_current_length, Bitset_current_length, Reduce_add_num_shortest_paths, Bitset_num_hortest_paths, ForwardReduce>("ForwardPass");
+      syncSubstrate->sync2<Reduce_min_current_length, Bitset_current_length, Reduce_add_num_shortest_paths, Bitset_num_shortest_paths, ForwardReduce, false>("ForwardPass");
 #endif
       StatTimer_comm.stop();
       
@@ -347,12 +349,12 @@ struct MiddleSync {
       galois::do_all(
           galois::iterate(masters.begin(), masters.end()),
           MiddleSync(&_graph, _li),
-          galois::loopname(syncSubstrate->get_run_identifier("MiddleSync")),
+          galois::loopname("MiddleSync"),
           galois::no_stats());
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->sync<writeSource, readAny, Reduce_set_num_shortest_paths>("MiddleSync");
+      syncSubstrate->sync<writeSource, readAny, Reduce_set_num_shortest_paths, Bitset_num_shortest_paths, false>("MiddleSync");
       StatTimer_comm.stop();
       StatTimer_total.stop();
   }
@@ -389,8 +391,8 @@ struct BackwardPass {
     const auto& masterNodes = _graph.masterNodesRange();
 
     backRoundCount = roundNumber - 1;
-    
-    auto& _net = galois::runtime::getSystemNetworkInterface();
+
+    syncSubstrate->broadcast3<Reduce_min_current_length, Reduce_add_num_shortest_paths, Reduce_add_dependency>();
 
     for (; backRoundCount > 0; backRoundCount--) {
         std::string total_str("Backward_Total_Round_" + std::to_string(backRoundCount));
@@ -405,33 +407,17 @@ struct BackwardPass {
 #endif
 
         StatTimer_total.start();
-        _net.prefetchBuffers();
-        
         StatTimer_compute.start();
         galois::do_all(
             galois::iterate(masterNodes),
             BackwardPass(&_graph, backRoundCount),
-            galois::loopname(syncSubstrate->get_run_identifier("BackwardPass")),
+            galois::loopname("BackwardPass"),
             galois::steal(), galois::no_stats());
         StatTimer_compute.stop();
-
-#ifndef GALOIS_FULL_MIRRORING     
-        // inform all other hosts that this host has finished sending messages
-        // force all messages to be processed before continuing
-        _net.flushRemoteWork();
-        _net.broadcastWorkTermination();
-#endif
       
         StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-        syncSubstrate->poll_for_remote_work<Reduce_add_dependency>();
-#else
-        syncSubstrate->sync<writeSource, readDestination, Reduce_add_dependency, Bitset_dependency>("BackwardPass");
-#endif
+        syncSubstrate->sync<writeSource, readDestination, Reduce_add_dependency, Bitset_dependency, true>("BackwardPass");
         StatTimer_comm.stop();
-      
-        _net.resetWorkTermination();
-
         StatTimer_total.stop();
     }
   }
@@ -499,7 +485,7 @@ struct BC {
       galois::do_all(
           galois::iterate(masterNodes), BC(&_graph),
           galois::no_stats(),
-          galois::loopname(syncSubstrate->get_run_identifier("Sum"));
+          galois::loopname("Sum"));
       StatTimer_total.stop();
     }
   }
@@ -609,7 +595,7 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> h_graph;
   std::tie(h_graph, syncSubstrate) = distGraphInitialization<NodeData, void, double>();
   
-  hg->sortEdgesByDestination();
+  h_graph->sortEdgesByDestination();
 
   net.partitionDone();
   
