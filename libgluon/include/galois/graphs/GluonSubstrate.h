@@ -144,15 +144,15 @@ private:
       } else {
         assert(syncType == syncReduce);
         // mirrors occur after masters
-        if (numMasters < userGraph.size()) {
-          bitset_reset_range(numMasters, userGraph.size() - 1);
+        if (numMasters < userGraph.actualSize()) {
+          bitset_reset_range(numMasters, userGraph.actualSize() - 1);
         }
       }
     } else { // all things are mirrors
       // only need to reset if reduce
       if (syncType == syncReduce) {
-        if (userGraph.size() > 0) {
-          bitset_reset_range(0, userGraph.size() - 1);
+        if (userGraph.actualSize() > 0) {
+          bitset_reset_range(0, userGraph.actualSize() - 1);
         }
       }
     }
