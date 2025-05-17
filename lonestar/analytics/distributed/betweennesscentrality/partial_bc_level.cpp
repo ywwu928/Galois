@@ -721,6 +721,8 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+  
+  net.applicationDone();
 
   if (output) {
     std::vector<float> results = makeResults(h_graph);
