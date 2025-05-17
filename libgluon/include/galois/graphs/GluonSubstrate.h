@@ -107,6 +107,9 @@ private:
   //! Phantom nodes on different hosts. For reduce; comes from the user graph
   //! during initialization (we expect user to give to us)
   std::vector<std::vector<size_t>>& phantomNodes;
+  std::vector<std::vector<size_t>> phantomMasterNodes;
+  std::vector<std::vector<size_t>> masterNodesFull;
+  std::vector<std::vector<size_t>>& mirrorNodesFull;
   
   std::vector<uint8_t*> sendCommBuffer;
   std::vector<size_t> sendCommBufferLen;
@@ -179,6 +182,7 @@ private:
     }
 
     // receive the mirror nodes
+    masterNodes.resize(numHosts);
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
         continue;
@@ -213,6 +217,59 @@ private:
           },
           galois::no_stats());
     }
+
+    // send off the mirror nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, mirrorNodesFull[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, b);
+    }
+
+    // receive the mirror nodes
+    masterNodesFull.resize(numHosts);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.receiveTagged(galois::runtime::evilPhase);
+      } while (!p);
+
+      galois::runtime::gDeserialize(p->second, masterNodesFull[p->first]);
+    }
+
+    incrementEvilPhase();
+
+    // convert the global ids stored in the master/mirror nodes arrays to local
+    // ids
+    // TODO: use 32-bit distinct vectors for masters and mirrors from here on
+    for (uint32_t h = 0; h < masterNodesFull.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, masterNodesFull[h].size()),
+          [&](size_t n) {
+            masterNodesFull[h][n] = userGraph.getLID(masterNodesFull[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("MasterNodesFull").c_str()),
+#endif
+          galois::no_stats());
+    }
+
+    for (uint32_t h = 0; h < mirrorNodesFull.size(); ++h) {
+      galois::do_all(
+          galois::iterate(size_t{0}, mirrorNodesFull[h].size()),
+          [&](size_t n) {
+            mirrorNodesFull[h][n] = userGraph.getLID(mirrorNodesFull[h][n]);
+          },
+#if GALOIS_COMM_STATS
+          galois::loopname(get_run_identifier("MirrorNodesFull").c_str()),
+#endif
+          galois::no_stats());
+    }
     
 #ifndef GALOIS_FULL_MIRRORING     
     // send off the phantom nodes
@@ -230,7 +287,6 @@ private:
     }
 
     // receive the phantom master nodes
-    std::vector<std::vector<size_t>> phantomMasterNodes;
     phantomMasterNodes.resize(numHosts);
     for (unsigned x = 0; x < numHosts; ++x) {
       if (x == id)
@@ -405,9 +461,6 @@ private:
           "MasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, master_nodes_str, masterNodes[x].size());
-      if (masterNodes[x].size() > maxSharedSize) {
-        maxSharedSize = masterNodes[x].size();
-      }
     }
 
     for (auto x = 0U; x < mirrorNodes.size(); ++x) {
@@ -417,9 +470,6 @@ private:
           "MirrorNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, mirror_nodes_str, mirrorNodes[x].size());
-      if (mirrorNodes[x].size() > maxSharedSize) {
-        maxSharedSize = mirrorNodes[x].size();
-      }
     }
 
     for (auto x = 0U; x < phantomNodes.size(); ++x) {
@@ -429,6 +479,31 @@ private:
           "PhantomNodesFrom_" + std::to_string(x) + "_To_" + std::to_string(id);
       galois::runtime::reportStatCond_Tsum<HOST_STATS>(
           RNAME, phantom_nodes_str, phantomNodes[x].size());
+    }
+
+    for (auto x = 0U; x < phantomMasterNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      std::string phantom_master_nodes_str =
+          "PhantomMasterNodesFrom_" + std::to_string(id) + "_To_" + std::to_string(x);
+      galois::runtime::reportStatCond_Tsum<HOST_STATS>(
+          RNAME, phantom_master_nodes_str, phantomMasterNodes[x].size());
+    }
+
+    for (auto x = 0U; x < masterNodesFull.size(); ++x) {
+      if (x == id)
+        continue;
+      if (masterNodesFull[x].size() > maxSharedSize) {
+        maxSharedSize = masterNodesFull[x].size();
+      }
+    }
+
+    for (auto x = 0U; x < mirrorNodes.size(); ++x) {
+      if (x == id)
+        continue;
+      if (mirrorNodesFull[x].size() > maxSharedSize) {
+        maxSharedSize = mirrorNodesFull[x].size();
+      }
     }
 
     sendInfoToHost();
@@ -460,13 +535,12 @@ public:
         num_round(0),
         mirrorNodes(userGraph.getMirrorNodes()),
         phantomNodes(userGraph.getPhantomNodes()),
+        mirrorNodesFull(userGraph.getMirrorNodesFull()),
         recvCommBufferOffset(0) {
 
     // set this global value for use on GPUs mostly
     enforcedDataMode = _enforcedDataMode;
 
-    // master setup from mirrors done by setupCommunication call
-    masterNodes.resize(numHosts);
     // setup proxy communication
     setupCommunication();
 
@@ -746,12 +820,12 @@ private:
    * @tparam SyncFnTy synchronization structure with info needed to synchronize
    * @tparam BitsetFnTy struct that has information needed to access bitset
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncSend() {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statSendBytes_str(syncTypeStr + "SendBytes_" + get_run_identifier());
     
-    auto& sharedNodes = (syncType == syncReduce) ? mirrorNodes : masterNodes;
+    auto& sharedNodes = full ? ((syncType == syncReduce) ? mirrorNodesFull : masterNodesFull) : ((syncType == syncReduce) ? mirrorNodes : masterNodes);
     
     for (unsigned h = 1; h < numHosts; ++h) {
       unsigned x = (id + h) % numHosts;
@@ -767,6 +841,48 @@ private:
     }
 
     reset_bitset(syncType, &BitsetFnTy::reset_range);
+  }
+
+  template <typename SyncFnTy>
+  void syncSendPhantom() {
+    for (unsigned h = 1; h < numHosts; ++h) {
+      unsigned x = (id + h) % numHosts;
+
+      if (phantomMasterNodes[x].size() == 0)
+        continue;
+
+      syncBitsetLen = phantomMasterNodes[x].size();
+
+      data_mode = onlyData;
+
+      uint8_t* bufPtr = sendCommBuffer[x];
+      size_t& bufOffset = sendCommBufferLen[x];
+
+      galois::on_each([&](unsigned tid, unsigned nthreads) {
+          unsigned int block_size = syncBitsetLen / nthreads;
+          if ((syncBitsetLen % nthreads) > 0)
+              ++block_size;
+          assert((block_size * nthreads) >= syncBitsetLen);
+
+          unsigned int start = tid * block_size;
+          unsigned int end   = (tid + 1) * block_size;
+          if (end > syncBitsetLen)
+              end = syncBitsetLen;
+
+          size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+          for (unsigned int i = start; i < end; ++i) {
+              size_t lid = phantomMasterNodes[x][i];
+              typename SyncFnTy::ValTy val = SyncFnTy::extract(lid, userGraph.getData(lid));
+              *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset)) = val;
+              threadOffset += sizeof(typename SyncFnTy::ValTy);
+          }
+      });
+
+      bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+
+      net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
+      sendCommBufferLen[x] = 0;
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -933,9 +1049,9 @@ private:
    * @tparam SyncFnTy synchronization structure with info needed to synchronize
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
+  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy, bool full>
   void syncRecv() {
-      auto& sharedNodes = (syncType == syncReduce) ? masterNodes : mirrorNodes;
+      auto& sharedNodes = full ? ((syncType == syncReduce) ? masterNodesFull : mirrorNodesFull) : ((syncType == syncReduce) ? masterNodes : mirrorNodes);
       
       uint32_t host;
       uint8_t* work;
@@ -953,6 +1069,51 @@ private:
       incrementEvilPhase();
   }
 
+  template <typename SyncFnTy>
+  void syncRecvPhantom() {
+      uint32_t host;
+      uint8_t* work;
+      for (unsigned x = 0; x < numHosts; ++x) {
+          if (x == id)
+              continue;
+          if (phantomNodes[x].size() == 0)
+              continue;
+
+          net.receiveComm(host, work);
+
+          recvCommBufferOffset = 0;
+
+          size_t& bufOffset = recvCommBufferOffset;
+
+          syncBitsetLen = phantomNodes[x].size();
+
+          // onlyData : data_mode + dirty data
+          galois::on_each([&](unsigned tid, unsigned nthreads) {
+              unsigned int block_size = syncBitsetLen / nthreads;
+              if ((syncBitsetLen % nthreads) > 0)
+                  ++block_size;
+              assert((block_size * nthreads) >= syncBitsetLen);
+
+              unsigned int start = tid * block_size;
+              unsigned int end   = (tid + 1) * block_size;
+              if (end > syncBitsetLen)
+                  end = syncBitsetLen;
+
+              size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+              for (unsigned int i = start; i < end; ++i) {
+                  size_t lid = phantomNodes[x][i];
+                  typename SyncFnTy::ValTy val = *((typename SyncFnTy::ValTy*)(work + threadOffset));
+                  threadOffset += sizeof(typename SyncFnTy::ValTy);
+                  SyncFnTy::setVal(lid, userGraph.getData(lid), val);
+              }
+          });
+
+          bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+      }
+
+      incrementEvilPhase();
+  }
+
   ////////////////////////////////////////////////////////////////////////////////
   // Higher Level Sync Calls (broadcast/reduce, etc)
   ////////////////////////////////////////////////////////////////////////////////
@@ -963,15 +1124,28 @@ private:
    * @tparam ReduceFnTy reduce sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename ReduceFnTy, typename BitsetFnTy>
+  template <typename ReduceFnTy, typename BitsetFnTy, bool full>
   void reduce() {
-    syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
+    syncSend<syncReduce, ReduceFnTy, BitsetFnTy, full>();
 
 #ifndef GALOIS_FULL_MIRRORING
     poll_for_remote_work<ReduceFnTy>();
 #endif
 
-    syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
+    syncRecv<syncReduce, ReduceFnTy, BitsetFnTy, full>();
+  }
+
+  template <typename ReduceFnTy1, typename BitsetFnTy1, typename ReduceFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
+  inline void reduce2() {
+    syncSend<syncReduce, ReduceFnTy1, BitsetFnTy1, full>();
+
+#ifndef GALOIS_FULL_MIRRORING
+    poll_for_remote_work2<PollFnTy>();
+#endif
+
+    syncRecv<syncReduce, ReduceFnTy1, BitsetFnTy1, full>();
+    syncSend<syncReduce, ReduceFnTy2, BitsetFnTy2, full>();
+    syncRecv<syncReduce, ReduceFnTy2, BitsetFnTy2, full>();
   }
 
   /**
@@ -980,10 +1154,10 @@ private:
    * @tparam BroadcastFnTy broadcast sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename BroadcastFnTy, typename BitsetFnTy>
+  template <typename BroadcastFnTy, typename BitsetFnTy, bool full>
   void broadcast() {
-      syncSend<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
-      syncRecv<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
+      syncSend<syncBroadcast, BroadcastFnTy, BitsetFnTy, full>();
+      syncRecv<syncBroadcast, BroadcastFnTy, BitsetFnTy, full>();
   }
 
   /**
@@ -992,13 +1166,13 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_src_to_src() {
     // do nothing for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
-      reduce<SyncFnTy, BitsetFnTy>();
-      broadcast<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     }
   }
 
@@ -1008,21 +1182,21 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_src_to_dst() {
     // only broadcast for OEC
     // only reduce for IEC
     // reduce and broadcast for CVC, UVC
     if (transposed) {
-      reduce<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
       if (isVertexCut) {
-        broadcast<SyncFnTy, BitsetFnTy>();
+        broadcast<SyncFnTy, BitsetFnTy, full>();
       }
     } else {
       if (isVertexCut) {
-        reduce<SyncFnTy, BitsetFnTy>();
+        reduce<SyncFnTy, BitsetFnTy, full>();
       }
-      broadcast<SyncFnTy, BitsetFnTy>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     }
   }
 
@@ -1032,14 +1206,14 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_src_to_any() {
     // only broadcast for OEC
     // reduce and broadcast for IEC, CVC, UVC
     if (transposed || isVertexCut) {
-      reduce<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
     }
-    broadcast<SyncFnTy, BitsetFnTy>();
+    broadcast<SyncFnTy, BitsetFnTy, full>();
   }
 
   /**
@@ -1048,20 +1222,20 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_dst_to_src() {
     // only reduce for OEC
     // only broadcast for IEC
     // reduce and broadcast for CVC, UVC
     if (transposed) {
       if (isVertexCut) {
-        reduce<SyncFnTy, BitsetFnTy>();
+        reduce<SyncFnTy, BitsetFnTy, full>();
       }
-      broadcast<SyncFnTy, BitsetFnTy>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     } else {
-      reduce<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
       if (isVertexCut) {
-        broadcast<SyncFnTy, BitsetFnTy>();
+        broadcast<SyncFnTy, BitsetFnTy, full>();
       }
     }
   }
@@ -1072,13 +1246,13 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_dst_to_dst() {
     // do nothing for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
-      reduce<SyncFnTy, BitsetFnTy>();
-      broadcast<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     }
   }
 
@@ -1088,14 +1262,14 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_dst_to_any() {
     // only broadcast for IEC
     // reduce and broadcast for OEC, CVC, UVC
     if (!transposed || isVertexCut) {
-      reduce<SyncFnTy, BitsetFnTy>();
+      reduce<SyncFnTy, BitsetFnTy, full>();
     }
-    broadcast<SyncFnTy, BitsetFnTy>();
+    broadcast<SyncFnTy, BitsetFnTy, full>();
   }
 
   /**
@@ -1104,13 +1278,13 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_any_to_src() {
     // only reduce for OEC
     // reduce and broadcast for IEC, CVC, UVC
-    reduce<SyncFnTy, BitsetFnTy>();
+    reduce<SyncFnTy, BitsetFnTy, full>();
     if (transposed || isVertexCut) {
-      broadcast<SyncFnTy, BitsetFnTy>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     }
   }
 
@@ -1120,14 +1294,14 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_any_to_dst() {
     // only reduce for IEC
     // reduce and broadcast for OEC, CVC, UVC
-    reduce<SyncFnTy, BitsetFnTy>();
+    reduce<SyncFnTy, BitsetFnTy, full>();
 
     if (!transposed || isVertexCut) {
-      broadcast<SyncFnTy, BitsetFnTy>();
+      broadcast<SyncFnTy, BitsetFnTy, full>();
     }
   }
 
@@ -1137,11 +1311,11 @@ private:
    * @tparam SyncFnTy sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename SyncFnTy, typename BitsetFnTy>
+  template <typename SyncFnTy, typename BitsetFnTy, bool full>
   void sync_any_to_any() {
     // reduce and broadcast for OEC, IEC, CVC, UVC
-    reduce<SyncFnTy, BitsetFnTy>();
-    broadcast<SyncFnTy, BitsetFnTy>();
+    reduce<SyncFnTy, BitsetFnTy, full>();
+    broadcast<SyncFnTy, BitsetFnTy, full>();
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -1160,33 +1334,51 @@ public:
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
   template <WriteLocation writeLocation, ReadLocation readLocation,
-            typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy>
+            typename SyncFnTy, typename BitsetFnTy = galois::InvalidBitsetFnTy, bool full>
   void sync() {
       if (writeLocation == writeSource) {
         if (readLocation == readSource) {
-          sync_src_to_src<SyncFnTy, BitsetFnTy>();
+          sync_src_to_src<SyncFnTy, BitsetFnTy, full>();
         } else if (readLocation == readDestination) {
-          sync_src_to_dst<SyncFnTy, BitsetFnTy>();
+          sync_src_to_dst<SyncFnTy, BitsetFnTy, full>();
         } else { // readAny
-          sync_src_to_any<SyncFnTy, BitsetFnTy>();
+          sync_src_to_any<SyncFnTy, BitsetFnTy, full>();
         }
       } else if (writeLocation == writeDestination) {
         if (readLocation == readSource) {
-          sync_dst_to_src<SyncFnTy, BitsetFnTy>();
+          sync_dst_to_src<SyncFnTy, BitsetFnTy, full>();
         } else if (readLocation == readDestination) {
-          sync_dst_to_dst<SyncFnTy, BitsetFnTy>();
+          sync_dst_to_dst<SyncFnTy, BitsetFnTy, full>();
         } else { // readAny
-          sync_dst_to_any<SyncFnTy, BitsetFnTy>();
+          sync_dst_to_any<SyncFnTy, BitsetFnTy, full>();
         }
       } else { // writeAny
         if (readLocation == readSource) {
-          sync_any_to_src<SyncFnTy, BitsetFnTy>();
+          sync_any_to_src<SyncFnTy, BitsetFnTy, full>();
         } else if (readLocation == readDestination) {
-          sync_any_to_dst<SyncFnTy, BitsetFnTy>();
+          sync_any_to_dst<SyncFnTy, BitsetFnTy, full>();
         } else { // readAny
-          sync_any_to_any<SyncFnTy, BitsetFnTy>();
+          sync_any_to_any<SyncFnTy, BitsetFnTy, full>();
         }
       }
+  }
+
+  template <typename SyncFnTy1, typename BitsetFnTy1, typename SyncFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
+  inline void sync2() {
+      reduce2<SyncFnTy1, BitsetFnTy1, SyncFnTy2, BitsetFnTy2, PollFnTy, full>();
+      broadcast<SyncFnTy1, BitsetFnTy1, full>();
+  }
+
+  template <typename BroadcastFnTy1, typename BroadcastFnTy2, typename BroadcastFnTy3>
+  inline void broadcast3() {
+      syncSendPhantom<BroadcastFnTy1>();
+      syncRecvPhantom<BroadcastFnTy1>();
+
+      syncSendPhantom<BroadcastFnTy2>();
+      syncRecvPhantom<BroadcastFnTy2>();
+
+      syncSendPhantom<BroadcastFnTy3>();
+      syncRecvPhantom<BroadcastFnTy3>();
   }
 
 public:
@@ -1291,7 +1483,7 @@ public:
 
                     if (success) { // received message
                         if (fullFlag) {
-                            msgCount = net.workCount;
+                            msgCount = net.workCount << 1;
                         }
                         else {
                             msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
@@ -1303,6 +1495,48 @@ public:
                             FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                         }
                         
+                        net.deallocateRecvBuffer(buf);
+                    }
+                }
+            }
+        );
+    }
+
+    template<typename FnTy>
+    void poll_for_remote_work2() {
+        std::atomic<bool> terminateFlag = false;
+
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
+
+                uint32_t msgCount;
+
+                uint32_t lid;
+                typename FnTy::ValTy1 val1;
+                typename FnTy::ValTy2 val2;
+
+                while(!terminateFlag) {
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+
+                    if (success) { // received message
+                        if (fullFlag) {
+                            msgCount = net.workCount;
+                        }
+                        else {
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                        }
+
+                        for (uint32_t i=0; i<msgCount; i++) {
+                            lid = *((uint32_t*)buf + (i << 2));
+                            val1 = *((typename FnTy::ValTy1*)buf + (i << 2) + 1);
+                            val2 = *((typename FnTy::ValTy2*)buf + (i << 1) + 1);
+                            FnTy::reduce_atomic_void(userGraph.getData(lid), val1, val2);
+                        }
+
                         net.deallocateRecvBuffer(buf);
                     }
                 }

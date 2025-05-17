@@ -23,9 +23,9 @@
 // # short paths
 ////////////////////////////////////////////////////////////////////////////
 
-GALOIS_SYNC_STRUCTURE_REDUCE_ADD(num_shortest_paths, ShortPathType);
+GALOIS_SYNC_STRUCTURE_REDUCE_ADD(num_shortest_paths, double);
 // used for middle sync only
-GALOIS_SYNC_STRUCTURE_REDUCE_SET(num_shortest_paths, ShortPathType);
+GALOIS_SYNC_STRUCTURE_REDUCE_SET(num_shortest_paths, double);
 GALOIS_SYNC_STRUCTURE_BITSET(num_shortest_paths);
 
 ////////////////////////////////////////////////////////////////////////////
@@ -41,3 +41,16 @@ GALOIS_SYNC_STRUCTURE_BITSET(current_length);
 
 GALOIS_SYNC_STRUCTURE_REDUCE_ADD(dependency, float);
 GALOIS_SYNC_STRUCTURE_BITSET(dependency);
+
+struct ForwardReduce {
+  using ValTy1 = uint32_t;
+  using ValTy2 = double;
+
+  static void reduce_atomic_void(struct NodeData& node, ValTy1 val1, ValTy2 val2) {
+      uint32_t old = galois::atomicMin(node.current_length, val1);
+
+      if (old >= val1) {
+          galois::atomicAddVoid(node.num_shortest_paths, val2);
+      }
+  }
+};

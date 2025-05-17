@@ -918,6 +918,25 @@ public:
       }                                                                        \
     }                                                                          \
                                                                                \
+    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {      \
+      {                                                                        \
+        galois::atomicSet(node.fieldname, y);                                  \
+        return true;                                                           \
+      }                                                                        \
+    }                                                                          \
+                                                                               \
+    static void reduce_void(struct NodeData& node, ValTy y) {                  \
+        galois::setVoid(node.fieldname, y);                                    \
+    }                                                                          \
+                                                                               \
+    static void reduce_atomic_void(struct NodeData& node, ValTy y) {           \
+        galois::atomicSetVoid(node.fieldname, y);                              \
+    }                                                                          \
+                                                                               \
+    static void reduce_numerical_void(ValTy& x, const ValTy& y) {              \
+        galois::setVoid(x, y);                                                 \
+    }                                                                          \
+                                                                               \
     static bool reduce_batch(unsigned, uint8_t*, DataCommMode) {               \
       return false;                                                            \
     }                                                                          \

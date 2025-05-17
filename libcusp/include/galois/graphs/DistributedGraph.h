@@ -129,6 +129,8 @@ protected:
   std::vector<std::vector<size_t>> mirrorNodes;
   //! phantom nodes from different hosts
   std::vector<std::vector<size_t>> phantomNodes;
+  //! Mirror nodes from different hosts. For reduce
+  std::vector<std::vector<size_t>> mirrorNodesFull;
 
   //! GID = localToGlobalVector[LID]
   std::vector<uint64_t> localToGlobalVector;
@@ -516,6 +518,7 @@ public:
       : transposed(false), id(host), numHosts(numHosts) {
     mirrorNodes.resize(numHosts);
     phantomNodes.resize(numHosts);
+    mirrorNodesFull.resize(numHosts);
     numGlobalNodes = 0;
     numGlobalEdges = 0;
   }
@@ -549,6 +552,7 @@ public:
 
   std::vector<std::vector<size_t>>& getMirrorNodes() { return mirrorNodes; }
   std::vector<std::vector<size_t>>& getPhantomNodes() { return phantomNodes; }
+  std::vector<std::vector<size_t>>& getMirrorNodesFull() { return mirrorNodesFull; }
 
 private:
   virtual unsigned getHostIDImpl(uint64_t) const = 0;

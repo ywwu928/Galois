@@ -33,7 +33,7 @@
 #include <xmmintrin.h>
 
 namespace cll = llvm::cl;
-constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
+constexpr uint32_t workSize = 16; // lid (uint32_t) + val1 (uint32_t) + val2 (double)
 cll::opt<uint32_t> workCountExp("workCountExp",
                                 cll::desc("The number of remote work in an aggregated message (exponent with base 2)"),
                                 cll::init(12));
@@ -165,7 +165,23 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
 void NetworkInterface::sendBufferRemoteWork::setFlush() {
     if (msgCount != 0) {
         // put number of message count at the very last
-        size_t bufLen = msgCount << 3; // 2 * sizeof(uint32_t) * msgCount
+        size_t bufLen = msgCount << 3;
+        *((uint32_t*)(buf + bufLen)) = msgCount;
+        bufLen += sizeof(uint32_t);
+        partialMessage = std::make_pair(buf, bufLen);
+        partialFlag = true;
+
+        // allocate new buffer
+        buf = net->sendAllocators[tid].allocate();
+        __builtin_prefetch(buf, 1, 3);
+        msgCount = 0;
+    }
+}
+
+void NetworkInterface::sendBufferRemoteWork::setFlush2() {
+    if (msgCount != 0) {
+        // put number of message count at the very last
+        size_t bufLen = msgCount << 4;
         *((uint32_t*)(buf + bufLen)) = msgCount;
         bufLen += sizeof(uint32_t);
         partialMessage = std::make_pair(buf, bufLen);
@@ -201,7 +217,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     //    galois::gPrint("Host ", ID, " : writeBuffer takes ", duration.count(), " ns (msgCount = ", msgCount, ")\n");
     msgCount += 1;
 
-    if (msgCount == net->workCount) {
+    if (msgCount == net->workCount << 1) {
         messages.enqueue(buf);
 
         // allocate new buffer
@@ -214,6 +230,32 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 // explicit instantiation
 template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
+
+template <typename ValTy1, typename ValTy2>
+void NetworkInterface::sendBufferRemoteWork::add2(uint32_t lid, ValTy1 val1, ValTy2 val2) {
+    // aggregate message
+    //auto start = std::chrono::high_resolution_clock::now();
+    *((uint32_t*)buf + (msgCount << 2)) = lid;
+    *((ValTy1*)buf + (msgCount << 2) + 1) = val1;
+    *((ValTy2*)buf + (msgCount << 1) + 1) = val2;
+    //auto end = std::chrono::high_resolution_clock::now();
+    //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    //if (msgCount == 0)
+    //    galois::gPrint("Host ", ID, " : writeBuffer takes ", duration.count(), " ns (msgCount = ", msgCount, ")\n");
+    msgCount += 1;
+
+    if (msgCount == net->workCount) {
+        messages.enqueue(buf);
+
+        // allocate new buffer
+        buf = net->sendAllocators[tid].allocate();
+        __builtin_prefetch(buf, 1, 3);
+        msgCount = 0;
+    }
+}
+
+// explicit instantiation
+template void NetworkInterface::sendBufferRemoteWork::add2<uint32_t, double>(uint32_t lid, uint32_t val1, double val2);
     
 void NetworkInterface::sendTrackComplete() {
     for (unsigned t=0; t<numT; t++) {
@@ -598,6 +640,14 @@ void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy
 template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
 template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
 
+template <typename ValTy1, typename ValTy2>
+void NetworkInterface::sendWork2(unsigned tid, uint32_t dest, uint32_t lid, ValTy1 val1, ValTy2 val2) {
+    sendRemoteWork[dest][tid].add2<ValTy1, ValTy2>(lid, val1, val2);
+}
+
+// explicit instantiation
+template void NetworkInterface::sendWork2<uint32_t, double>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val1, double val2);
+
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendData[dest].push(communicationTag, bufPtr, len);
 }
@@ -722,7 +772,21 @@ void NetworkInterface::flushRemoteWork() {
         }
     );
 }
-  
+
+void NetworkInterface::flushRemoteWork2() {
+    galois::on_each(
+        [&](unsigned tid, unsigned) {
+            for (uint32_t h=0; h<Num; h++) {
+                if (h == ID) {
+                    continue;
+                }
+
+                sendRemoteWork[h][tid].setFlush2();
+            }
+        }
+    );
+}
+
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
     sendWorkTerminationValid[host] = false;
 }

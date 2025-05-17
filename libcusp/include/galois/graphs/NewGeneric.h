@@ -2733,6 +2733,8 @@ private:
    * TODO make parallel?
    */
   void fillMirrors() {
+    base_DistGraph::mirrorNodesFull.reserve(base_DistGraph::numNodes -
+                                            base_DistGraph::numOwned);
     base_DistGraph::mirrorNodes.reserve(base_DistGraph::numActualNodes -
                                         base_DistGraph::numOwned);
     for (uint32_t i = base_DistGraph::numOwned; i < base_DistGraph::numActualNodes;
@@ -2740,14 +2742,18 @@ private:
       uint32_t globalID = base_DistGraph::localToGlobalVector[i];
       base_DistGraph::mirrorNodes[graphPartitioner->retrieveMaster(globalID)]
           .push_back(globalID);
+      base_DistGraph::mirrorNodesFull[graphPartitioner->retrieveMaster(globalID)]
+          .push_back(globalID);
     }
     
     base_DistGraph::phantomNodes.reserve(base_DistGraph::numNodes -
-                                        base_DistGraph::numActualNodes);
+                                         base_DistGraph::numActualNodes);
     for (uint32_t i = base_DistGraph::numActualNodes; i < base_DistGraph::numNodes;
          i++) {
       uint32_t globalID = base_DistGraph::localToGlobalVector[i];
       base_DistGraph::phantomNodes[graphPartitioner->retrieveMaster(globalID)]
+          .push_back(globalID);
+      base_DistGraph::mirrorNodesFull[graphPartitioner->retrieveMaster(globalID)]
           .push_back(globalID);
     }
   }

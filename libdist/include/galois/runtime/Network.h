@@ -227,6 +227,8 @@ private:
       
       void setFlush();
 
+      void setFlush2();
+
       inline bool checkPartial() {
           return partialFlag;
       }
@@ -237,6 +239,9 @@ private:
 
       template <typename ValTy>
       void add(uint32_t lid, ValTy val);
+
+      template <typename ValTy1, typename ValTy2>
+      void add2(uint32_t lid, ValTy1 val1, ValTy2 val2);
 
       inline void touchBuf() {
           *buf = (uint8_t)0;
@@ -347,6 +352,9 @@ public:
   template <typename ValTy>
   void sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val);
   
+  template <typename ValTy1, typename ValTy2>
+  void sendWork2(unsigned tid, uint32_t dest, uint32_t lid, ValTy1 val1, ValTy2 val2);
+  
   void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len);
 
   //! Receive and dispatch messages
@@ -369,6 +377,8 @@ public:
   
   //! move send buffers out to network
   void flushRemoteWork();
+
+  void flushRemoteWork2();
   
   void excludeSendWorkTermination(uint32_t host);
   
