@@ -23,9 +23,9 @@
 // # short paths
 ////////////////////////////////////////////////////////////////////////////
 
-GALOIS_SYNC_STRUCTURE_REDUCE_ADD(num_shortest_paths, ShortPathType);
+GALOIS_SYNC_STRUCTURE_REDUCE_ADD(num_shortest_paths, double);
 // used for middle sync only
-GALOIS_SYNC_STRUCTURE_REDUCE_SET(num_shortest_paths, ShortPathType);
+GALOIS_SYNC_STRUCTURE_REDUCE_SET(num_shortest_paths, double);
 GALOIS_SYNC_STRUCTURE_BITSET(num_shortest_paths);
 
 ////////////////////////////////////////////////////////////////////////////
