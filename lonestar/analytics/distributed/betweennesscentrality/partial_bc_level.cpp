@@ -252,7 +252,7 @@ struct ForwardPass {
 #ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work2<ForwardReduce>();
 #else
-      syncSubstrate->sync2<Reduce_min_current_length, Bitset_current_length, Reduce_add_num_shortest_paths, Bitset_num_shortest_paths, ForwardReduce, false>();
+      syncSubstrate->sync2<Reduce_min_current_length, Bitset_current_length, Reduce_add_num_shortest_paths, Bitset_num_shortest_paths, ForwardReduce, false>(_dga);
 #endif
       StatTimer_comm.stop();
       
@@ -458,18 +458,163 @@ struct BC {
 #else
     constexpr bool USER_STATS = false;
 #endif
+    
+    galois::DGReduceMax<float> dga_max;
+    galois::DGReduceMin<float> dga_min;
+    galois::DGAccumulator<float> dga_sum;
+    float max_bc;
+    float min_bc;
+    float bc_sum;
       
     globalRoundNumber = 0;
     // reset the graph aside from the between-cent measure
     InitializeIteration::go(_graph);
     // get distances and num paths
+    dga_max.reset();
+    dga_min.reset();
+    dga_sum.reset();
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   [&](GNode src) {
+                       NodeData& sdata = _graph.getData(src);
+                       dga_max.update(sdata.current_length);
+                       dga_min.update(sdata.current_length);
+                       dga_sum += sdata.current_length;
+                   },
+                   galois::no_stats());
+    max_bc = dga_max.reduce();
+    min_bc = dga_min.reduce();
+    bc_sum = dga_sum.reduce();
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Before ForwardPass:\n");
+        galois::gPrint("Max current_length is ", max_bc, "\n");
+        galois::gPrint("Min current_length is ", min_bc, "\n");
+        galois::gPrint("current_length sum is ", bc_sum, "\n");
+    }
+    dga_max.reset();
+    dga_min.reset();
+    dga_sum.reset();
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   [&](GNode src) {
+                       NodeData& sdata = _graph.getData(src);
+                       dga_max.update(sdata.num_shortest_paths);
+                       dga_min.update(sdata.num_shortest_paths);
+                       dga_sum += sdata.num_shortest_paths;
+                   },
+                   galois::no_stats());
+    max_bc = dga_max.reduce();
+    min_bc = dga_min.reduce();
+    bc_sum = dga_sum.reduce();
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Max num_shortest_paths is ", max_bc, "\n");
+        galois::gPrint("Min num_shortest_paths is ", min_bc, "\n");
+        galois::gPrint("num_shortest_paths sum is ", bc_sum, "\n");
+    }
+    dga_max.reset();
+    dga_min.reset();
+    dga_sum.reset();
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   [&](GNode src) {
+                       NodeData& sdata = _graph.getData(src);
+                       dga_max.update(sdata.dependency);
+                       dga_min.update(sdata.dependency);
+                       dga_sum += sdata.dependency;
+                   },
+                   galois::no_stats());
+    max_bc = dga_max.reduce();
+    min_bc = dga_min.reduce();
+    bc_sum = dga_sum.reduce();
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Max dependency is ", max_bc, "\n");
+        galois::gPrint("Min dependency is ", min_bc, "\n");
+        galois::gPrint("dependency sum is ", bc_sum, "\n");
+    }
     ForwardPass::go(_graph, dga);
+    dga_max.reset();
+    dga_min.reset();
+    dga_sum.reset();
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   [&](GNode src) {
+                       NodeData& sdata = _graph.getData(src);
+                       dga_max.update(sdata.current_length);
+                       dga_min.update(sdata.current_length);
+                       dga_sum += sdata.current_length;
+                   },
+                   galois::no_stats());
+    max_bc = dga_max.reduce();
+    min_bc = dga_min.reduce();
+    bc_sum = dga_sum.reduce();
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("After ForwardPass:\n");
+        galois::gPrint("Max current_length is ", max_bc, "\n");
+        galois::gPrint("Min current_length is ", min_bc, "\n");
+        galois::gPrint("current_length sum is ", bc_sum, "\n");
+    }
+    dga_max.reset();
+    dga_min.reset();
+    dga_sum.reset();
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   [&](GNode src) {
+                       NodeData& sdata = _graph.getData(src);
+                       dga_max.update(sdata.num_shortest_paths);
+                       dga_min.update(sdata.num_shortest_paths);
+                       dga_sum += sdata.num_shortest_paths;
+                   },
+                   galois::no_stats());
+    max_bc = dga_max.reduce();
+    min_bc = dga_min.reduce();
+    bc_sum = dga_sum.reduce();
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Max num_shortest_paths is ", max_bc, "\n");
+        galois::gPrint("Min num_shortest_paths is ", min_bc, "\n");
+        galois::gPrint("num_shortest_paths sum is ", bc_sum, "\n");
+    }
+
 
     // dependency calc only matters if there's a node with distance at
     // least 2
     if (globalRoundNumber > 2) {
       MiddleSync::go(_graph, infinity);
+      dga_max.reset();
+      dga_min.reset();
+      dga_sum.reset();
+      galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                     [&](GNode src) {
+                         NodeData& sdata = _graph.getData(src);
+                         dga_max.update(sdata.num_shortest_paths);
+                         dga_min.update(sdata.num_shortest_paths);
+                         dga_sum += sdata.num_shortest_paths;
+                     },
+                     galois::no_stats());
+      max_bc = dga_max.reduce();
+      min_bc = dga_min.reduce();
+      bc_sum = dga_sum.reduce();
+      if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+          galois::gPrint("After MiddleSync:\n");
+          galois::gPrint("Max num_shortest_paths is ", max_bc, "\n");
+          galois::gPrint("Min num_shortest_paths is ", min_bc, "\n");
+          galois::gPrint("num_shortest_paths sum is ", bc_sum, "\n");
+      }
       BackwardPass::go(_graph, globalRoundNumber - 1);
+      dga_max.reset();
+      dga_min.reset();
+      dga_sum.reset();
+      galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                     [&](GNode src) {
+                         NodeData& sdata = _graph.getData(src);
+                         dga_max.update(sdata.dependency);
+                         dga_min.update(sdata.dependency);
+                         dga_sum += sdata.dependency;
+                     },
+                     galois::no_stats());
+      max_bc = dga_max.reduce();
+      min_bc = dga_min.reduce();
+      bc_sum = dga_sum.reduce();
+      if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+          galois::gPrint("After BackwardPass:\n");
+          galois::gPrint("Max dependency is ", max_bc, "\n");
+          galois::gPrint("Min dependency is ", min_bc, "\n");
+          galois::gPrint("dependency sum is ", bc_sum, "\n");
+      }
       
       std::string total_str("Sum_Total");
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());

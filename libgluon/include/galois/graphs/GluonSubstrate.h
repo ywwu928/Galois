@@ -39,6 +39,7 @@
 #include "galois/runtime/SyncStructures.h"
 #include "galois/runtime/DataCommMode.h"
 #include "galois/DynamicBitset.h"
+#include "galois/DReducible.h"
 
 // TODO find a better way to do this without globals
 //! Specifies what format to send metadata in
@@ -1136,11 +1137,11 @@ private:
   }
 
   template <typename ReduceFnTy1, typename BitsetFnTy1, typename ReduceFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
-  inline void reduce2() {
+  inline void reduce2(galois::DGAccumulator<uint32_t>& dga) {
     syncSend<syncReduce, ReduceFnTy1, BitsetFnTy1, full>();
 
 #ifndef GALOIS_FULL_MIRRORING
-    poll_for_remote_work2<PollFnTy>();
+    poll_for_remote_work2<PollFnTy, BitsetFnTy1, BitsetFnTy2>(dga);
 #endif
 
     syncRecv<syncReduce, ReduceFnTy1, BitsetFnTy1, full>();
@@ -1364,8 +1365,8 @@ public:
   }
 
   template <typename SyncFnTy1, typename BitsetFnTy1, typename SyncFnTy2, typename BitsetFnTy2, typename PollFnTy, bool full>
-  inline void sync2() {
-      reduce2<SyncFnTy1, BitsetFnTy1, SyncFnTy2, BitsetFnTy2, PollFnTy, full>();
+  inline void sync2(galois::DGAccumulator<uint32_t>& dga) {
+      reduce2<SyncFnTy1, BitsetFnTy1, SyncFnTy2, BitsetFnTy2, PollFnTy, full>(dga);
       broadcast<SyncFnTy1, BitsetFnTy1, full>();
   }
 
@@ -1502,8 +1503,12 @@ public:
         );
     }
 
-    template<typename FnTy>
-    void poll_for_remote_work2() {
+    template<typename FnTy, typename BitsetFnTy1, typename BitsetFnTy2>
+    void poll_for_remote_work2(galois::DGAccumulator<uint32_t>& dga) {
+
+        galois::DynamicBitSet& bitset_val1 = BitsetFnTy1::get();
+        galois::DynamicBitSet& bitset_val2 = BitsetFnTy2::get();
+        
         std::atomic<bool> terminateFlag = false;
 
         galois::on_each(
@@ -1534,7 +1539,7 @@ public:
                             lid = *((uint32_t*)buf + (i << 2));
                             val1 = *((typename FnTy::ValTy1*)buf + (i << 2) + 1);
                             val2 = *((typename FnTy::ValTy2*)buf + (i << 1) + 1);
-                            FnTy::reduce_atomic_void(userGraph.getData(lid), val1, val2);
+                            FnTy::operate(lid, userGraph.getData(lid), val1, val2, bitset_val1, bitset_val2, dga);
                         }
 
                         net.deallocateRecvBuffer(buf);

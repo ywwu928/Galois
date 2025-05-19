@@ -46,11 +46,19 @@ struct ForwardReduce {
   using ValTy1 = uint32_t;
   using ValTy2 = double;
 
-  static void reduce_atomic_void(struct NodeData& node, ValTy1 val1, ValTy2 val2) {
+  static void operate(uint32_t lid, struct NodeData& node, ValTy1 val1, ValTy2 val2, galois::DynamicBitSet& bitset_val1, galois::DynamicBitSet& bitset_val2, galois::DGAccumulator<uint32_t>& dga) {
       uint32_t old = galois::atomicMin(node.current_length, val1);
 
-      if (old >= val1) {
+      if (old > val1) {
+          bitset_val1.set(lid);
           galois::atomicAddVoid(node.num_shortest_paths, val2);
+          bitset_val2.set(lid);
+          dga += 1;
+      }
+      else if (old == val1) {
+          galois::atomicAddVoid(node.num_shortest_paths, val2);
+          bitset_val2.set(lid);
+          dga += 1;
       }
   }
 };
