@@ -294,7 +294,7 @@ public:
     base_DistGraph::beginMaster = 0;
     // Allocate and construct the graph
     base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
-                                       base_DistGraph::numActualNodes,
+                                       //base_DistGraph::numActualNodes,
                                        base_DistGraph::numEdges);
     base_DistGraph::graph.constructNodes();
 
