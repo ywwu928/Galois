@@ -67,7 +67,6 @@ struct NodeData {
 };
 
 galois::DynamicBitSet bitset_residual;
-galois::DynamicBitSet bitset_nout;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
@@ -563,14 +562,13 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
 
-  //hg->sortEdgesByDestination();
+  net.partitionDone();
 
   bitset_residual.resize(hg->size());
-  bitset_nout.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
-  InitializeGraph::go(*hg);
 
+  InitializeGraph::go(*hg);
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
 
@@ -588,6 +586,8 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
+    net.touchBufferPool();
+
     StatTimer_main.start();
     if (iterMode == All) {
         PageRankOECAll::go(*hg);
@@ -604,7 +604,6 @@ int main(int argc, char** argv) {
 
     if ((run + 1) != numRuns) {
       bitset_residual.reset();
-      bitset_nout.reset();
 
       syncSubstrate->set_num_run(run + 1);
       galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
@@ -614,6 +613,8 @@ int main(int argc, char** argv) {
   }
 
   StatTimer_total.stop();
+
+  net.applicationDone();
 
   if (output) {
     std::vector<float> results = makeResults(hg);
