@@ -510,82 +510,77 @@ private:
                             const galois::DynamicBitSet& bitset_comm,
                             galois::PODResizeableArray<unsigned int>& offsets,
                             size_t& bit_set_count) const {
-    // timer creation
-    std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
-    std::string offsets_timer_str(syncTypeStr + "Offsets_" +
-                                  get_run_identifier(loopName));
-    galois::CondStatTimer<GALOIS_COMM_STATS> Toffsets(offsets_timer_str.c_str(),
-                                                      RNAME);
+    const size_t nbits  = bitset_comm.size();
+    const auto&  words  = bitset_comm.get_vec();              // PODResizeableArray<CopyableAtomic<uint64_t>>
+    const size_t nwords = words.size();
 
-    Toffsets.start();
+    // Early exit
+    if (nbits == 0 || nwords == 0) {
+        offsets.resize(0);
+        bit_set_count = 0;
+        return;
+    }
 
-    auto activeThreads = galois::getActiveThreads();
-    std::vector<unsigned int> t_prefix_bit_counts(activeThreads);
+    const unsigned nthreads = galois::getActiveThreads();
+    const size_t lastWord = nwords - 1;
+    const unsigned tail   = static_cast<unsigned>(nbits & 63u); // bits used in last word (0 => full 64)
 
-    // count how many bits are set on each thread
-    galois::on_each([&](unsigned tid, unsigned nthreads) {
-      // TODO use block_range instead
-      unsigned int block_size = bitset_comm.size() / nthreads;
-      if ((bitset_comm.size() % nthreads) > 0)
-        ++block_size;
-      assert((block_size * nthreads) >= bitset_comm.size());
+    // -------- PASS 1: count per-thread --------
+    std::vector<size_t> t_counts(nthreads, 0);
+    galois::on_each([&](unsigned tid, unsigned total){
+        // fair split of words across threads
+        const size_t q = nwords / total, r = nwords % total;
+        const size_t wbeg = tid * q + std::min<size_t>(tid, r);
+        const size_t wend = wbeg + q + (tid < r);
 
-      unsigned int start = tid * block_size;
-      unsigned int end   = (tid + 1) * block_size;
-      if (end > bitset_comm.size())
-        end = bitset_comm.size();
-
-      unsigned int count = 0;
-      for (unsigned int i = start; i < end; ++i) {
-        if (bitset_comm.test(i))
-          ++count;
-      }
-
-      t_prefix_bit_counts[tid] = count;
+        size_t local = 0;
+        for (size_t w = wbeg; w < wend; ++w) {
+            uint64_t v = words[w].load(std::memory_order_relaxed);
+            if (v == 0ull)
+                continue;
+            if (w == lastWord && tail != 0u) {
+                const uint64_t mask = (uint64_t{1} << tail) - 1ull;
+                v &= mask;
+                if (v == 0ull)
+                    continue;
+            }
+            local += static_cast<unsigned>(__builtin_popcountll(v));
+        }
+        t_counts[tid] = local;
     });
 
-    // calculate prefix sum of bits per thread
-    for (unsigned int i = 1; i < activeThreads; ++i) {
-      t_prefix_bit_counts[i] += t_prefix_bit_counts[i - 1];
+    for (unsigned i = 1; i < nthreads; ++i) {
+        t_counts[i] += t_counts[i-1];
     }
-    // total num of set bits
-    bit_set_count = t_prefix_bit_counts[activeThreads - 1];
+    bit_set_count = (nthreads ? t_counts[nthreads-1] : 0);
+    offsets.resize(bit_set_count);
+    if (bit_set_count == 0)
+        return;
 
-    // calculate the indices of the set bits and save them to the offset
-    // vector
-    if (bit_set_count > 0) {
-      offsets.resize(bit_set_count);
-      galois::on_each([&](unsigned tid, unsigned nthreads) {
-        // TODO use block_range instead
-        // TODO this is same calculation as above; maybe refactor it
-        // into function?
-        unsigned int block_size = bitset_comm.size() / nthreads;
-        if ((bitset_comm.size() % nthreads) > 0)
-          ++block_size;
-        assert((block_size * nthreads) >= bitset_comm.size());
+    // -------- PASS 2: emit indices into pre-sized slice per thread --------
+    galois::on_each([&](unsigned tid, unsigned total){
+        const size_t q = nwords / total, r = nwords % total;
+        const size_t wbeg = tid * q + std::min<size_t>(tid, r);
+        const size_t wend = wbeg + q + (tid < r);
 
-        unsigned int start = tid * block_size;
-        unsigned int end   = (tid + 1) * block_size;
-        if (end > bitset_comm.size())
-          end = bitset_comm.size();
-
-        unsigned int count = 0;
-        unsigned int t_prefix_bit_count;
-        if (tid == 0) {
-          t_prefix_bit_count = 0;
-        } else {
-          t_prefix_bit_count = t_prefix_bit_counts[tid - 1];
+        size_t out = (tid == 0) ? 0 : t_counts[tid - 1];
+        for (size_t w = wbeg; w < wend; ++w) {
+            uint64_t v = words[w].load(std::memory_order_relaxed);
+            if (v == 0ull)
+                continue;
+            if (w == lastWord && tail != 0u) {
+                const uint64_t mask = (uint64_t{1} << tail) - 1ull;
+                v &= mask;
+                if (v == 0ull)
+                    continue;
+            }
+            while (v) {
+                const unsigned b = static_cast<unsigned>(__builtin_ctzll(v));                  // next set bit in this word
+                offsets[out++] = static_cast<unsigned>(w * 64 + b);
+                v &= (v - 1);                                 // clear lowest set bit
+            }
         }
-
-        for (unsigned int i = start; i < end; ++i) {
-          if (bitset_comm.test(i)) {
-            offsets[t_prefix_bit_count + count] = i;
-            ++count;
-          }
-        }
-      });
-    }
-    Toffsets.stop();
+    });
   }
 
   /**
