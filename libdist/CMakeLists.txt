@@ -24,10 +24,6 @@ if (GALOIS_USE_BARE_MPI)
   target_compile_definitions(galois_dist_async PRIVATE GALOIS_USE_BARE_MPI=1)
 endif()
 
-if(GALOIS_NO_MIRRORING)
-    target_compile_definitions(galois_dist_async PRIVATE GALOIS_NO_MIRRORING=1)
-endif()
-
 install(
   DIRECTORY include/
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"

@@ -268,8 +268,6 @@ struct PageRankOECSep {
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
@@ -285,13 +283,6 @@ struct PageRankOECSep {
       syncSubstrate->set_num_round(_num_iterations);
 
       dga.reset();
-
-#ifndef GALOIS_NO_MIRRORING     
-      // reset residual on mirrors
-      StatTimer_reset.start();
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-      StatTimer_reset.stop();
-#endif
       
       StatTimer_delta.start();
       PageRank_delta::go(_graph, dga);
@@ -310,11 +301,7 @@ struct PageRankOECSep {
       _net.broadcastWorkTermination();
 
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-#else     
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -354,8 +341,6 @@ struct PageRankOECAll {
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
@@ -371,13 +356,6 @@ struct PageRankOECAll {
       syncSubstrate->set_num_round(_num_iterations);
 
       dga.reset();
-
-#ifndef GALOIS_NO_MIRRORING     
-      // reset residual on mirrors
-      StatTimer_reset.start();
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-      StatTimer_reset.stop();
-#endif
 
       StatTimer_delta.start();
       PageRank_delta::go(_graph, dga);
@@ -398,11 +376,7 @@ struct PageRankOECAll {
       _net.broadcastWorkTermination();
 
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-#else   
-      syncSubstrate->sync<writeSource, readDestination, Reduce_add_residual, Bitset_residual>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();

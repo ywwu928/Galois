@@ -82,13 +82,7 @@ cll::opt<std::string> mastersFile("mastersFile",
                                   cll::desc("File specifying masters blocking"),
                                   cll::init(""), cll::Hidden);
 
-#if defined(GALOIS_NO_MIRRORING)
 int mirrorThreshold = -1;
-#else
-cll::opt<int> mirrorThreshold("mirrorThreshold",
-                                  cll::desc("Threshold for the incoming degree of a proxy to be actually mirrored (0 means full mirroring & -1 means no mirroring)"),
-                                  cll::init(0));
-#endif
 
 cll::opt<uint32_t> stopThreshold("stopThreshold",
                                  cll::desc("Threshold to stop sweeping memory overhead"),
