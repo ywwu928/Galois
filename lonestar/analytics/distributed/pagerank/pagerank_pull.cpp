@@ -66,19 +66,13 @@ struct NodeData {
   float delta;
 };
 
-union UnionDataType {
-    uint32_t u;
-    float f;
-};
-typedef std::variant<uint32_t, float> VariantDataType;
-
 galois::DynamicBitSet bitset_residual;
 galois::DynamicBitSet bitset_nout;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph, UnionDataType, VariantDataType>> syncSubstrate;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
 
 #include "pagerank_pull_sync.hh"
 
@@ -567,7 +561,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, UnionDataType, VariantDataType, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
 
   //hg->sortEdgesByDestination();
 

@@ -55,9 +55,9 @@ void DistBenchStart(int argc, char** argv, const char* app,
 template <typename NodeData, typename EdgeData>
 using DistGraphPtr =
     std::unique_ptr<galois::graphs::DistGraph<NodeData, EdgeData>>;
-template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy>
+template <typename NodeData, typename EdgeData, typename ValTy>
 using DistSubstratePtr = std::unique_ptr<galois::graphs::GluonSubstrate<
-    galois::graphs::DistGraph<NodeData, EdgeData>, UnionValTy, VariantValTy>>;
+    galois::graphs::DistGraph<NodeData, EdgeData>, ValTy>>;
 
 /**
  * Loads a graph into memory. Details/partitioning will be handled in the
@@ -151,15 +151,15 @@ loadSymmetricDistGraph(std::vector<unsigned>& scaleFactor) {
  *
  * @returns Pointer to the loaded graph and Gluon substrate
  */
-template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy, bool iterateOutEdges = true>
+template <typename NodeData, typename EdgeData, typename ValTy, bool iterateOutEdges = true>
 std::pair<DistGraphPtr<NodeData, EdgeData>,
-          DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy>>
+          DistSubstratePtr<NodeData, EdgeData, ValTy>>
 distGraphInitialization() {
   using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
-  using Substrate = galois::graphs::GluonSubstrate<Graph, UnionValTy, VariantValTy>;
+  using Substrate = galois::graphs::GluonSubstrate<Graph, ValTy>;
   std::vector<unsigned> scaleFactor;
   DistGraphPtr<NodeData, EdgeData> g;
-  DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy> s;
+  DistSubstratePtr<NodeData, EdgeData, ValTy> s;
 
   g = loadDistGraph<NodeData, EdgeData, iterateOutEdges>(scaleFactor);
   // load substrate
@@ -187,15 +187,15 @@ void distGraphMemOverheadSweep() {
  *
  * @returns Pointer to the loaded symmetric graph
  */
-template <typename NodeData, typename EdgeData, typename UnionValTy, typename VariantValTy>
+template <typename NodeData, typename EdgeData, typename ValTy>
 std::pair<DistGraphPtr<NodeData, EdgeData>,
-          DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy>>
+          DistSubstratePtr<NodeData, EdgeData, ValTy>>
 symmetricDistGraphInitialization() {
   using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
-  using Substrate = galois::graphs::GluonSubstrate<Graph, UnionValTy, VariantValTy>;
+  using Substrate = galois::graphs::GluonSubstrate<Graph, ValTy>;
   std::vector<unsigned> scaleFactor;
   DistGraphPtr<NodeData, EdgeData> g;
-  DistSubstratePtr<NodeData, EdgeData, UnionValTy, VariantValTy> s;
+  DistSubstratePtr<NodeData, EdgeData, ValTy> s;
 
   g = loadSymmetricDistGraph<NodeData, EdgeData>(scaleFactor);
   // load substrate

@@ -33,7 +33,6 @@
 #include <vector>
 #include <chrono>
 #include <sstream>
-#include <variant>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/runtime/DistStats.h"
@@ -75,7 +74,7 @@ namespace graphs {
  *
  * @tparam GraphTy User graph to handle communication for
  */
-template <typename GraphTy, typename UnionValTy, typename VariantValTy>
+template <typename GraphTy, typename ValTy>
 class GluonSubstrate : public galois::runtime::GlobalObject {
 private:
   //! Synchronization type
@@ -483,7 +482,7 @@ public:
         sizeof(DataCommMode) +
         sizeof(size_t) +
         (maxSharedSize * sizeof(uint32_t)) + // syncOffsets or syncBitset
-        (maxSharedSize * sizeof(UnionValTy)); // dirty data
+        (maxSharedSize * sizeof(ValTy)); // dirty data
 
     // send buffer
     for (unsigned i=0; i<numHosts; i++) {
@@ -528,7 +527,7 @@ private:
    */
   /* Reduction extract resets the value afterwards */
   template <typename FnTy, SyncType syncType>
-  typename FnTy::ValTy extractWrapper(size_t lid) {
+  ValTy extractWrapper(size_t lid) {
     if (syncType == syncReduce) {
       auto val = FnTy::extract(lid, userGraph.getData(lid));
       FnTy::reset(lid, userGraph.getData(lid));
@@ -554,7 +553,7 @@ private:
    * if reduction causes a change
    */
   template <typename FnTy, SyncType syncType>
-  void setWrapper(size_t lid, typename FnTy::ValTy val, galois::DynamicBitSet& bit_set_compute) {
+  void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet& bit_set_compute) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
           if (bit_set_compute.size() != 0)
@@ -625,7 +624,7 @@ private:
     syncBitsetLen = num;
     syncOffsetsLen = t_prefix_bit_counts[activeThreads - 1];
         
-    data_mode = get_data_mode<typename SyncFnTy::ValTy>(syncOffsetsLen, indices.size());
+    data_mode = get_data_mode<ValTy>(syncOffsetsLen, indices.size());
     
     uint8_t* bufPtr = sendCommBuffer[from_id];
     size_t& bufOffset = sendCommBufferLen[from_id];
@@ -656,15 +655,15 @@ private:
             } else {
                 t_prefix_bit_count = t_prefix_bit_counts[tid - 1];
             }
-            size_t threadValOffset = bufOffset + syncBitsetLen * sizeof(uint8_t) + t_prefix_bit_count * sizeof(typename SyncFnTy::ValTy);
+            size_t threadValOffset = bufOffset + syncBitsetLen * sizeof(uint8_t) + t_prefix_bit_count * sizeof(ValTy);
 
             for (unsigned int i = start; i < end; ++i) {
                 size_t lid = indices[i];
                 if (bitset_compute.test(lid)) {
                     *(bufPtr + threadIndexOffset) = (uint8_t)1;
-                    typename SyncFnTy::ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
-                    *((typename SyncFnTy::ValTy*)(bufPtr + threadValOffset)) = val;
-                    threadValOffset += sizeof(typename SyncFnTy::ValTy);
+                    ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
+                    *((ValTy*)(bufPtr + threadValOffset)) = val;
+                    threadValOffset += sizeof(ValTy);
                 } else {
                     *(bufPtr + threadIndexOffset) = (uint8_t)0;
                 }
@@ -672,7 +671,7 @@ private:
             }
         });
 
-        bufOffset += (syncBitsetLen * sizeof(uint8_t) + syncOffsetsLen * sizeof(typename SyncFnTy::ValTy));
+        bufOffset += (syncBitsetLen * sizeof(uint8_t) + syncOffsetsLen * sizeof(ValTy));
     } else if (data_mode == offsetsData) {
         *((size_t*)(bufPtr + bufOffset)) = syncOffsetsLen;
         bufOffset += sizeof(size_t);
@@ -696,21 +695,21 @@ private:
                 } else {
                     t_prefix_bit_count = t_prefix_bit_counts[tid - 1];
                 }
-                size_t threadOffset = bufOffset + t_prefix_bit_count * (sizeof(uint32_t) + sizeof(typename SyncFnTy::ValTy));
+                size_t threadOffset = bufOffset + t_prefix_bit_count * (sizeof(uint32_t) + sizeof(ValTy));
 
                 for (unsigned int i = start; i < end; ++i) {
                     size_t lid = indices[i];
                     if (bitset_compute.test(lid)) {
                         *((uint32_t*)(bufPtr + threadOffset)) = (uint32_t)i;
                         threadOffset += sizeof(uint32_t);
-                        typename SyncFnTy::ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
-                        *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset)) = val;
-                        threadOffset += sizeof(typename SyncFnTy::ValTy);
+                        ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
+                        *((ValTy*)(bufPtr + threadOffset)) = val;
+                        threadOffset += sizeof(ValTy);
                     }
                 }
             });
             
-            bufOffset += (syncOffsetsLen * (sizeof(uint32_t) + sizeof(typename SyncFnTy::ValTy)));
+            bufOffset += (syncOffsetsLen * (sizeof(uint32_t) + sizeof(ValTy)));
       }
     } else if (data_mode == onlyData) {
         galois::on_each([&](unsigned tid, unsigned nthreads) {
@@ -724,16 +723,16 @@ private:
             if (end > syncBitsetLen)
                 end = syncBitsetLen;
 
-            size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+            size_t threadOffset = bufOffset + start * sizeof(ValTy);
             for (unsigned int i = start; i < end; ++i) {
                 size_t lid = indices[i];
-                typename SyncFnTy::ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
-                *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset)) = val;
-                threadOffset += sizeof(typename SyncFnTy::ValTy);
+                ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
+                *((ValTy*)(bufPtr + threadOffset)) = val;
+                threadOffset += sizeof(ValTy);
             }
         });
             
-        bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+        bufOffset += syncBitsetLen * sizeof(ValTy);
     }
   }
 
@@ -857,22 +856,22 @@ private:
                 } else {
                     t_prefix_bit_count = t_prefix_bit_counts[tid - 1];
                 }
-                size_t threadValOffset = bufOffset + syncBitsetLen * sizeof(uint8_t) + t_prefix_bit_count * sizeof(typename SyncFnTy::ValTy);
+                size_t threadValOffset = bufOffset + syncBitsetLen * sizeof(uint8_t) + t_prefix_bit_count * sizeof(ValTy);
               
                 for (unsigned int i = start; i < end; ++i) {
                     uint8_t bit = *((uint8_t*)(bufPtr + threadIndexOffset));
                     threadIndexOffset += sizeof(uint8_t);
                     if (bit == (uint8_t)1) {
                         size_t lid = indices[i];
-                        typename SyncFnTy::ValTy val = *((typename SyncFnTy::ValTy*)(bufPtr + threadValOffset));
-                        threadValOffset += sizeof(typename SyncFnTy::ValTy);
+                        ValTy val = *((ValTy*)(bufPtr + threadValOffset));
+                        threadValOffset += sizeof(ValTy);
                         setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
                     }
                 }
             });
         }
             
-        bufOffset += (syncBitsetLen * sizeof(uint8_t) + syncOffsetsLen * sizeof(typename SyncFnTy::ValTy));
+        bufOffset += (syncBitsetLen * sizeof(uint8_t) + syncOffsetsLen * sizeof(ValTy));
     } else if (data_mode == offsetsData) {
         syncOffsetsLen = *((size_t*)(bufPtr + bufOffset));
         bufOffset += sizeof(size_t);
@@ -887,18 +886,18 @@ private:
             if (end > syncOffsetsLen)
                 end = syncOffsetsLen;
 
-            size_t threadOffset = bufOffset + start * (sizeof(uint32_t) + sizeof(typename SyncFnTy::ValTy));
+            size_t threadOffset = bufOffset + start * (sizeof(uint32_t) + sizeof(ValTy));
             for (unsigned int i = start; i < end; ++i) {
                 uint32_t indexOffset = *((uint32_t*)(bufPtr + threadOffset));
                 threadOffset += sizeof(uint32_t);
                 size_t lid = indices[indexOffset];
-                typename SyncFnTy::ValTy val = *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset));
-                threadOffset += sizeof(typename SyncFnTy::ValTy);
+                ValTy val = *((ValTy*)(bufPtr + threadOffset));
+                threadOffset += sizeof(ValTy);
                 setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
             }
         });
             
-        bufOffset += (syncOffsetsLen * (sizeof(uint32_t) + sizeof(typename SyncFnTy::ValTy)));
+        bufOffset += (syncOffsetsLen * (sizeof(uint32_t) + sizeof(ValTy)));
     } else if (data_mode == onlyData) {
         galois::on_each([&](unsigned tid, unsigned nthreads) {
             unsigned int block_size = syncBitsetLen / nthreads;
@@ -911,16 +910,16 @@ private:
             if (end > syncBitsetLen)
                 end = syncBitsetLen;
 
-            size_t threadOffset = bufOffset + start * sizeof(typename SyncFnTy::ValTy);
+            size_t threadOffset = bufOffset + start * sizeof(ValTy);
             for (unsigned int i = start; i < end; ++i) {
                 size_t lid = indices[i];
-                typename SyncFnTy::ValTy val = *((typename SyncFnTy::ValTy*)(bufPtr + threadOffset));
-                threadOffset += sizeof(typename SyncFnTy::ValTy);
+                ValTy val = *((ValTy*)(bufPtr + threadOffset));
+                threadOffset += sizeof(ValTy);
                 setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
             }
         });
             
-        bufOffset += syncBitsetLen * sizeof(typename SyncFnTy::ValTy);
+        bufOffset += syncBitsetLen * sizeof(ValTy);
     }
   }
 
@@ -1281,7 +1280,7 @@ public:
                 uint32_t msgCount;
                 
                 uint32_t lid;
-                typename FnTy::ValTy val;
+                ValTy val;
 
                 while(!terminateFlag) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
@@ -1296,7 +1295,7 @@ public:
                         
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
-                            val = *((typename FnTy::ValTy*)buf + (i << 1) + 1);
+                            val = *((ValTy*)buf + (i << 1) + 1);
                             FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                         }
                         
@@ -1309,8 +1308,8 @@ public:
 
 };
 
-template <typename GraphTy, typename UnionValTy, typename VariantValTy>
-constexpr const char* const galois::graphs::GluonSubstrate<GraphTy, UnionValTy, VariantValTy>::RNAME;
+template <typename GraphTy, typename ValTy>
+constexpr const char* const galois::graphs::GluonSubstrate<GraphTy, ValTy>::RNAME;
 } // end namespace graphs
 } // end namespace galois
 
