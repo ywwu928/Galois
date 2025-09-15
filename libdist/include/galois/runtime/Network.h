@@ -296,7 +296,8 @@ private:
   std::deque<MPI_Request*> recvInflightComm;
   
   void recvProbeData();
-  void recvProbeWorkComm();
+  void recvProbeWork();
+  void recvProbeComm();
   void recvProbeDataTermination();
   
   void commThread();
@@ -329,12 +330,16 @@ public:
    */
   ~NetworkInterface();
 
-  inline void partitionDone() {
+  inline void forwardPass() {
       ready = 3;
   }
 
-  inline void applicationDone() {
+  inline void backwardPass() {
       ready = 4;
+  }
+
+  inline void applicationDone() {
+      ready = 5;
   }
 
   //! Send a message to a given (dest) host.  A message is simply a
