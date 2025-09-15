@@ -170,16 +170,16 @@ struct PageRank_delta {
   }
 };
 
-struct PageRankOECPresent {
+struct PageRankPresent {
   Graph* graph;
 
-  PageRankOECPresent(Graph* _graph) : graph(_graph) {}
+  PageRankPresent(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
       const auto& presentNodes = _graph.presentNodesRangeReserved();
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(presentNodes), PageRankOECPresent{&_graph},
+          galois::iterate(presentNodes), PageRankPresent{&_graph},
           galois::steal(), galois::no_stats());
   }
 
@@ -202,19 +202,19 @@ struct PageRankOECPresent {
   }
 };
 
-struct PageRankOECPhantom {
+struct PageRankPhantom {
   Graph* graph;
 
   galois::runtime::NetworkInterface& net;
 
-  PageRankOECPhantom(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
+  PageRankPhantom(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
       const auto& phantomNodes = _graph.phantomNodesRangeReserved();
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(phantomNodes), PageRankOECPhantom{&_graph},
+          galois::iterate(phantomNodes), PageRankPhantom{&_graph},
           galois::steal(), galois::no_stats());
   }
 
@@ -230,7 +230,7 @@ struct PageRankOECPhantom {
         auto& ddata = graph->getData(dst);
 
         if (ddata.delta > 0) {
-            galois::add(sresidual, ddata.delta);
+            sresidual = sresidual + ddata.delta;
         }
     }
 
@@ -238,12 +238,12 @@ struct PageRankOECPhantom {
   }
 };
 
-struct PageRankOECSep {
+struct PageRankSep {
   Graph* graph;
 
   using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
 
-  PageRankOECSep(Graph* _graph) : graph(_graph) {}
+  PageRankSep(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -284,8 +284,8 @@ struct PageRankOECSep {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      PageRankOECPresent::go(_graph);
-      PageRankOECPhantom::go(_graph);
+      PageRankPresent::go(_graph);
+      PageRankPhantom::go(_graph);
       StatTimer_compute.stop();
 
       // inform all other hosts that this host has finished sending messages
@@ -308,13 +308,13 @@ struct PageRankOECSep {
   }
 };
 
-struct PageRankOECAll {
+struct PageRankAll {
   Graph* graph;
   using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
   
   galois::runtime::NetworkInterface& net;
 
-  PageRankOECAll(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
+  PageRankAll(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -359,7 +359,7 @@ struct PageRankOECAll {
       // launch all other threads to compute
       StatTimer_compute.start();
       galois::do_all(
-          galois::iterate(allNodes), PageRankOECAll{&_graph},
+          galois::iterate(allNodes), PageRankAll{&_graph},
           galois::steal(), galois::no_stats());
       StatTimer_compute.stop();
 
@@ -395,7 +395,7 @@ struct PageRankOECAll {
             auto& ddata = graph->getData(dst);
 
             if (ddata.delta > 0) {
-                galois::add(sresidual, ddata.delta);
+                sresidual = sresidual + ddata.delta;
             }
         }
 
@@ -590,9 +590,9 @@ int main(int argc, char** argv) {
 
     StatTimer_main.start();
     if (iterMode == All) {
-        PageRankOECAll::go(*hg);
+        PageRankAll::go(*hg);
     } else {
-        PageRankOECSep::go(*hg);
+        PageRankSep::go(*hg);
     }
     StatTimer_main.stop();
     galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
