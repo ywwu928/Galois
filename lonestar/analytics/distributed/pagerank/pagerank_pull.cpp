@@ -291,7 +291,6 @@ struct PageRankSep {
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
-      _net.broadcastWorkTermination();
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
@@ -366,7 +365,6 @@ struct PageRankAll {
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
-      _net.broadcastWorkTermination();
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();

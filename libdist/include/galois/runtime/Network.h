@@ -213,9 +213,6 @@ private:
       uint8_t* buf;
       uint32_t msgCount;
 
-      std::pair<uint8_t*, size_t> partialMessage;
-      std::atomic<bool> partialFlag;
-
   public:
       sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), msgCount(0) {}
 
@@ -224,14 +221,20 @@ private:
       inline void setTID(unsigned _tid) {
           tid = _tid;
       }
-      
-      void setFlush();
 
-      inline bool checkPartial() {
-          return partialFlag;
+      inline uint8_t* getBuf() {
+          return buf;
       }
 
-      void popPartial(uint8_t*& work, size_t& workLen);
+      inline uint32_t getMsgCount() {
+          return msgCount;
+      }
+
+      inline void resetMsgCount() {
+          msgCount = 0;
+      }
+
+      void enqueue(uint8_t* msg);
     
       bool pop(uint8_t*& work);
 
@@ -261,6 +264,7 @@ private:
   
   std::vector<std::deque<trackMessageSend>> sendInflight;
     
+  void sendTrackCompleteLazy();
   void sendTrackComplete();
 
   void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
@@ -305,6 +309,11 @@ private:
   std::thread comm;
   std::atomic<int> ready;
   
+  std::atomic<bool> flush;
+  std::vector<uint8_t*> partialBuf;
+  std::vector<size_t> partialBufLen;
+  
+  std::atomic<bool> recvAll;
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
   uint32_t hostWorkTerminationBase;
@@ -384,8 +393,6 @@ public:
   void resetDataTermination();
   
   void signalDataTermination(uint32_t dest);
-
-  void broadcastWorkTermination();
 
   void touchBufferPool();
   
