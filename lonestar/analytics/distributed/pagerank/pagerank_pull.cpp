@@ -269,7 +269,7 @@ struct PageRankSep {
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
-      galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
 
       StatTimer_total.start();
@@ -342,7 +342,7 @@ struct PageRankAll {
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
-      galois::gPrint("Host ", net.ID, " : iteration ", _num_iterations, "\n");
+      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
 
       StatTimer_total.start();
