@@ -215,23 +215,15 @@ void NetworkInterface::sendTrackCompleteLazy() {
     }
 }
     
-// TODO: get rid of MPI_Test?
 void NetworkInterface::sendTrackComplete() {
     for (unsigned t=0; t<numT; t++) {
         while (!sendInflight[t].empty()) {
-            int flag = 0;
-            MPI_Status status;
             auto& f = sendInflight[t].front();
-            MPI_Test(&f.req, &flag, &status);
-            if (flag) {
-                // return buffer back to pool
-                sendAllocators[t].deallocate(f.buf);
+            
+            // return buffer back to pool
+            sendAllocators[t].deallocate(f.buf);
 
-                sendInflight[t].pop_front();
-            }
-            else {
-                break;
-            }
+            sendInflight[t].pop_front();
         }
     }
 }
