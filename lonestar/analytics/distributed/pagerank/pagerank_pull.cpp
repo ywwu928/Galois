@@ -234,7 +234,9 @@ struct PageRankPhantom {
         }
     }
 
-    net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+    if (sresidual != 0) {
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+    }
   }
 };
 
@@ -401,7 +403,9 @@ struct PageRankAll {
             }
         }
 
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+        if (sresidual != 0) {
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+        }
     } else {
         auto& sdata = graph->getData(src);
 
