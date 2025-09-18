@@ -176,7 +176,7 @@ struct PageRankPresent {
   PageRankPresent(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-      const auto& presentNodes = _graph.presentNodesRangeReserved();
+      const auto& presentNodes = _graph.presentNodesRange();
       // launch all other threads to compute
       galois::do_all(
           galois::iterate(presentNodes), PageRankPresent{&_graph},
@@ -210,7 +210,7 @@ struct PageRankPhantom {
   PageRankPhantom(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
-      const auto& phantomNodes = _graph.phantomNodesRangeReserved();
+      const auto& phantomNodes = _graph.phantomNodesRange();
 
       // launch all other threads to compute
       galois::do_all(
@@ -326,7 +326,7 @@ struct PageRankAll {
 
     unsigned _num_iterations   = 0;
 
-    const auto& allNodes = _graph.allNodesRangeReserved();
+    const auto& allNodes = _graph.allNodesRange();
 
     DGTerminatorDetector dga;
   
