@@ -267,6 +267,8 @@ struct PageRankSep {
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
@@ -292,7 +294,9 @@ struct PageRankSep {
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
+      StatTimer_flush.start();
       _net.flushRemoteWork();
+      StatTimer_flush.stop();
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
@@ -547,6 +551,7 @@ int main(int argc, char** argv) {
   DistBenchStart(argc, argv, name, desc, url);
 
   auto& net = galois::runtime::getSystemNetworkInterface();
+  galois::gPrint("Host ", net.ID, " : point 1\n");
 
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
@@ -564,19 +569,24 @@ int main(int argc, char** argv) {
   StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
   StatTimer_preprocess.start();
+  galois::gPrint("Host ", net.ID, " : point 2\n");
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
+  galois::gPrint("Host ", net.ID, " : point 3\n");
 
   net.forwardPass();
+  galois::gPrint("Host ", net.ID, " : point 4\n");
 
   bitset_residual.resize(hg->size());
+  galois::gPrint("Host ", net.ID, " : point 5\n");
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
   InitializeGraph::go(*hg);
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
+  galois::gPrint("Host ", net.ID, " : point 6\n");
 
   galois::DGAccumulator<float> DGA_sum;
   galois::DGAccumulator<float> DGA_sum_residual;
