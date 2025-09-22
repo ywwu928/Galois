@@ -551,7 +551,6 @@ int main(int argc, char** argv) {
   DistBenchStart(argc, argv, name, desc, url);
 
   auto& net = galois::runtime::getSystemNetworkInterface();
-  galois::gPrint("Host ", net.ID, " : point 1\n");
 
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
@@ -569,24 +568,20 @@ int main(int argc, char** argv) {
   StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
   StatTimer_preprocess.start();
-  galois::gPrint("Host ", net.ID, " : point 2\n");
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
-  galois::gPrint("Host ", net.ID, " : point 3\n");
 
+  galois::runtime::getHostBarrier().wait();
   net.forwardPass();
-  galois::gPrint("Host ", net.ID, " : point 4\n");
 
   bitset_residual.resize(hg->size());
-  galois::gPrint("Host ", net.ID, " : point 5\n");
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
   InitializeGraph::go(*hg);
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
-  galois::gPrint("Host ", net.ID, " : point 6\n");
 
   galois::DGAccumulator<float> DGA_sum;
   galois::DGAccumulator<float> DGA_sum_residual;
