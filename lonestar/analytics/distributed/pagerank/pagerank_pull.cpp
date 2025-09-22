@@ -66,8 +66,6 @@ struct NodeData {
   float delta;
 };
 
-galois::DynamicBitSet bitset_residual;
-
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
@@ -195,8 +193,6 @@ struct PageRankPresent {
 
         if (ddata.delta > 0) {
             galois::add(sdata.residual, ddata.delta);
-
-            bitset_residual.set(src);
         }
     }
   }
@@ -420,8 +416,6 @@ struct PageRankAll {
 
             if (ddata.delta > 0) {
                 galois::add(sdata.residual, ddata.delta);
-
-                bitset_residual.set(src);
             }
         }
     }
@@ -575,8 +569,6 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.forwardPass();
 
-  bitset_residual.resize(hg->size());
-
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
   InitializeGraph::go(*hg);
@@ -614,8 +606,6 @@ int main(int argc, char** argv) {
                        max_residual, min_residual);
 
     if ((run + 1) != numRuns) {
-      bitset_residual.reset();
-
       syncSubstrate->set_num_run(run + 1);
       galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
       InitializeGraph::go(*hg);
