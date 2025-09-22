@@ -1,1 +1,1 @@
-app_dist(partial_cc_push partial-connected-components-push)
+app_dist(cc_pull connected-components-pull)
