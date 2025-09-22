@@ -133,7 +133,7 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
     // symmetric graph path: assume the passed in graphFile is a symmetric
     // graph; output is also symmetric
     return std::make_unique<DistGraphConstructor>(
-        graphFile, net.ID, net.Num, cuspAsync, cuspStateRounds, false,
+        graphFile, net.ID, net.Num, cuspAsync, cuspStateRounds, true,
         readPolicy, nodeWeight, edgeWeight, masterBlockFile);
   }
 }
