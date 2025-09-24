@@ -92,7 +92,7 @@ protected:
         fastRelease = 0;
       } else {
         std::unique_lock<std::mutex> lg(m);
-        cv.wait(lg, [=] { return !done; });
+        cv.wait(lg, [this] { return !done; });
         // start.acquire();
       }
     }
