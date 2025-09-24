@@ -55,7 +55,6 @@ static cll::opt<IterMode> iterMode(
 
 struct NodeData {
   std::atomic<uint32_t> comp_current;
-  uint32_t comp_old;
 };
 
 galois::DynamicBitSet bitset_comp_current;
@@ -86,7 +85,6 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
     sdata.comp_current = graph->getGID(src);
-    sdata.comp_old = graph->globalSize() + 1;
   }
 };
 
@@ -112,15 +110,20 @@ struct ConnectedCompPresent {
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
 
+    bool updated = false;
     for (auto jj : graph->edges(src)) {
         GNode dst         = graph->getEdgeDst(jj);
         auto& dnode       = graph->getData(dst);
         uint32_t new_comp = dnode.comp_current;
         uint32_t old_comp = galois::min(snode.comp_current, new_comp);
         if (old_comp > new_comp) {
-            bitset_comp_current.set(src);
-            active_vertices += 1;
+            updated = true;
         }
+    }
+    
+    if (updated) {
+        bitset_comp_current.set(src);
+        active_vertices += 1;
     }
   }
 };
@@ -147,21 +150,22 @@ struct ConnectedCompPhantom {
     // create register for phantom node data
     uint32_t scomp = UINT32_MAX;
 
+    bool send = false;
     for (auto jj : graph->edges(src)) {
         GNode dst         = graph->getEdgeDst(jj);
         auto& dnode       = graph->getData(dst);
 
-        //if (dnode.comp_old > dnode.comp_current) {
-        //    dnode.comp_old = dnode.comp_current;
-            if (dnode.comp_current < scomp) {
-                scomp = dnode.comp_current;
+        if (dnode.comp_current < scomp) {
+            scomp = dnode.comp_current;
+            if (bitset_comp_current.test(dst)) {
+                send = true;
             }
-        //}
+        }
     }
     
-    //if (scomp != UINT32_MAX) {
+    if (send) {
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), scomp);
-    //}
+    }
   }
 };
 
@@ -316,29 +320,30 @@ struct ConnectedCompAll {
             GNode dst         = graph->getEdgeDst(jj);
             auto& dnode       = graph->getData(dst);
 
-            //if (dnode.comp_old > dnode.comp_current) {
-            //    dnode.comp_old = dnode.comp_current;
-                if (dnode.comp_current < scomp) {
-                    scomp = dnode.comp_current;
-                }
-            //}
+            if (dnode.comp_current < scomp) {
+                scomp = dnode.comp_current;
+            }
         }
     
-        //if (scomp != UINT32_MAX) {
+        if (scomp != UINT32_MAX) {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), scomp);
-        //}
+        }
     } else {
         NodeData& snode = graph->getData(src);
 
+        bool updated = false;
         for (auto jj : graph->edges(src)) {
             GNode dst         = graph->getEdgeDst(jj);
             auto& dnode       = graph->getData(dst);
             uint32_t new_comp = dnode.comp_current;
             uint32_t old_comp = galois::min(snode.comp_current, new_comp);
             if (old_comp > new_comp) {
-                bitset_comp_current.set(src);
-                active_vertices += 1;
+                updated = true;
             }
+        }
+
+        if (updated) {
+            active_vertices += 1;
         }
     }
   }
@@ -432,10 +437,10 @@ int main(int argc, char** argv) {
   std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
   //std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t, false>();
 
+  bitset_comp_current.resize(hg->actualSize());
+
   galois::runtime::getHostBarrier().wait();
   net.forwardPass();
-
-  bitset_comp_current.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
@@ -452,6 +457,7 @@ int main(int argc, char** argv) {
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     net.touchBufferPool();
+    galois::runtime::getHostBarrier().wait();
 
     StatTimer_main.start();
     if (iterMode == All) {
@@ -469,7 +475,6 @@ int main(int argc, char** argv) {
 
       (*syncSubstrate).set_num_run(run + 1);
       InitializeGraph::go((*hg));
-      galois::runtime::getHostBarrier().wait();
     }
   }
 
