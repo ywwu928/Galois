@@ -313,9 +313,6 @@ void NetworkInterface::recvProbeWork() {
             else {
                 recvRemoteWork.addPartial(m.buf, m.bufLen);
             }
-
-            remoteWorkAvail.clear(std::memory_order_release);
-            remoteWorkAvail.notify_one();
             
             recvInflightWork.pop_front();
 
@@ -323,15 +320,8 @@ void NetworkInterface::recvProbeWork() {
         }
     }
     else {
-        if (terminationCountTemp != 0) {
-            hostWorkTerminationCount.fetch_add(terminationCountTemp);
-            terminationCountTemp = 0;
-        }
-
-        if (hostWorkTerminationCount == Num) {
-            remoteWorkAvail.clear(std::memory_order_release);
-            remoteWorkAvail.notify_all();
-        }
+        hostWorkTerminationCount.fetch_add(terminationCountTemp);
+        terminationCountTemp = 0;
     }
 }
 
@@ -611,8 +601,6 @@ NetworkInterface::NetworkInterface()
         partialBufLen[i] = 0;
     }
 
-    remoteWorkAvail.clear();
-
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
@@ -769,17 +757,12 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
         success = recvRemoteWork.tryPopPartialMsg(work, workLen);
         if (success) {
             fullFlag = false;
-            return true;
+            return true;;
         }
 
         if (hostWorkTerminationCount == Num) {
             terminateFlag = true;
             return false;
-        }
-
-        // wait for the producer to notify
-        while (remoteWorkAvail.test_and_set(std::memory_order_acquire)) {
-            remoteWorkAvail.wait(true, std::memory_order_relaxed);
         }
     }
 }

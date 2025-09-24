@@ -39,7 +39,6 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
-#include <atomic>
 
 namespace galois::runtime {
 
@@ -313,8 +312,6 @@ private:
   std::atomic<bool> flush;
   std::vector<uint8_t*> partialBuf;
   std::vector<size_t> partialBufLen;
-
-  std::atomic_flag remoteWorkAvail;
   
   std::atomic<bool> recvAll;
   std::vector<std::atomic<bool>> sendWorkTermination;
