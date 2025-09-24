@@ -635,6 +635,8 @@ int main(int argc, char** argv) {
       globalRoundNumber = 0;
       backRoundCount    = 0;
 
+      galois::runtime::getHostBarrier().wait();
+      
       StatTimer_main.start();
       BC::go(*h_graph, dga);
       StatTimer_main.stop();
@@ -676,7 +678,6 @@ int main(int argc, char** argv) {
       bitset_dependency.reset();
 
       InitializeGraph::go(*h_graph);
-      galois::runtime::getHostBarrier().wait();
     }
   }
 

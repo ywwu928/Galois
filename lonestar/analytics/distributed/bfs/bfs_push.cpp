@@ -442,6 +442,8 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME.c_str());
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     if (execution == Async) {
       BFS<true>::go(*hg); 

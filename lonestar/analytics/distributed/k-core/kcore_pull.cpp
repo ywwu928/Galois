@@ -481,6 +481,8 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     if (execution == Async) {
       KCore<true>::go(*h_graph);
@@ -509,7 +511,6 @@ int main(int argc, char** argv) {
       }
 
       InitializeGraph::go(*h_graph);
-      galois::runtime::getHostBarrier().wait();
     }
   }
 

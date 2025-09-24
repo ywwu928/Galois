@@ -326,6 +326,8 @@ int main(int argc, char** argv) {
     std::string timer_str("Timer_" + std::to_string(run));
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     if (execution == Async) {
       ConnectedComp<true>::go(*hg);
@@ -349,7 +351,6 @@ int main(int argc, char** argv) {
 
       (*syncSubstrate).set_num_run(run + 1);
       InitializeGraph::go((*hg));
-      galois::runtime::getHostBarrier().wait();
     }
   }
 
