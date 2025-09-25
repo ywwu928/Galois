@@ -438,6 +438,7 @@ int main(int argc, char** argv) {
   
   h_graph->sortEdgesByDestination();
 
+  galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
   bitset_current_degree.resize(h_graph->actualSize());
@@ -459,6 +460,8 @@ int main(int argc, char** argv) {
 
     net.touchBufferPool();
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     KCoreStep1::go(*h_graph);
     StatTimer_main.stop();
@@ -476,7 +479,6 @@ int main(int argc, char** argv) {
 
       galois::gPrint("[", net.ID, "] InitializeGraph::go functions called\n");
       InitializeGraph1::go(*h_graph);
-      galois::runtime::getHostBarrier().wait();
     }
   }
 

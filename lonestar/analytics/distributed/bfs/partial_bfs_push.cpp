@@ -451,6 +451,7 @@ int main(int argc, char** argv) {
 
   hg->sortEdgesByDestination();
 
+  galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
   galois::runtime::getHostBarrier().wait();
@@ -512,6 +513,8 @@ int main(int argc, char** argv) {
 
     net.touchBufferPool();
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     BFS::go(*hg); 
     StatTimer_main.stop();

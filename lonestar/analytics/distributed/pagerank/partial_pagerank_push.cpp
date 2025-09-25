@@ -451,6 +451,7 @@ int main(int argc, char** argv) {
 
   hg->sortEdgesByDestination();
 
+  galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
   bitset_residual.resize(hg->actualSize());
@@ -477,6 +478,8 @@ int main(int argc, char** argv) {
 
     net.touchBufferPool();
 
+    galois::runtime::getHostBarrier().wait();
+    
     StatTimer_main.start();
     PageRank::go(*hg);
     StatTimer_main.stop();
@@ -493,7 +496,6 @@ int main(int argc, char** argv) {
       (*syncSubstrate).set_num_run(run + 1);
       galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
       InitializeGraph::go(*hg);
-      galois::runtime::getHostBarrier().wait();
     }
   }
 
