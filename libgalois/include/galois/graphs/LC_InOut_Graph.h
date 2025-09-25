@@ -275,7 +275,7 @@ public:
   void sortAllInEdgesByDst(MethodFlag mflag = MethodFlag::WRITE) {
     galois::do_all(
         galois::iterate(*this),
-        [=](GraphNode N) { this->sortInEdgesByDst(N, mflag); },
+        [=, this](GraphNode N) { this->sortInEdgesByDst(N, mflag); },
         galois::steal());
   }
 
