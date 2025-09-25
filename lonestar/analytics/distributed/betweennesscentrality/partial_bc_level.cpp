@@ -597,6 +597,7 @@ int main(int argc, char** argv) {
   
   h_graph->sortEdgesByDestination();
 
+  galois::runtime::getHostBarrier().wait();
   net.partitionDone();
   
   galois::runtime::getHostBarrier().wait();
@@ -675,6 +676,7 @@ int main(int argc, char** argv) {
 
       net.touchBufferPool();
 
+      galois::runtime::getHostBarrier().wait();
       StatTimer_main.start();
       BC::go(*h_graph, dga);
       StatTimer_main.stop();
@@ -716,7 +718,6 @@ int main(int argc, char** argv) {
       bitset_dependency.reset();
 
       InitializeGraph::go(*h_graph);
-      galois::runtime::getHostBarrier().wait();
     }
   }
 
