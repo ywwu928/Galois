@@ -320,7 +320,7 @@ private:
   std::atomic<uint32_t> hostWorkTerminationCount;
   
   std::atomic<uint32_t> hostDataTerminationCount;
-  
+
   uint32_t terminationCountTemp;
 
 public:
@@ -340,15 +340,15 @@ public:
   ~NetworkInterface();
 
   inline void forwardPass() {
-      ready = 3;
+      ready.store(3, std::memory_order_release);
   }
 
   inline void backwardPass() {
-      ready = 4;
+      ready.store(4, std::memory_order_release);
   }
 
   inline void applicationDone() {
-      ready = 5;
+      ready.store(5, std::memory_order_release);
   }
 
   //! Send a message to a given (dest) host.  A message is simply a

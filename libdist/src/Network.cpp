@@ -219,7 +219,7 @@ void NetworkInterface::sendTrackComplete() {
     for (unsigned t=0; t<numT; t++) {
         while (!sendInflight[t].empty()) {
             auto& f = sendInflight[t].front();
-            
+
             // return buffer back to pool
             sendAllocators[t].deallocate(f.buf);
 
@@ -320,8 +320,10 @@ void NetworkInterface::recvProbeWork() {
         }
     }
     else {
-        hostWorkTerminationCount.fetch_add(terminationCountTemp);
-        terminationCountTemp = 0;
+        if (terminationCountTemp != 0) {
+            hostWorkTerminationCount.fetch_add(terminationCountTemp, std::memory_order_release);
+            terminationCountTemp = 0;
+        }
     }
 }
 
@@ -389,8 +391,10 @@ void NetworkInterface::recvProbeDataTermination() {
         }
     }
     else {
-        hostDataTerminationCount.fetch_add(terminationCountTemp);
-        terminationCountTemp = 0;
+        if (terminationCountTemp != 0) {
+            hostDataTerminationCount.fetch_add(terminationCountTemp, std::memory_order_release);
+            terminationCountTemp = 0;
+        }
     }
 }
 
@@ -413,7 +417,7 @@ void NetworkInterface::commThread() {
     ID = getID();
     Num = getNum();
 
-    ready = 1;
+    ready.store(1, std::memory_order_release);
     std::vector<unsigned> hostOrder(Num - 1);
     for (unsigned i = 0; i < Num - 1; i++) {
         if (i + ID + 1 >= Num) {
@@ -423,11 +427,11 @@ void NetworkInterface::commThread() {
         }
     }
 
-    while (ready < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
+    while (ready.load(std::memory_order_acquire) < 2) { /*fprintf(stderr, "[WaitOnReady-2]");*/
     };
     
     // for graph partitioning
-    while (ready == 2) {
+    while (ready.load(std::memory_order_acquire) == 2) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
@@ -456,8 +460,8 @@ void NetworkInterface::commThread() {
     
     recvAllocator.touch();
     
-    while (ready == 3) {
-        while (ready == 3 && !flush) {
+    while (ready.load(std::memory_order_acquire) == 3) {
+        while (ready.load(std::memory_order_acquire) == 3 && !flush.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
                 unsigned h = hostOrder[i];
                 
@@ -513,9 +517,9 @@ void NetworkInterface::commThread() {
             }
 
             // send work termination
-            if (sendWorkTermination[h]) {
+            if (sendWorkTermination[h].load(std::memory_order_acquire)) {
                 send(h, workTerminationTag, nullptr, 0);
-                sendWorkTermination[h] = false;
+                sendWorkTermination[h].store(false, std::memory_order_relaxed);
             }
 
             partialBuf[h] = nullptr;
@@ -523,21 +527,21 @@ void NetworkInterface::commThread() {
         }
 
         // reset flush
-        flush = false;
+        flush.store(false, std::memory_order_relaxed);
         
-        while (ready == 3 && !recvAll) {
+        while (ready.load(std::memory_order_acquire) == 3 && !recvAll.load(std::memory_order_acquire)) {
             // push progress forward on the network IO
             recvProbeWork();
         }
 
         // reset recvAll
-        recvAll = false;
+        recvAll.store(false, std::memory_order_relaxed);
             
         // handle send queue
         sendTrackComplete();
     }
     
-    while (ready == 4) {
+    while (ready.load(std::memory_order_acquire) == 4) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
@@ -558,7 +562,7 @@ void NetworkInterface::commThread() {
     }
     
     // for collecting stats
-    while (ready == 5) {
+    while (ready.load(std::memory_order_acquire) == 5) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
@@ -582,7 +586,7 @@ NetworkInterface::NetworkInterface()
       aggMsgSize(workSize * workCount),
       sendBufCount(1 << sendBufCountExp),
       recvBufCount(1 << recvBufCountExp) {
-    ready               = 0;
+    ready.store(0, std::memory_order_release);
     initializeMPI();
     comm = std::thread(&NetworkInterface::commThread, this);
     numT = galois::getActiveThreads();
@@ -591,9 +595,9 @@ NetworkInterface::NetworkInterface()
         sendAllocators[t].setup(aggMsgSize, sendBufCount);
     }
     recvAllocator.setup(aggMsgSize, recvBufCount);
-    while (ready != 1) {};
+    while (ready.load(std::memory_order_acquire) != 1) {};
 
-    flush = false;
+    flush.store(false, std::memory_order_relaxed);
     partialBuf = decltype(partialBuf)(Num);
     partialBufLen = decltype(partialBufLen)(Num);
     for (unsigned i=0; i<Num; i++) {
@@ -615,13 +619,13 @@ NetworkInterface::NetworkInterface()
         }
     }
 
-    recvAll = false;
+    recvAll.store(false, std::memory_order_relaxed);
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
     hostWorkTerminationBase = 0;
-    hostWorkTerminationCount = 0;
+    hostWorkTerminationCount.store(0, std::memory_order_relaxed);
     for (unsigned i=0; i<Num; i++) {
-        sendWorkTermination[i] = false;
+        sendWorkTermination[i].store(false, std::memory_order_relaxed);
         if (i == ID) {
             sendWorkTerminationValid[i] = false;
         }
@@ -629,14 +633,16 @@ NetworkInterface::NetworkInterface()
             sendWorkTerminationValid[i] = true;
         }
     }
-    hostDataTerminationCount = 1;
+    hostDataTerminationCount.store(1, std::memory_order_relaxed);
     terminationCountTemp = 0;
+    
     sendInflight = decltype(sendInflight)(numT);
-    ready    = 2;
+
+    ready.store(2, std::memory_order_release);
 }
 
 NetworkInterface::~NetworkInterface() {
-    ready = 6;
+    ready.store(6, std::memory_order_release);
     comm.join();
   
     finalizeMPI();
@@ -738,7 +744,7 @@ NetworkInterface::receiveTagged(bool& terminateFlag, uint32_t tag, int phase) {
         }
     }
   
-    if (hostDataTerminationCount == Num) {
+    if (hostDataTerminationCount.load(std::memory_order_acquire) == Num) {
         terminateFlag = true;
     }
 
@@ -757,13 +763,15 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
         success = recvRemoteWork.tryPopPartialMsg(work, workLen);
         if (success) {
             fullFlag = false;
-            return true;;
+            return true;
         }
 
-        if (hostWorkTerminationCount == Num) {
-            terminateFlag = true;
+        if (hostWorkTerminationCount.load(std::memory_order_acquire) == Num) {
+            terminateFlag.store(true, std::memory_order_release);
             return false;
         }
+
+        //std::this_thread::yield();
     }
 }
 
@@ -852,11 +860,11 @@ void NetworkInterface::flushRemoteWork() {
         }
         
         if (sendWorkTerminationValid[h]) {
-            sendWorkTermination[h] = true;
+            sendWorkTermination[h].store(true, std::memory_order_release);
         }
     }
     
-    flush = true;
+    flush.store(true, std::memory_order_release);
 }
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
@@ -865,16 +873,16 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
   
 void NetworkInterface::excludeHostWorkTermination() {
     hostWorkTerminationBase += 1;
-    hostWorkTerminationCount += 1;
+    hostWorkTerminationCount.fetch_add(1, std::memory_order_relaxed);
 }
   
 void NetworkInterface::resetWorkTermination() {
-    recvAll = true;
-    hostWorkTerminationCount = hostWorkTerminationBase;
+    recvAll.store(true, std::memory_order_release);
+    hostWorkTerminationCount.store(hostWorkTerminationBase, std::memory_order_relaxed);
 }
 
 void NetworkInterface::resetDataTermination() {
-    hostDataTerminationCount = 1;
+    hostDataTerminationCount.store(1, std::memory_order_relaxed);
 }
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {

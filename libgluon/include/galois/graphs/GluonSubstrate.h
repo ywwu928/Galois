@@ -1269,7 +1269,8 @@ public:
     template<typename FnTy>
     void poll_for_remote_work() {
     //void poll_for_remote_work(std::string REGION_NAME_RUN, unsigned round) {
-        std::atomic<bool> terminateFlag = false;
+        std::atomic<bool> terminateFlag;
+        terminateFlag.store(false, std::memory_order_release);
 
         //galois::GAccumulator<uint32_t> numMsg;
         //numMsg.reset();
@@ -1290,7 +1291,7 @@ public:
                 ValTy val;
 
                 //StatTimer_idle.start();
-                while(!terminateFlag) {
+                while(!terminateFlag.load(std::memory_order_acquire)) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
                     if (success) { // received message
