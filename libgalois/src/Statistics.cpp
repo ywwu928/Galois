@@ -141,6 +141,6 @@ void galois::runtime::reportNumaAlloc(const char*) {
     // std::lock_guard<substrate::SimpleLock> lg(rStat->first);
     //      rStat->second.emplace_back(loop, category, numNumaAllocForNode(x));
   }
-  //  SC->addNumaAllocToStat(std::string("(NULL)"), std::string(category ?
-  //  category : "(NULL)"));
+  //  SC->addNumaAllocToStat(std::string("(nullptr)"), std::string(category ?
+  //  category : "(nullptr)"));
 }

@@ -55,17 +55,17 @@ public:
   typedef std::reverse_iterator<iterator> reverse_iterator;
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-  PODResizeableArray() : data_(NULL), capacity_(0), size_(0) {}
+  PODResizeableArray() : data_(nullptr), capacity_(0), size_(0) {}
 
   template <class InputIterator>
   PODResizeableArray(InputIterator first, InputIterator last)
-      : data_(NULL), capacity_(0), size_(0) {
+      : data_(nullptr), capacity_(0), size_(0) {
     size_t to_add = last - first;
     resize(to_add);
     std::copy_n(first, to_add, begin());
   }
 
-  PODResizeableArray(size_t n) : data_(NULL), capacity_(0), size_(0) {
+  PODResizeableArray(size_t n) : data_(nullptr), capacity_(0), size_(0) {
     resize(n);
   }
 
@@ -75,7 +75,7 @@ public:
   //! move constructor
   PODResizeableArray(PODResizeableArray&& v)
       : data_(v.data_), capacity_(v.capacity_), size_(v.size_) {
-    v.data_     = NULL;
+    v.data_     = nullptr;
     v.capacity_ = 0;
     v.size_     = 0;
   }
@@ -85,19 +85,19 @@ public:
 
   //! move assignment operator
   PODResizeableArray& operator=(PODResizeableArray&& v) {
-    if (data_ != NULL)
+    if (data_ != nullptr)
       free(data_);
     data_       = v.data_;
     capacity_   = v.capacity_;
     size_       = v.size_;
-    v.data_     = NULL;
+    v.data_     = nullptr;
     v.capacity_ = 0;
     v.size_     = 0;
     return *this;
   }
 
   ~PODResizeableArray() {
-    if (data_ != NULL)
+    if (data_ != nullptr)
       free(data_);
   }
 

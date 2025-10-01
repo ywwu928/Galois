@@ -220,7 +220,7 @@ public:
   }
 
   bool empty() const {
-    return first == NULL || (get_first()->empty() && get_first()->next == NULL);
+    return first == nullptr || (get_first()->empty() && get_first()->next == nullptr);
   }
 
   value_type& front() { return get_first()->front(); }

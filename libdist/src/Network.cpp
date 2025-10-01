@@ -60,7 +60,7 @@ uint32_t getHostNum() { return NetworkInterface::Num; }
 void NetworkInterface::initializeMPI() {
     int supportProvided;
     int initSuccess =
-        MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &supportProvided);
+        MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &supportProvided);
     if (initSuccess != MPI_SUCCESS) {
         MPI_Abort(MPI_COMM_WORLD, initSuccess);
     }
@@ -295,7 +295,7 @@ void NetworkInterface::recvProbeWork() {
         }
         else { // workTerminationTag
             MPI_Request req;
-            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
             MPI_Request_free(&req);
             terminationCountTemp += 1;
         }
@@ -369,7 +369,7 @@ void NetworkInterface::recvProbeDataTermination() {
         
         if (status.MPI_TAG ==  (int)dataTerminationTag) {
             MPI_Request req;
-            MPI_Irecv(NULL, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
+            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
             MPI_Request_free(&req);
             terminationCountTemp += 1;
         }

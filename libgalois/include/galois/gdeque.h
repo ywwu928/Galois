@@ -117,8 +117,8 @@ private:
   //! [Example Fixed Size Allocator]
 
   bool precondition() const {
-    return (num == 0 && first == NULL && last == NULL) ||
-           (num > 0 && first != NULL && last != NULL);
+    return (num == 0 && first == nullptr && last == nullptr) ||
+           (num > 0 && first != nullptr && last != nullptr);
   }
 
   Block* extend_first() {
@@ -400,7 +400,7 @@ public:
       b          = b->next;
       free_block(old);
     }
-    first = last = NULL;
+    first = last = nullptr;
     num          = 0;
   }
 

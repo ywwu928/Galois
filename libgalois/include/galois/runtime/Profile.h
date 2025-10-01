@@ -45,7 +45,7 @@ namespace galois::runtime {
 template <typename F>
 void profileVtune(const F& func, const char* region) {
 
-  region = region ? region : "(NULL)";
+  region = region ? region : "(nullptr)";
 
   GALOIS_ASSERT(
       galois::substrate::ThreadPool::getTID() == 0,
@@ -63,7 +63,7 @@ void profileVtune(const F& func, const char* region) {
 template <typename F>
 void profileVtune(const F& func, const char* region) {
 
-  region = region ? region : "(NULL)";
+  region = region ? region : "(nullptr)";
   galois::gWarn("Vtune not enabled or found");
 
   timeThis(func, region);
@@ -118,7 +118,7 @@ void papiStart(V1& eventSets, V2& papiResults, V3& papiEvents) {
 
     int& eventSet = *eventSets.getLocal();
 
-    eventSet = PAPI_NULL;
+    eventSet = PAPI_nullptr;
     papiResults.getLocal()->resize(papiEvents.size());
 
     if (PAPI_create_eventset(&eventSet) != PAPI_OK) {
@@ -182,7 +182,7 @@ template <typename F>
 void profilePapi(const F& func, const char* region) {
 
   const char* const PAPI_VAR_NAME = "GALOIS_PAPI_EVENTS";
-  region                          = region ? region : "(NULL)";
+  region                          = region ? region : "(nullptr)";
 
   std::string eventNamesCSV;
 
@@ -219,7 +219,7 @@ void profilePapi(const F& func, const char* region) {
 template <typename F>
 void profilePapi(const F& func, const char* region) {
 
-  region = region ? region : "(NULL)";
+  region = region ? region : "(nullptr)";
   galois::gWarn("PAPI not enabled or found");
 
   timeThis(func, region);
