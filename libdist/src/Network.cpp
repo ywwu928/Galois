@@ -840,7 +840,7 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
             return false;
         }
 
-        //std::this_thread::yield();
+        std::this_thread::yield();
     }
 }
 
