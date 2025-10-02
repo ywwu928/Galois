@@ -198,54 +198,93 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
     
-void NetworkInterface::sendTrackCompleteLazy() {
+void NetworkInterface::sendDataComplete() {
+    if (!sendInflightData.empty()) {
+        int flag = 0;
+        MPI_Status status;
+        auto& f = sendInflightData.front();
+        MPI_Test(&f.req, &flag, &status);
+        if (flag) {
+            free(f.buf);
+            sendInflightData.pop_front();
+        }
+        else {
+            sendInflightData.push_back(f);
+            sendInflightData.pop_front();
+        }
+    }
+}
+    
+void NetworkInterface::sendWorkComplete() {
     for (unsigned t=0; t<numT; t++) {
-        if (!sendInflight[t].empty()) {
+        if (!sendInflightWork[t].empty()) {
             int flag = 0;
             MPI_Status status;
-            auto& f = sendInflight[t].front();
+            auto& f = sendInflightWork[t].front();
             MPI_Test(&f.req, &flag, &status);
             if (flag) {
                 // return buffer back to pool
                 sendAllocators[t].deallocate(f.buf);
-
-                sendInflight[t].pop_front();
+                sendInflightWork[t].pop_front();
+            }
+            else {
+                sendInflightWork[t].push_back(f);
+                sendInflightWork[t].pop_front();
             }
         }
     }
 }
     
-void NetworkInterface::sendTrackComplete() {
-    for (unsigned t=0; t<numT; t++) {
-        while (!sendInflight[t].empty()) {
-            auto& f = sendInflight[t].front();
+void NetworkInterface::sendWorkCompleteUntilEmpty() {
+    bool empty;
+    do {
+        empty = true;
+        for (unsigned t=0; t<numT; t++) {
+            while (!sendInflightWork[t].empty()) {
+                empty = false;
 
-            // return buffer back to pool
-            sendAllocators[t].deallocate(f.buf);
-
-            sendInflight[t].pop_front();
+                int flag = 0;
+                MPI_Status status;
+                auto& f = sendInflightWork[t].front();
+                MPI_Test(&f.req, &flag, &status);
+                if (flag) {
+                    // return buffer back to pool
+                    sendAllocators[t].deallocate(f.buf);
+                    sendInflightWork[t].pop_front();
+                }
+                else {
+                    sendInflightWork[t].push_back(f);
+                    sendInflightWork[t].pop_front();
+                    break;
+                }
+            }
         }
-    }
+    } while (!empty);
 }
 
-void NetworkInterface::send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
+void NetworkInterface::sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
     __builtin_prefetch(buf, 0, 3);
-    MPI_Request req;
-    MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &req);
+    sendInflightData.emplace_back(buf);
+    auto& f = sendInflightData.back();
+    MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &f.req);
 }
 
-void NetworkInterface::sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf) {
+void NetworkInterface::sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf) {
     __builtin_prefetch(buf, 0, 3);
-    sendInflight[tid].emplace_back(buf);
-    auto& f = sendInflight[tid].back();
+    sendInflightWork[tid].emplace_back(buf);
+    auto& f = sendInflightWork[tid].back();
     MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
-void NetworkInterface::sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
+void NetworkInterface::sendPartialWork(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
     __builtin_prefetch(buf, 0, 3);
-    sendInflight[tid].emplace_back(buf);
-    auto& f = sendInflight[tid].back();
+    sendInflightWork[tid].emplace_back(buf);
+    auto& f = sendInflightWork[tid].back();
     MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
+}
+
+void NetworkInterface::sendTermination(uint32_t dest, uint32_t tag) {
+    MPI_Isend(nullptr, 0, MPI_BYTE, dest, tag, comm_comm, &inflightTermination[dest]);
 }
 
 void NetworkInterface::recvProbeData() {
@@ -294,9 +333,7 @@ void NetworkInterface::recvProbeWork() {
             MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
         }
         else { // workTerminationTag
-            MPI_Request req;
-            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            MPI_Request_free(&req);
+            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightTermination[Num + status.MPI_SOURCE]);
             terminationCountTemp += 1;
         }
     }
@@ -315,8 +352,11 @@ void NetworkInterface::recvProbeWork() {
             }
             
             recvInflightWork.pop_front();
-
             return;
+        }
+        else {
+            recvInflightWork.push_back(m);
+            recvInflightWork.pop_front();
         }
     }
     else {
@@ -355,6 +395,10 @@ void NetworkInterface::recvProbeComm() {
             free(req);
             recvInflightComm.pop_front();
         }
+        else {
+            recvInflightComm.push_back(req);
+            recvInflightComm.pop_front();
+        }
     }
 }
 
@@ -368,9 +412,7 @@ void NetworkInterface::recvProbeDataTermination() {
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
         
         if (status.MPI_TAG ==  (int)dataTerminationTag) {
-            MPI_Request req;
-            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &req);
-            MPI_Request_free(&req);
+            MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightTermination[Num + status.MPI_SOURCE]);
             terminationCountTemp += 1;
         }
         else {
@@ -396,6 +438,11 @@ void NetworkInterface::recvProbeDataTermination() {
             terminationCountTemp = 0;
         }
     }
+}
+
+void NetworkInterface::terminationComplete() {
+    std::vector<MPI_Status> terminationStatus(2 * Num);
+    MPI_Waitall(2 * Num, inflightTermination.data(), terminationStatus.data());
 }
 
 void NetworkInterface::commThread() {
@@ -434,6 +481,9 @@ void NetworkInterface::commThread() {
     while (ready.load(std::memory_order_acquire) == 2) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
+                
+            // handle send queue
+            sendDataComplete();
             
             recvProbeData();
           
@@ -444,7 +494,7 @@ void NetworkInterface::commThread() {
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                sendTaggedData(h, tag, data, dataLen);
             }
         }
     }
@@ -466,7 +516,7 @@ void NetworkInterface::commThread() {
                 unsigned h = hostOrder[i];
                 
                 // handle send queue
-                sendTrackCompleteLazy();
+                sendWorkComplete();
                 
                 // remote work
                 for (unsigned t=0; t<numT; t++) {
@@ -479,7 +529,7 @@ void NetworkInterface::commThread() {
                     bool success = srw.pop(work);
                   
                     if (success) {
-                        sendFullTrack(t, h, work);
+                        sendFullWork(t, h, work);
                     }
                 }
             }
@@ -499,7 +549,7 @@ void NetworkInterface::commThread() {
                 bool success = srw.pop(work);
               
                 while (success) {
-                    sendFullTrack(t, h, work);
+                    sendFullWork(t, h, work);
                     success = srw.pop(work);
                 }
             }
@@ -510,7 +560,7 @@ void NetworkInterface::commThread() {
             unsigned h = hostOrder[i];
 
             if (partialBufLen[h] > 0) {
-                sendPartialTrack(0, h, partialBuf[h], partialBufLen[h]);
+                sendPartialWork(0, h, partialBuf[h], partialBufLen[h]);
             }
             else {
                 sendAllocators[0].deallocate(partialBuf[h]);
@@ -518,7 +568,7 @@ void NetworkInterface::commThread() {
 
             // send work termination
             if (sendWorkTermination[h].load(std::memory_order_acquire)) {
-                send(h, workTerminationTag, nullptr, 0);
+                sendTermination(h, workTerminationTag);
                 sendWorkTermination[h].store(false, std::memory_order_relaxed);
             }
 
@@ -538,7 +588,9 @@ void NetworkInterface::commThread() {
         recvAll.store(false, std::memory_order_relaxed);
             
         // handle send queue
-        sendTrackComplete();
+        sendWorkCompleteUntilEmpty();
+
+        terminationComplete();
     }
     
     while (ready.load(std::memory_order_acquire) == 4) {
@@ -546,7 +598,7 @@ void NetworkInterface::commThread() {
             unsigned h = hostOrder[i];
             
             // handle send queue
-            sendTrackCompleteLazy();
+            sendDataComplete();
           
             // data
             recvProbeComm();
@@ -556,7 +608,7 @@ void NetworkInterface::commThread() {
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                sendTaggedData(h, tag, data, dataLen);
             }
         }
     }
@@ -565,6 +617,9 @@ void NetworkInterface::commThread() {
     while (ready.load(std::memory_order_acquire) == 5) {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
+                
+            // handle send queue
+            sendDataComplete();
             
             recvProbeDataTermination();
           
@@ -575,7 +630,13 @@ void NetworkInterface::commThread() {
             bool success = sendData[h].pop(tag, data, dataLen);
           
             if (success) {
-                send(h, tag, data, dataLen);
+                sendTaggedData(h, tag, data, dataLen);
+            }
+            else {
+                if (sendDataTermination[h].load(std::memory_order_acquire) == true) {
+                    sendTermination(h, dataTerminationTag);
+                    sendDataTermination[h].store(false, std::memory_order_relaxed);
+                }
             }
         }
     }
@@ -633,10 +694,18 @@ NetworkInterface::NetworkInterface()
             sendWorkTerminationValid[i] = true;
         }
     }
+    sendDataTermination = decltype(sendDataTermination)(Num);
     hostDataTerminationCount.store(1, std::memory_order_relaxed);
+    for (unsigned i=0; i<Num; i++) {
+        sendDataTermination[i].store(false, std::memory_order_relaxed);
+    }
     terminationCountTemp = 0;
     
-    sendInflight = decltype(sendInflight)(numT);
+    sendInflightWork = decltype(sendInflightWork)(numT);
+    inflightTermination = decltype(inflightTermination)(2 * Num);
+    for (unsigned i=0; i<2*Num; i++) {
+        inflightTermination[i] = MPI_REQUEST_NULL;
+    }
 
     ready.store(2, std::memory_order_release);
 }
@@ -886,7 +955,7 @@ void NetworkInterface::resetDataTermination() {
 }
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {
-    sendData[dest].push(dataTerminationTag, nullptr, 0);
+    sendDataTermination[dest].store(true, std::memory_order_release);
 }
 
 void NetworkInterface::touchBufferPool() {
