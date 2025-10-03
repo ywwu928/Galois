@@ -179,8 +179,66 @@ struct PageRank_delta {
   }
 };
 
-// TODO: GPU code operator does not match CPU's operator (cpu accumulates sum
-// and adds all at once, GPU adds each pulled value individually/atomically)
+struct PageRankMaster {
+  Graph* graph;
+
+  PageRankMaster(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes), PageRankMaster{&_graph},
+        galois::steal(), galois::no_stats());
+  }
+
+  // Pull deltas from neighbor nodes, then add to self-residual
+  void operator()(GNode src) const {
+    auto& sdata = graph->getData(src);
+
+    for (auto nbr : graph->edges(src)) {
+      GNode dst   = graph->getEdgeDst(nbr);
+      auto& ddata = graph->getData(dst);
+
+      if (ddata.delta > 0) {
+        galois::add(sdata.residual, ddata.delta);
+
+        bitset_residual.set(src);
+      }
+    }
+  }
+};
+
+struct PageRankMirror {
+  Graph* graph;
+
+  PageRankMirror(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& mirrorNodes = _graph.mirrorNodesRange();
+
+    galois::do_all(
+        galois::iterate(mirrorNodes), PageRankMirror{&_graph},
+        galois::steal(), galois::no_stats());
+  }
+
+  // Pull deltas from neighbor nodes, then add to self-residual
+  void operator()(GNode src) const {
+    auto& sdata = graph->getData(src);
+
+    for (auto nbr : graph->edges(src)) {
+      GNode dst   = graph->getEdgeDst(nbr);
+      auto& ddata = graph->getData(dst);
+
+      if (ddata.delta > 0) {
+        galois::add(sdata.residual, ddata.delta);
+
+        bitset_residual.set(src);
+      }
+    }
+  }
+};
+
 template <bool async>
 struct PageRank {
   Graph* graph;
@@ -199,7 +257,6 @@ struct PageRank {
 #endif
 
     unsigned _num_iterations   = 0;
-    const auto& allNodes = _graph.allNodesRange();
     DGTerminatorDetector dga;
 
     do {
@@ -232,9 +289,8 @@ struct PageRank {
       StatTimer_delta.stop();
 
       StatTimer_compute.start();
-      galois::do_all(
-          galois::iterate(allNodes), PageRank{&_graph},
-          galois::steal(), galois::no_stats());
+      PageRankMaster::go(_graph);
+      PageRankMirror::go(_graph);
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
