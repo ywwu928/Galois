@@ -283,7 +283,6 @@ struct PageRank {
       }
       StatTimer_reset.stop();
 
-      StatTimer_compute.start();
       StatTimer_delta.start();
       PageRank_delta<async>::go(_graph, dga);
       StatTimer_delta.stop();
