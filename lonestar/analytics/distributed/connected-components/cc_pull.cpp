@@ -85,6 +85,7 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
     sdata.comp_current = graph->getGID(src);
+    bitset_comp_current.set(src);
   }
 };
 
@@ -106,7 +107,7 @@ struct ConnectedCompPresent {
           galois::steal(), galois::no_stats());
   }
 
-  // Pull deltas from neighbor nodes, then add to self-residual
+  // Pull from neighbor nodes, then add to self
   void operator()(GNode src) const {
     NodeData& snode = graph->getData(src);
 
@@ -144,7 +145,7 @@ struct ConnectedCompPhantom {
           galois::steal(), galois::no_stats());
   }
 
-  // Pull deltas from neighbor nodes, then add to self-residual
+  // Pull from neighbor nodes, then add to self
   void operator()(GNode src) const {
     // source node must be phantom
     // create register for phantom node data
@@ -159,6 +160,9 @@ struct ConnectedCompPhantom {
             scomp = dnode.comp_current;
             if (bitset_comp_current.test(dst)) {
                 send = true;
+            }
+            else {
+                send = false;
             }
         }
     }
@@ -215,6 +219,8 @@ struct ConnectedCompSep {
       ConnectedCompPhantom::go(_graph);
       StatTimer_compute.stop();
 
+      bitset_comp_current.reset();
+
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       StatTimer_flush.start();
@@ -222,7 +228,7 @@ struct ConnectedCompSep {
       StatTimer_flush.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
+      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_comp_current>(dga, bitset_comp_current);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -297,7 +303,7 @@ struct ConnectedCompAll {
       StatTimer_flush.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
+      syncSubstrate->poll_for_remote_work_active<Reduce_min_comp_current>(dga);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
