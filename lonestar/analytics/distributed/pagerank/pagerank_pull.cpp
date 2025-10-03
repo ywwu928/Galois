@@ -302,22 +302,6 @@ struct PageRank {
       ++_num_iterations;
     } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
-
-  // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode src) const {
-    auto& sdata = graph->getData(src);
-
-    for (auto nbr : graph->edges(src)) {
-      GNode dst   = graph->getEdgeDst(nbr);
-      auto& ddata = graph->getData(dst);
-
-      if (ddata.delta > 0) {
-        galois::add(sdata.residual, ddata.delta);
-
-        bitset_residual.set(src);
-      }
-    }
-  }
 };
 
 /******************************************************************************/
