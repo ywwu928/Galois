@@ -1,1 +1,1 @@
-app_dist(partial_bfs_push partial-bfs-push)
+app_dist(bfs_pull bfs-pull)
