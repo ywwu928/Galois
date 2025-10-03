@@ -89,6 +89,76 @@ struct InitializeGraph {
 };
 
 template <bool async>
+struct ConnectedCompMaster {
+  Graph* graph;
+  using DGTerminatorDetector =
+      typename std::conditional<async, galois::DGTerminator<unsigned int>,
+                                galois::DGAccumulator<unsigned int>>::type;
+
+  DGTerminatorDetector& active_vertices;
+
+  ConnectedCompMaster(Graph* _graph, DGTerminatorDetector& _dga)
+      : graph(_graph), active_vertices(_dga) {}
+
+  void static go(Graph& _graph, DGTerminatorDetector& _dga) {
+    const auto& masterNodes = _graph.masterNodesRange();
+    galois::do_all(
+        galois::iterate(masterNodes), ConnectedCompMaster(&_graph, _dga),
+        galois::steal(), galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    NodeData& snode = graph->getData(src);
+
+    for (auto jj : graph->edges(src)) {
+      GNode dst         = graph->getEdgeDst(jj);
+      auto& dnode       = graph->getData(dst);
+      uint32_t new_comp = dnode.comp_current;
+      uint32_t old_comp = galois::min(snode.comp_current, new_comp);
+      if (old_comp > new_comp) {
+        bitset_comp_current.set(src);
+        active_vertices += 1;
+      }
+    }
+  }
+};
+
+template <bool async>
+struct ConnectedCompMirror {
+  Graph* graph;
+  using DGTerminatorDetector =
+      typename std::conditional<async, galois::DGTerminator<unsigned int>,
+                                galois::DGAccumulator<unsigned int>>::type;
+
+  DGTerminatorDetector& active_vertices;
+
+  ConnectedCompMirror(Graph* _graph, DGTerminatorDetector& _dga)
+      : graph(_graph), active_vertices(_dga) {}
+
+  void static go(Graph& _graph, DGTerminatorDetector& _dga) {
+    const auto& mirrorNodes = _graph.mirrorNodesRange();
+    galois::do_all(
+        galois::iterate(mirrorNodes), ConnectedCompMirror(&_graph, _dga),
+        galois::steal(), galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    NodeData& snode = graph->getData(src);
+
+    for (auto jj : graph->edges(src)) {
+      GNode dst         = graph->getEdgeDst(jj);
+      auto& dnode       = graph->getData(dst);
+      uint32_t new_comp = dnode.comp_current;
+      uint32_t old_comp = galois::min(snode.comp_current, new_comp);
+      if (old_comp > new_comp) {
+        bitset_comp_current.set(src);
+        active_vertices += 1;
+      }
+    }
+  }
+};
+
+template <bool async>
 struct ConnectedComp {
   Graph* graph;
   using DGTerminatorDetector =
@@ -110,7 +180,6 @@ struct ConnectedComp {
     unsigned _num_iterations = 0;
     DGTerminatorDetector dga;
 
-    const auto& allNodes = _graph.allNodesRange();
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
@@ -125,9 +194,8 @@ struct ConnectedComp {
       dga.reset();
 
       StatTimer_compute.start();
-      galois::do_all(
-          galois::iterate(allNodes), ConnectedComp(&_graph, dga),
-          galois::steal(), galois::no_stats());
+      ConnectedCompMaster<async>::go(_graph, dga);
+      ConnectedCompMirror<async>::go(_graph, dga);
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
@@ -139,21 +207,6 @@ struct ConnectedComp {
       
       ++_num_iterations;
     } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
-  }
-
-  void operator()(GNode src) const {
-    NodeData& snode = graph->getData(src);
-
-    for (auto jj : graph->edges(src)) {
-      GNode dst         = graph->getEdgeDst(jj);
-      auto& dnode       = graph->getData(dst);
-      uint32_t new_comp = dnode.comp_current;
-      uint32_t old_comp = galois::min(snode.comp_current, new_comp);
-      if (old_comp > new_comp) {
-        bitset_comp_current.set(src);
-        active_vertices += 1;
-      }
-    }
   }
 };
 
