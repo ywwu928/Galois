@@ -28,15 +28,8 @@
 #include <iostream>
 #include <limits>
 
-#ifdef GALOIS_ENABLE_GPU
-#include "cc_pull_cuda.h"
-struct CUDA_Context* cuda_ctx;
-#else
-enum { CPU, GPU_CUDA };
-int personality = CPU;
-#endif
-
-constexpr static const char* const REGION_NAME = "ConnectedComp";
+static std::string REGION_NAME = "ConnectedComp";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -84,26 +77,9 @@ struct InitializeGraph {
 
   void static go(Graph& _graph) {
     const auto& allNodes = _graph.allNodesRange();
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("InitializeGraph_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-
-      InitializeGraph_allNodes_cuda(cuda_ctx);
-
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
-          InitializeGraph{&_graph}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(allNodes.begin(), allNodes.end()),
+        InitializeGraph{&_graph}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -125,50 +101,44 @@ struct ConnectedComp {
       : graph(_graph), active_vertices(_dga) {}
 
   void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
     unsigned _num_iterations = 0;
     DGTerminatorDetector dga;
 
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& allNodes = _graph.allNodesRange();
     do {
-      syncSubstrate->set_num_round(_num_iterations);
-      dga.reset();
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        std::string impl_str("ConnectedComp_" +
-                             (syncSubstrate->get_run_identifier()));
-        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-        StatTimer_cuda.start();
-        unsigned int __retval = 0;
-        ConnectedComp_nodesWithEdges_cuda(__retval, cuda_ctx);
-        dga += __retval;
-        StatTimer_cuda.stop();
-#else
-        abort();
-#endif
-      } else if (personality == CPU) {
-        galois::do_all(
-            galois::iterate(nodesWithEdges), ConnectedComp(&_graph, dga),
-            galois::steal(), galois::no_stats(),
-            galois::loopname(
-                syncSubstrate->get_run_identifier("ConnectedComp").c_str()));
-      }
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
+      StatTimer_total.start();
+      syncSubstrate->set_num_round(_num_iterations);
+
+      dga.reset();
+
+      StatTimer_compute.start();
+      galois::do_all(
+          galois::iterate(allNodes), ConnectedComp(&_graph, dga),
+          galois::steal(), galois::no_stats());
+      StatTimer_compute.stop();
+
+      StatTimer_comm.start();
       syncSubstrate->sync<writeSource, readDestination, Reduce_min_comp_current,
                           Bitset_comp_current, async>("ConnectedComp");
-
-      galois::runtime::reportStat_Tsum(
-          REGION_NAME, "NumWorkItems_" + (syncSubstrate->get_run_identifier()),
-          (unsigned long)dga.read_local());
+      StatTimer_comm.stop();
+      
+      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)dga.read_local());
+      
       ++_num_iterations;
-    } while ((async || (_num_iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::runtime::reportStat_Single(
-          REGION_NAME,
-          "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-          (unsigned long)_num_iterations);
-    }
+    } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
   }
 
   void operator()(GNode src) const {
@@ -203,20 +173,9 @@ struct ConnectedCompSanityCheck {
   void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
     dga.reset();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      uint64_t sum;
-      ConnectedCompSanityCheck_masterNodes_cuda(sum, cuda_ctx);
-      dga += sum;
-#else
-      abort();
-#endif
-    } else {
-      galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                     _graph.masterNodesRange().end()),
-                     ConnectedCompSanityCheck(&_graph, dga), galois::no_stats(),
-                     galois::loopname("ConnectedCompSanityCheck"));
-    }
+    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
+                                   _graph.masterNodesRange().end()),
+                   ConnectedCompSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_components = dga.reduce();
 
@@ -241,7 +200,7 @@ struct ConnectedCompSanityCheck {
 /* Make results */
 /******************************************************************************/
 
-std::vector<uint32_t> makeResultsCPU(std::unique_ptr<Graph>& hg) {
+std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
   std::vector<uint32_t> values;
 
   values.reserve(hg->numMasters());
@@ -250,34 +209,6 @@ std::vector<uint32_t> makeResultsCPU(std::unique_ptr<Graph>& hg) {
   }
 
   return values;
-}
-
-#ifdef GALOIS_ENABLE_GPU
-std::vector<uint32_t> makeResultsGPU(std::unique_ptr<Graph>& hg) {
-  std::vector<uint32_t> values;
-
-  values.reserve(hg->numMasters());
-  for (auto node : hg->masterNodesRange()) {
-    values.push_back(get_node_comp_current_cuda(cuda_ctx, node));
-  }
-
-  return values;
-}
-#else
-std::vector<uint32_t> makeResultsGPU(std::unique_ptr<Graph>& /*unused*/) {
-  abort();
-}
-#endif
-
-std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
-  switch (personality) {
-  case CPU:
-    return makeResultsCPU(hg);
-  case GPU_CUDA:
-    return makeResultsGPU(hg);
-  default:
-    abort();
-  }
 }
 
 /******************************************************************************/
@@ -299,32 +230,29 @@ int main(int argc, char** argv) {
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
   }
-
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
-
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-#ifdef GALOIS_ENABLE_GPU
-  std::tie(hg, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>(&cuda_ctx);
-#else
-  std::tie(hg, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>();
-#endif
+  std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>();
 
   bitset_comp_current.resize(hg->size());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
+
   InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> active_vertices64;
 
   for (auto run = 0; run < numRuns; ++run) {
+    REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] ConnectedComp::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     galois::runtime::getHostBarrier().wait();
     
@@ -335,19 +263,12 @@ int main(int argc, char** argv) {
       ConnectedComp<false>::go(*hg);
     }
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     ConnectedCompSanityCheck::go(*hg, active_vertices64);
 
     if ((run + 1) != numRuns) {
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        bitset_comp_current_reset_cuda(cuda_ctx);
-#else
-        abort();
-#endif
-      } else {
-        bitset_comp_current.reset();
-      }
+      bitset_comp_current.reset();
 
       (*syncSubstrate).set_num_run(run + 1);
       InitializeGraph::go((*hg));
