@@ -85,7 +85,88 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
     sdata.comp_current = graph->getGID(src);
-    bitset_comp_current.set(src);
+    //bitset_comp_current.set(src);
+  }
+};
+
+struct ConnectedCompPresent_First {
+  Graph* graph;
+
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
+
+  DGTerminatorDetector& active_vertices;
+
+  ConnectedCompPresent_First(Graph* _graph, DGTerminatorDetector& _dga) : graph(_graph), active_vertices(_dga) {}
+
+  void static go(Graph& _graph, DGTerminatorDetector& dga) {
+      const auto& presentNodes = _graph.presentNodesRange();
+      
+      // launch all other threads to compute
+      galois::do_all(
+          galois::iterate(presentNodes), ConnectedCompPresent_First{&_graph, dga},
+          galois::steal(), galois::no_stats());
+  }
+
+  // Pull from neighbor nodes, then add to self
+  void operator()(GNode src) const {
+    NodeData& snode = graph->getData(src);
+
+    bool updated = false;
+    for (auto jj : graph->edges(src)) {
+        GNode dst         = graph->getEdgeDst(jj);
+        auto& dnode       = graph->getData(dst);
+        uint32_t new_comp = dnode.comp_current;
+        uint32_t old_comp = galois::min(snode.comp_current, new_comp);
+        if (old_comp > new_comp) {
+            updated = true;
+        }
+    }
+    
+    if (updated) {
+        active_vertices += 1;
+    }
+  }
+};
+
+struct ConnectedCompPhantom_First {
+  Graph* graph;
+
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
+
+  DGTerminatorDetector& active_vertices;
+
+  galois::runtime::NetworkInterface& net;
+
+  ConnectedCompPhantom_First(Graph* _graph, DGTerminatorDetector& _dga) : graph(_graph), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()) {}
+
+  void static go(Graph& _graph, DGTerminatorDetector& dga) {
+      const auto& phantomNodes = _graph.phantomNodesRange();
+
+      // launch all other threads to compute
+      galois::do_all(
+          galois::iterate(phantomNodes), ConnectedCompPhantom_First{&_graph, dga},
+          galois::steal(), galois::no_stats());
+  }
+
+  // Pull from neighbor nodes, then add to self
+  void operator()(GNode src) const {
+    // source node must be phantom
+    // create register for phantom node data
+    uint32_t scomp = UINT32_MAX;
+
+    for (auto jj : graph->edges(src)) {
+        GNode dst         = graph->getEdgeDst(jj);
+        auto& dnode       = graph->getData(dst);
+
+        if (dnode.comp_current < scomp) {
+            scomp = dnode.comp_current;
+        }
+    }
+    
+    if (scomp != UINT32_MAX) {
+        active_vertices += 1;
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), scomp);
+    }
   }
 };
 
@@ -132,16 +213,20 @@ struct ConnectedCompPresent {
 struct ConnectedCompPhantom {
   Graph* graph;
 
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
+
+  DGTerminatorDetector& active_vertices;
+
   galois::runtime::NetworkInterface& net;
 
-  ConnectedCompPhantom(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
+  ConnectedCompPhantom(Graph* _graph, DGTerminatorDetector& _dga) : graph(_graph), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, DGTerminatorDetector& dga) {
       const auto& phantomNodes = _graph.phantomNodesRange();
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(phantomNodes), ConnectedCompPhantom{&_graph},
+          galois::iterate(phantomNodes), ConnectedCompPhantom{&_graph, dga},
           galois::steal(), galois::no_stats());
   }
 
@@ -168,6 +253,7 @@ struct ConnectedCompPhantom {
     }
     
     if (send) {
+        active_vertices += 1;
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), scomp);
     }
   }
@@ -215,8 +301,14 @@ struct ConnectedCompSep {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      ConnectedCompPresent::go(_graph, dga);
-      ConnectedCompPhantom::go(_graph);
+      if (_num_iterations == 0) {
+          ConnectedCompPresent_First::go(_graph, dga);
+          ConnectedCompPhantom_First::go(_graph, dga);
+      }
+      else {
+          ConnectedCompPresent::go(_graph, dga);
+          ConnectedCompPhantom::go(_graph, dga);
+      }
       StatTimer_compute.stop();
 
       bitset_comp_current.reset();
@@ -228,7 +320,7 @@ struct ConnectedCompSep {
       StatTimer_flush.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_comp_current>(dga, bitset_comp_current);
+      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_comp_current>(bitset_comp_current);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();

@@ -1369,7 +1369,7 @@ public:
     }
 
     template<typename FnTy>
-    void poll_for_remote_work_bitset(galois::DGAccumulator<unsigned int>& active_vertices, galois::DynamicBitSet& bitset) {
+    void poll_for_remote_work_bitset(galois::DynamicBitSet& bitset) {
         std::atomic<bool> terminateFlag;
         terminateFlag.store(false, std::memory_order_release);
 
@@ -1404,7 +1404,6 @@ public:
 
                             if (update) {
                                 bitset.set(lid);
-                                active_vertices += 1;
                             }
                         }
                         
