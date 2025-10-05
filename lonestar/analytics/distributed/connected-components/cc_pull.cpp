@@ -44,10 +44,10 @@ static cll::opt<unsigned int> maxIterations("maxIterations",
 enum IterMode { All, Separate };
 
 static cll::opt<IterMode> iterMode(
-    "iterMode", cll::desc("Iterate Mode (default value All):"),
+    "iterMode", cll::desc("Iterate Mode (default value Separate):"),
     cll::values(clEnumVal(All, "iterate through all nodes"),
                 clEnumVal(Separate, "iterate through present nodes first and then phantom nodes")),
-    cll::init(All));
+    cll::init(Separate));
 
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
