@@ -32,15 +32,8 @@
 #include <iostream>
 #include <limits>
 
-#ifdef GALOIS_ENABLE_GPU
-#include "kcore_pull_cuda.h"
-struct CUDA_Context* cuda_ctx;
-#else
-enum { CPU, GPU_CUDA };
-int personality = CPU;
-#endif
-
-constexpr static const char* const REGION_NAME = "KCore";
+static std::string REGION_NAME = "KCore";
+static std::string REGION_NAME_RUN;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
