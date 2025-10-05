@@ -231,21 +231,6 @@ struct BFS {
         galois::gPrint("Number of iterations = ", _num_iterations, "\n");
     }
   }
-
-  void operator()(GNode src) const {
-    NodeData& snode = graph->getData(src);
-
-    for (auto jj : graph->edges(src)) {
-      GNode dst         = graph->getEdgeDst(jj);
-      auto& dnode       = graph->getData(dst);
-      uint32_t new_dist = dnode.dist_current + 1;
-      uint32_t old_dist = galois::min(snode.dist_current, new_dist);
-      if (old_dist > new_dist) {
-        bitset_dist_current.set(src);
-        active_vertices += 1;
-      }
-    }
-  }
 };
 
 /******************************************************************************/
