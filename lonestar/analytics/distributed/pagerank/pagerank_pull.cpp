@@ -62,7 +62,7 @@ static const float alpha = (1.0 - 0.85);
 struct NodeData {
   float value;
   std::atomic<uint32_t> nout;
-  float residual;
+  std::atomic<float> residual;
   float delta;
 };
 

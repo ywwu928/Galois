@@ -54,7 +54,7 @@ static cll::opt<Exec> execution(
 /******************************************************************************/
 
 struct NodeData {
-  uint32_t comp_current;
+    std::atomic<uint32_t> comp_current;
 };
 
 galois::DynamicBitSet bitset_comp_current;
