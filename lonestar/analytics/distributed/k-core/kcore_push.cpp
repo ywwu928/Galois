@@ -198,28 +198,24 @@ struct KCoreStep1 {
     constexpr bool USER_STATS = false;
 #endif
 
-    unsigned iterations = 0;
+    unsigned _num_iterations = 0;
 
     DGTerminatorDetector dga;
 
     const auto& masterNodes = _graph.masterNodesRange();
 
     do {
-      std::string total_str("Total_Round_" + std::to_string(iterations));
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string step2_str("Step2_Round_" + std::to_string(iterations));
+      std::string step2_str("Step2_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_step2(step2_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(iterations));
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(iterations));
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
-#ifdef GALOIS_PRINT_PROCESS
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
-#endif
-
       StatTimer_total.start();
-      syncSubstrate->set_num_round(iterations);
+      syncSubstrate->set_num_round(_num_iterations);
 
       dga.reset();
 
@@ -243,11 +239,14 @@ struct KCoreStep1 {
       KCoreStep2::go(_graph);
       StatTimer_step2.stop();
 
-      iterations++;
+      _num_iterations++;
 
       StatTimer_total.stop();
-    } while ((async || (iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
+    } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
+
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Number of iterations = ", _num_iterations, "\n");
+    }
   }
 
   void operator()(GNode src) const {

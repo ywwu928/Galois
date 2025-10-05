@@ -206,8 +206,11 @@ struct ConnectedComp {
       ++_num_iterations;
 
       StatTimer_total.stop();
-    } while ((async || (_num_iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
+    } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
+
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Number of iterations = ", _num_iterations, "\n");
+    }
   }
 
   void operator()(GNode src) const {
