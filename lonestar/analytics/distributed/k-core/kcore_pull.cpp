@@ -60,8 +60,8 @@ static cll::opt<Exec> execution(
 /******************************************************************************/
 
 struct NodeData {
-  uint32_t current_degree;
-  uint32_t trim;
+  std::atomic<uint32_t> current_degree;
+  std::atomic<uint32_t> trim;
   uint8_t flag;
   uint8_t pull_flag;
 };
@@ -91,26 +91,11 @@ struct DegreeCounting {
 
   /* Initialize the entire graph node-by-node */
   void static go(Graph& _graph) {
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
+    const auto& allNodes = _graph.allNodesRange();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("DegreeCounting_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      DegreeCounting_nodesWithEdges_cuda(cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(nodesWithEdges), DegreeCounting{&_graph},
-          galois::steal(), galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("DegreeCounting").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(allNodes), DegreeCounting{&_graph},
+        galois::steal(), galois::no_stats());
 
     syncSubstrate->sync<writeSource, readAny, Reduce_add_current_degree,
                         Bitset_current_degree>("DegreeCounting");
@@ -144,25 +129,10 @@ struct InitializeGraph {
   /* Initialize the entire graph node-by-node */
   void static go(Graph& _graph) {
     const auto& allNodes = _graph.allNodesRange();
-
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("InitializeGraph_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      InitializeGraph_allNodes_cuda(cuda_ctx);
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
-          InitializeGraph{&_graph}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("InitializeGraph").c_str()));
-    }
+    
+    galois::do_all(
+        galois::iterate(allNodes.begin(), allNodes.end()),
+        InitializeGraph{&_graph}, galois::no_stats());
 
     // degree calculation
     DegreeCounting::go(_graph);
@@ -198,26 +168,9 @@ struct LiveUpdate {
     const auto& allNodes = _graph.allNodesRange();
     dga.reset();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      std::string impl_str("LiveUpdate_" +
-                           (syncSubstrate->get_run_identifier()));
-      galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-      StatTimer_cuda.start();
-      unsigned int __retval = 0;
-      LiveUpdate_allNodes_cuda(__retval, k_core_num, cuda_ctx);
-      dga += __retval;
-      StatTimer_cuda.stop();
-#else
-      abort();
-#endif
-    } else if (personality == CPU) {
-      galois::do_all(
-          galois::iterate(allNodes.begin(), allNodes.end()),
-          LiveUpdate{k_core_num, &_graph, dga}, galois::no_stats(),
-          galois::loopname(
-              syncSubstrate->get_run_identifier("LiveUpdate").c_str()));
-    }
+    galois::do_all(
+        galois::iterate(allNodes.begin(), allNodes.end()),
+        LiveUpdate{k_core_num, &_graph, dga}, galois::no_stats());
 
     // no sync necessary as all nodes should have updated
   }
@@ -260,59 +213,15 @@ struct LiveUpdate {
 
 /* Step that determines if a node is dead and updates its neighbors' trim
  * if it is */
-template <bool async>
-struct KCore {
+struct KCoreMaster {
   Graph* graph;
 
-  using DGTerminatorDetector =
-      typename std::conditional<async, galois::DGTerminator<unsigned int>,
-                                galois::DGAccumulator<unsigned int>>::type;
-
-  KCore(Graph* _graph) : graph(_graph) {}
+  KCoreMaster(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    unsigned iterations = 0;
-    DGTerminatorDetector dga;
-
-    const auto& nodesWithEdges = _graph.allNodesWithEdgesRange();
-
-    do {
-      syncSubstrate->set_num_round(iterations);
-
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        std::string impl_str("KCore_" + (syncSubstrate->get_run_identifier()));
-        galois::StatTimer StatTimer_cuda(impl_str.c_str(), REGION_NAME);
-        StatTimer_cuda.start();
-        KCore_nodesWithEdges_cuda(cuda_ctx);
-        StatTimer_cuda.stop();
-#else
-        abort();
-#endif
-      } else if (personality == CPU) {
-        galois::do_all(galois::iterate(nodesWithEdges), KCore{&_graph},
-                       galois::no_stats(), galois::steal(),
-                       galois::loopname(
-                           syncSubstrate->get_run_identifier("KCore").c_str()));
-      }
-
-      syncSubstrate
-          ->sync<writeSource, readAny, Reduce_add_trim, Bitset_trim, async>(
-              "KCore");
-
-      // update live/deadness
-      LiveUpdate<async>::go(_graph, dga);
-
-      iterations++;
-    } while ((async || (iterations < maxIterations)) &&
-             dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::runtime::reportStat_Single(
-          REGION_NAME,
-          "NumIterations_" + std::to_string(syncSubstrate->get_run_num()),
-          (unsigned long)iterations);
-    }
+    const auto& masterNodes = _graph.masterNodesRange();
+    galois::do_all(galois::iterate(masterNodes), KCoreMaster{&_graph},
+                   galois::no_stats(), galois::steal());
   }
 
   void operator()(GNode src) const {
@@ -335,6 +244,97 @@ struct KCore {
   }
 };
 
+/* Step that determines if a node is dead and updates its neighbors' trim
+ * if it is */
+struct KCoreMirror {
+  Graph* graph;
+
+  KCoreMirror(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& mirrorNodes = _graph.mirrorNodesRange();
+    galois::do_all(galois::iterate(mirrorNodes), KCoreMirror{&_graph},
+                   galois::no_stats(), galois::steal());
+  }
+
+  void operator()(GNode src) const {
+    NodeData& src_data = graph->getData(src);
+
+    // only if node is alive we do things
+    if (src_data.flag) {
+      // if dst node is dead, increment trim by one so we can decrement
+      // our degree later
+      for (auto current_edge : graph->edges(src)) {
+        GNode dst          = graph->getEdgeDst(current_edge);
+        NodeData& dst_data = graph->getData(dst);
+
+        if (dst_data.pull_flag) {
+          galois::add(src_data.trim, (uint32_t)1);
+          bitset_trim.set(src);
+        }
+      }
+    }
+  }
+};
+
+/* Step that determines if a node is dead and updates its neighbors' trim
+ * if it is */
+template <bool async>
+struct KCore {
+  Graph* graph;
+
+  using DGTerminatorDetector =
+      typename std::conditional<async, galois::DGTerminator<unsigned int>,
+                                galois::DGAccumulator<unsigned int>>::type;
+
+  KCore(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+#ifdef GALOIS_USER_STATS
+    constexpr bool USER_STATS = true;
+#else
+    constexpr bool USER_STATS = false;
+#endif
+
+    unsigned _num_iterations = 0;
+    DGTerminatorDetector dga;
+
+    do {
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string live_str("LiveUpdate_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_live(live_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+      StatTimer_total.start();
+      syncSubstrate->set_num_round(_num_iterations);
+
+      StatTimer_compute.start();
+      KCoreMaster::go(_graph);
+      KCoreMirror::go(_graph);
+      StatTimer_compute.stop();
+
+      StatTimer_comm.start();
+      syncSubstrate->sync<writeSource, readAny, Reduce_add_trim, Bitset_trim, async>("KCore");
+      StatTimer_comm.stop();
+
+      // update live/deadness
+      StatTimer_live.start();
+      LiveUpdate<async>::go(_graph, dga);
+      StatTimer_live.stop();
+
+      _num_iterations++;
+    } while ((async || (_num_iterations < maxIterations)) && dga.reduce(syncSubstrate->get_run_identifier()));
+
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+        galois::gPrint("Number of iterations = ", _num_iterations, "\n");
+    }
+  }
+};
+
 /******************************************************************************/
 /* Sanity check operators */
 /******************************************************************************/
@@ -351,20 +351,9 @@ struct KCoreSanityCheck {
   void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
     dga.reset();
 
-    if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-      uint64_t sum = 0;
-      KCoreSanityCheck_masterNodes_cuda(sum, cuda_ctx);
-      dga += sum;
-#else
-      abort();
-#endif
-    } else {
-      galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                     _graph.masterNodesRange().end()),
-                     KCoreSanityCheck(&_graph, dga), galois::no_stats(),
-                     galois::loopname("KCoreSanityCheck"));
-    }
+    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
+                                   _graph.masterNodesRange().end()),
+                   KCoreSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_nodes = dga.reduce();
 
@@ -389,7 +378,7 @@ struct KCoreSanityCheck {
 /* Make results */
 /******************************************************************************/
 
-std::vector<unsigned> makeResultsCPU(std::unique_ptr<Graph>& hg) {
+std::vector<unsigned> makeResults(std::unique_ptr<Graph>& hg) {
   std::vector<unsigned> values;
 
   values.reserve(hg->numMasters());
@@ -398,34 +387,6 @@ std::vector<unsigned> makeResultsCPU(std::unique_ptr<Graph>& hg) {
   }
 
   return values;
-}
-
-#ifdef GALOIS_ENABLE_GPU
-std::vector<unsigned> makeResultsGPU(std::unique_ptr<Graph>& hg) {
-  std::vector<unsigned> values;
-
-  values.reserve(hg->numMasters());
-  for (auto node : hg->masterNodesRange()) {
-    values.push_back(get_node_flag_cuda(cuda_ctx, node));
-  }
-
-  return values;
-}
-#else
-std::vector<unsigned> makeResultsGPU(std::unique_ptr<Graph>& /*unused*/) {
-  abort();
-}
-#endif
-
-std::vector<unsigned> makeResults(std::unique_ptr<Graph>& hg) {
-  switch (personality) {
-  case CPU:
-    return makeResultsCPU(hg);
-  case GPU_CUDA:
-    return makeResultsGPU(hg);
-  default:
-    abort();
-  }
 }
 
 /******************************************************************************/
@@ -442,22 +403,17 @@ int main(int argc, char** argv) {
   DistBenchStart(argc, argv, name, desc, url);
 
   auto& net = galois::runtime::getSystemNetworkInterface();
+
   if (net.ID == 0) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
   }
-
-  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME);
-
+  galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
+  galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
+  StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> h_graph;
-#ifdef GALOIS_ENABLE_GPU
-  std::tie(h_graph, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>(&cuda_ctx);
-#else
-  std::tie(h_graph, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>();
-#endif
+  std::tie(h_graph, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>();
 
   bitset_current_degree.resize(h_graph->size());
   bitset_trim.resize(h_graph->size());
@@ -466,13 +422,15 @@ int main(int argc, char** argv) {
 
   InitializeGraph::go((*h_graph));
   galois::runtime::getHostBarrier().wait();
+  StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> dga;
 
   for (auto run = 0; run < numRuns; ++run) {
+    REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] KCore::go run ", run, " called\n");
     std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME);
+    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     galois::runtime::getHostBarrier().wait();
     
@@ -483,6 +441,7 @@ int main(int argc, char** argv) {
       KCore<false>::go(*h_graph);
     }
     StatTimer_main.stop();
+    galois::gPrint("Host ", net.ID, " KCore run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
     // sanity check
     KCoreSanityCheck::go(*h_graph, dga);
@@ -491,17 +450,8 @@ int main(int argc, char** argv) {
     if ((run + 1) != numRuns) {
       (*syncSubstrate).set_num_run(run + 1);
 
-      if (personality == GPU_CUDA) {
-#ifdef GALOIS_ENABLE_GPU
-        bitset_current_degree_reset_cuda(cuda_ctx);
-        bitset_trim_reset_cuda(cuda_ctx);
-#else
-        abort();
-#endif
-      } else {
-        bitset_current_degree.reset();
-        bitset_trim.reset();
-      }
+      bitset_current_degree.reset();
+      bitset_trim.reset();
 
       InitializeGraph::go(*h_graph);
     }
