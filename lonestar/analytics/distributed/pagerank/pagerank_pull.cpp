@@ -296,7 +296,6 @@ struct PageRankSep {
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-      //syncSubstrate->poll_for_remote_work<Reduce_add_residual>(REGION_NAME_RUN, _num_iterations);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -375,7 +374,6 @@ struct PageRankAll {
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-      //syncSubstrate->poll_for_remote_work<Reduce_add_residual>(REGION_NAME_RUN, _num_iterations);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();

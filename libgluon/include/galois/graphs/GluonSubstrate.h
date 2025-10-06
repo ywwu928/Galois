@@ -1269,15 +1269,8 @@ public:
 
     template<typename FnTy>
     void poll_for_remote_work() {
-    //void poll_for_remote_work(std::string REGION_NAME_RUN, unsigned round) {
         std::atomic<bool> terminateFlag;
         terminateFlag.store(false, std::memory_order_release);
-
-        //galois::GAccumulator<uint32_t> numMsg;
-        //numMsg.reset();
-
-        //std::string idle_str("Poll_Idle_Timer_" + std::to_string(round));
-        //galois::StatTimer StatTimer_idle(idle_str.c_str(), REGION_NAME_RUN.c_str());
 
         galois::on_each(
             [&](unsigned, unsigned) {
@@ -1291,13 +1284,10 @@ public:
                 uint32_t lid;
                 ValTy val;
 
-                //StatTimer_idle.start();
                 while(!terminateFlag.load(std::memory_order_acquire)) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
 
                     if (success) { // received message
-                        //StatTimer_idle.stop();
-                        //numMsg  += 1;
                         if (fullFlag) {
                             msgCount = net.workCount;
                         }
@@ -1312,14 +1302,10 @@ public:
                         }
                         
                         net.deallocateRecvBuffer(buf);
-                        //StatTimer_idle.start();
                     }
                 }
-                //StatTimer_idle.stop();
             }
         );
-
-        //galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "NumMessages_Round_" + std::to_string(round), numMsg.reduce());
     }
 
     template<typename FnTy>
