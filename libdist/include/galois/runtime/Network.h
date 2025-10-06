@@ -341,11 +341,11 @@ public:
   ~NetworkInterface();
 
   inline void partitionDone() {
-      ready = 3;
+      ready.store(3, std::memory_order_release);
   }
 
   inline void applicationDone() {
-      ready = 4;
+      ready.store(4, std::memory_order_release);
   }
 
   //! Send a message to a given (dest) host.  A message is simply a
