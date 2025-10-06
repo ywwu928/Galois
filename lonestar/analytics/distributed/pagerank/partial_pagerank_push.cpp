@@ -408,6 +408,11 @@ int main(int argc, char** argv) {
     ss << tolerance;
     galois::runtime::reportParam(REGION_NAME.c_str(), "Tolerance", ss.str());
   }
+
+  if (partitionScheme != OEC) {
+    galois::gPrint("This repo only supports OEC\n");
+    return 1;
+  }
   
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();

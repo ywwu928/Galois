@@ -348,6 +348,11 @@ int main(int argc, char** argv) {
     galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
   }
 
+  if (partitionScheme != OEC) {
+    galois::gPrint("This repo only supports OEC\n");
+    return 1;
+  }
+
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
