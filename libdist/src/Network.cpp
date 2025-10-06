@@ -937,6 +937,8 @@ bool NetworkInterface::receiveRemoteWork(std::atomic<bool>& terminateFlag, bool&
             terminateFlag.store(true, std::memory_order_release);
             return false;
         }
+
+        std::this_thread::yield();
     }
 }
 
