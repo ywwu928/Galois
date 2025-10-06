@@ -966,6 +966,7 @@ private:
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
 
     poll_for_remote_work<ReduceFnTy>();
+    net.recvWorkDone();
 
     syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
   }

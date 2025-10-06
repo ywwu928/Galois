@@ -31,6 +31,7 @@
 #include <mutex>
 #include <chrono>
 #include <xmmintrin.h>
+#include <cstring>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -162,26 +163,8 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
     __builtin_prefetch(buf, 1, 3);
 }
 
-void NetworkInterface::sendBufferRemoteWork::setFlush() {
-    if (msgCount != 0) {
-        // put number of message count at the very last
-        size_t bufLen = msgCount << 3; // 2 * sizeof(uint32_t) * msgCount
-        *((uint32_t*)(buf + bufLen)) = msgCount;
-        bufLen += sizeof(uint32_t);
-        partialMessage = std::make_pair(buf, bufLen);
-        partialFlag = true;
-    
-        // allocate new buffer
-        buf = net->sendAllocators[tid].allocate();
-        __builtin_prefetch(buf, 1, 3);
-        msgCount = 0;
-    }
-}
-
-void NetworkInterface::sendBufferRemoteWork::popPartial(uint8_t*& work, size_t& workLen) {
-    work = partialMessage.first;
-    workLen = partialMessage.second;
-    partialFlag = false;
+void NetworkInterface::sendBufferRemoteWork::enqueue(uint8_t* msg) {
+    messages.enqueue(msg);
 }
 
 bool NetworkInterface::sendBufferRemoteWork::pop(uint8_t*& work) {
@@ -215,7 +198,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 template void NetworkInterface::sendBufferRemoteWork::add<uint32_t>(uint32_t lid, uint32_t val);
 template void NetworkInterface::sendBufferRemoteWork::add<float>(uint32_t lid, float val);
     
-void NetworkInterface::sendTrackComplete() {
+void NetworkInterface::sendTrackCompleteLazy() {
     for (unsigned t=0; t<numT; t++) {
         if (!sendInflight[t].empty()) {
             int flag = 0;
@@ -227,6 +210,26 @@ void NetworkInterface::sendTrackComplete() {
                 sendAllocators[t].deallocate(f.buf);
 
                 sendInflight[t].pop_front();
+            }
+        }
+    }
+}
+
+void NetworkInterface::sendTrackComplete() {
+    for (unsigned t=0; t<numT; t++) {
+        while (!sendInflight[t].empty()) {
+            int flag = 0;
+            MPI_Status status;
+            auto& f = sendInflight[t].front();
+            MPI_Test(&f.req, &flag, &status);
+            if (flag) {
+                // return buffer back to pool
+                sendAllocators[t].deallocate(f.buf);
+
+                sendInflight[t].pop_front();
+            }
+            else {
+                break;
             }
         }
     }
@@ -347,6 +350,35 @@ void NetworkInterface::recvProbeWorkComm() {
     }
 }
 
+void NetworkInterface::recvProbeComm() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, communicationTag, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+
+        __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
+
+        MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
+        recvInflightComm.push_back(req);
+        MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+    }
+
+    // complete messages
+    if (!recvInflightComm.empty()) {
+        MPI_Request* req  = recvInflightComm.front();
+        flag = 0;
+        MPI_Test(req, &flag, &status);
+        if (flag) {
+            recvCommunication.add(status.MPI_SOURCE);
+            free(req);
+            recvInflightComm.pop_front();
+        }
+    }
+}
+
 void NetworkInterface::recvProbeDataTermination() {
     int flag = 0;
     MPI_Status status;
@@ -448,14 +480,34 @@ void NetworkInterface::commThread() {
     recvAllocator.touch();
     
     while (ready == 3) {
+        while (ready == 3 && !flush) {
+            for (unsigned i = 0; i < Num - 1; ++i) {
+                unsigned h = hostOrder[i];
+
+                // handle send queue
+                sendTrackCompleteLazy();
+
+                // remote work
+                for (unsigned t=0; t<numT; t++) {
+                    // push progress forward on the network IO
+                    recvProbeWorkComm();
+
+                    auto& srw = sendRemoteWork[h][t];
+
+                    uint8_t* work;
+                    bool success = srw.pop(work);
+
+                    if (success) {
+                        sendFullTrack(t, h, work);
+                    }
+                }
+            }
+        }
+
+        // flush all full work messages
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
-            // handle send queue
-            sendTrackComplete();
-            
-            // 1. remote work
-            bool hostWorkEmpty = true;
             for (unsigned t=0; t<numT; t++) {
                 // push progress forward on the network IO
                 recvProbeWorkComm();
@@ -465,39 +517,83 @@ void NetworkInterface::commThread() {
                 uint8_t* work;
                 bool success = srw.pop(work);
               
-                if (success) {
+                while (success) {
                     sendFullTrack(t, h, work);
-                    hostWorkEmpty = false;
+                    success = srw.pop(work);
                 }
-                else {
-                    if (srw.checkPartial()) {
-                        size_t workLen;
-                        srw.popPartial(work, workLen);
-                        sendPartialTrack(t, h, work, workLen);
-                        hostWorkEmpty = false;
-                    }
-                }
-            }
-
-            if(hostWorkEmpty) { // wait until all works are sent
-                // 2. work termination
-                if (sendWorkTermination[h]) {
-                    send(h, workTerminationTag, nullptr, 0);
-                    sendWorkTermination[h] = false;
-                }
-            }
-          
-            // 3. data
-            recvProbeWorkComm();
-            uint32_t tag;
-            uint8_t* data;
-            size_t dataLen;
-            bool success = sendData[h].pop(tag, data, dataLen);
-          
-            if (success) {
-                send(h, tag, data, dataLen);
             }
         }
+
+        // flush all partial work messages
+        for (unsigned i = 0; i < Num - 1; ++i) {
+            unsigned h = hostOrder[i];
+
+            if (partialBufLen[h] > 0) {
+                sendPartialTrack(0, h, partialBuf[h], partialBufLen[h]);
+            }
+            else {
+                sendAllocators[0].deallocate(partialBuf[h]);
+            }
+
+            // send work termination
+            if (sendWorkTermination[h]) {
+                send(h, workTerminationTag, nullptr, 0);
+                sendWorkTermination[h] = false;
+            }
+
+            partialBuf[h] = nullptr;
+            partialBufLen[h] = 0;
+        }
+
+        // reset flush
+        flush = false;
+
+        while (ready == 3 && !recvAllWork) {
+            // push progress forward on the network IO
+            recvProbeWorkComm();
+            
+            for (unsigned i = 0; i < Num - 1; ++i) {
+                unsigned h = hostOrder[i];
+
+                // send data
+                uint32_t tag;
+                uint8_t* data;
+                size_t dataLen;
+                bool success = sendData[h].pop(tag, data, dataLen);
+              
+                if (success) {
+                    send(h, tag, data, dataLen);
+                }
+            }
+        }
+
+        // reset recvAllWork
+        recvAllWork = false;
+
+        while (ready == 3 && !recvAll) {
+            // push progress forward on the network IO
+            recvProbeComm();
+            
+            for (unsigned i = 0; i < Num - 1; ++i) {
+                unsigned h = hostOrder[i];
+
+                // send data
+                uint32_t tag;
+                uint8_t* data;
+                size_t dataLen;
+                bool success = sendData[h].pop(tag, data, dataLen);
+              
+                if (success) {
+                    send(h, tag, data, dataLen);
+                }
+            }
+        }
+
+        // reset recvAll
+        recvAll = false;
+
+        // handle send queue
+        sendTrackComplete();
     }
     
     // for collecting stats
@@ -536,6 +632,14 @@ NetworkInterface::NetworkInterface()
     recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready != 1) {};
 
+    flush = false;
+    partialBuf = decltype(partialBuf)(Num);
+    partialBufLen = decltype(partialBufLen)(Num);
+    for (unsigned i=0; i<Num; i++) {
+        partialBuf[i] = nullptr;
+        partialBufLen[i] = 0;
+    }
+
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
     sendRemoteWork.resize(Num);
@@ -549,6 +653,9 @@ NetworkInterface::NetworkInterface()
             sendRemoteWork[i][t].setTID(t);
         }
     }
+
+    recvAllWork = false;
+    recvAll = false;
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
     hostWorkTerminationBase = 0;
@@ -710,17 +817,90 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
 }
 
 void NetworkInterface::flushRemoteWork() {
-    galois::on_each(
-        [&](unsigned tid, unsigned) {
-            for (uint32_t h=0; h<Num; h++) {
-                if (h == ID) {
-                    continue;
-                }
+    // aggregate partial messages across threads
+    for (uint32_t h = 0; h < Num; ++h) {
+        if (h == ID) {
+            continue;
+        }
 
-                sendRemoteWork[h][tid].setFlush();
+        uint8_t* aggBuf = sendAllocators[0].allocate();
+        __builtin_prefetch(aggBuf, 1, 3);
+        uint32_t aggMsgCount = 0;
+        uint32_t remainWorkCount = workCount;
+        for (unsigned t=0; t<numT; t++) {
+            auto& srw = sendRemoteWork[h][t];
+            uint32_t msgCount = srw.getMsgCount();
+
+            if (msgCount != 0) {
+                size_t aggBufLen = aggMsgCount << 3; // 2 * sizeof(uint32_t) * aggMsgCount
+                uint8_t* buf = srw.getBuf();
+
+                if (msgCount < remainWorkCount) {
+                    size_t bufLen = msgCount << 3;
+
+                    std::memcpy((aggBuf + aggBufLen), buf, bufLen);
+
+                    aggMsgCount += msgCount;
+                    remainWorkCount -= msgCount;
+                    srw.resetMsgCount();
+                }
+                else if (msgCount == remainWorkCount) {
+                    size_t bufLen = msgCount << 3;
+
+                    std::memcpy((aggBuf + aggBufLen), buf, bufLen);
+
+                    sendRemoteWork[h][0].enqueue(aggBuf);
+
+                    aggBuf = sendAllocators[0].allocate();
+                    __builtin_prefetch(aggBuf, 1, 3);
+
+                    aggMsgCount = 0;
+                    remainWorkCount = workCount;
+                    srw.resetMsgCount();
+                }
+                else { // msgCount > remainWorkCount
+                    size_t remainLen = remainWorkCount << 3;
+
+                    std::memcpy((aggBuf + aggBufLen), buf, remainLen);
+
+                    sendRemoteWork[h][0].enqueue(aggBuf);
+
+                    aggBuf = sendAllocators[0].allocate();
+                    __builtin_prefetch(aggBuf, 1, 3);
+
+                    aggMsgCount = msgCount - remainWorkCount;
+                    remainWorkCount = workCount - aggMsgCount;
+
+                    aggBufLen = aggMsgCount << 3;
+
+                    std::memcpy(aggBuf, (buf + remainLen), aggBufLen);
+
+                    srw.resetMsgCount();
+                }
             }
         }
-    );
+
+        partialBuf[h] = aggBuf;
+        if (aggMsgCount != 0) {
+            size_t aggBufLen = aggMsgCount << 3;
+            *((uint32_t*)(aggBuf + aggBufLen)) = aggMsgCount;
+            aggBufLen += sizeof(uint32_t);
+            partialBufLen[h] = aggBufLen;
+        }
+        else {
+            partialBufLen[h] = 0;
+        }
+
+        if (sendWorkTerminationValid[h]) {
+            sendWorkTermination[h] = true;
+        }
+    }
+
+    flush = true;
+}
+  
+void NetworkInterface::recvWorkDone() {
+    recvAllWork = true;
 }
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
@@ -733,6 +913,7 @@ void NetworkInterface::excludeHostWorkTermination() {
 }
   
 void NetworkInterface::resetWorkTermination() {
+    recvAll = true;
     hostWorkTerminationCount = hostWorkTerminationBase;
 }
 
@@ -742,14 +923,6 @@ void NetworkInterface::resetDataTermination() {
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {
     sendData[dest].push(dataTerminationTag, nullptr, 0);
-}
-
-void NetworkInterface::broadcastWorkTermination() {
-    for (unsigned i=0; i<Num; i++) {
-        if (sendWorkTerminationValid[i]) {
-            sendWorkTermination[i] = true;
-        }
-    }
 }
 
 void NetworkInterface::touchBufferPool() {

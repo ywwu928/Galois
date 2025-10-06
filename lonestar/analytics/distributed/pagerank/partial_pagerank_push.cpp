@@ -226,7 +226,6 @@ struct PageRank {
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
-      _net.broadcastWorkTermination();
 
       StatTimer_comm.start();
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
