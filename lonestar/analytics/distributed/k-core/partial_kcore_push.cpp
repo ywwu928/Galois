@@ -217,7 +217,7 @@ struct KCoreStep1 {
       galois::CondStatTimer<USER_STATS> StatTimer_step2(step2_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      std::string flush_str("Flush_Round_" + std::to_string(iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
