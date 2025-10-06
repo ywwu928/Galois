@@ -247,7 +247,7 @@ struct BFSSep {
       bitset_dist_current.reset();
 
       StatTimer_comm.start();
-      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(dga, bitset_dist_current);
+      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
