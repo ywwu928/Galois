@@ -145,7 +145,6 @@ struct FirstItr_BFS {
         snode.dist_old  = snode.dist_current;
         for (auto jj : _graph.edges(src)) {
             GNode dst         = _graph.getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
             if (_graph.isPhantom(dst)) {
                 uint32_t new_dist = 1 + snode.dist_current;
                 //uint32_t& hostID = _graph.getHostIDForLocal(dst);
@@ -153,33 +152,24 @@ struct FirstItr_BFS {
                 _net.sendWork(0, _graph.getHostIDForLocal(dst), _graph.getPhantomRemoteLID(dst), new_dist);
             }
             else {
-#endif
                 auto& dnode       = _graph.getData(dst);
                 uint32_t new_dist = 1 + snode.dist_current;
                 uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
                 if (old_dist > new_dist) {
                     bitset_dist_current.set(dst);
                 }
-#ifndef GALOIS_FULL_MIRRORING     
             }
-#endif
         }
     }
     StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
     // inform all other hosts that this host has finished sending messages
     // force all messages to be processed before continuing
     _net.flushRemoteWork();
     _net.broadcastWorkTermination();
-#endif
 
     StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-    syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
-#else
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>();
-#endif
     StatTimer_comm.stop();
     
     _net.resetWorkTermination();
@@ -268,19 +258,13 @@ struct BFS {
           galois::no_stats());
       StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
       _net.broadcastWorkTermination();
-#endif
      
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-      syncSubstrate->poll_for_remote_work<Reduce_min_dist_current>();
-#else
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -306,7 +290,6 @@ struct BFS {
 		  work_edges += 1;
 
           GNode dst         = graph->getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
           if (graph->isPhantom(dst)) {
             uint32_t new_dist = 1 + snode.dist_current;
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
@@ -315,7 +298,6 @@ struct BFS {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
           }
           else {
-#endif
             auto& dnode       = graph->getData(dst);     
             uint32_t new_dist = 1 + snode.dist_current;
             uint32_t old_dist = galois::atomicMin(dnode.dist_current, new_dist);
@@ -323,9 +305,7 @@ struct BFS {
             if (old_dist > new_dist) {
               bitset_dist_current.set(dst);
             }
-#ifndef GALOIS_FULL_MIRRORING     
           }
-#endif
         }
       }
     }

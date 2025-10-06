@@ -223,19 +223,13 @@ struct PageRank {
                      galois::no_stats(), galois::steal());
       StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
       _net.broadcastWorkTermination();
-#endif
 
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-      syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-#else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -258,7 +252,6 @@ struct PageRank {
 
       for (auto nbr : graph->edges(src)) {
         GNode dst       = graph->getEdgeDst(nbr);
-#ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
             //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
@@ -266,15 +259,12 @@ struct PageRank {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
         }
         else {
-#endif
             NodeData& ddata = graph->getData(dst);
 
             galois::atomicAddVoid(ddata.residual, _delta);
 
             bitset_residual.set(dst);
-#ifndef GALOIS_FULL_MIRRORING     
         }
-#endif
       }
     }
   }

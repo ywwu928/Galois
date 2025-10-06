@@ -92,18 +92,12 @@ struct InitializeGraph2 {
         galois::iterate(masterNodes), InitializeGraph2{&_graph},
         galois::steal(), galois::no_stats());
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
     _net.flushRemoteWork();
     _net.broadcastWorkTermination();
-#endif
 
-#ifdef GALOIS_NO_MIRRORING     
-    syncSubstrate->poll_for_remote_work<Reduce_add_current_degree>();
-#else
     syncSubstrate->sync<writeDestination, readSource, Reduce_add_current_degree, Bitset_current_degree>();
-#endif
       
     _net.resetWorkTermination();
   }
@@ -113,7 +107,6 @@ struct InitializeGraph2 {
   void operator()(GNode src) const {
     for (auto current_edge : graph->edges(src)) {
       GNode dest_node = graph->getEdgeDst(current_edge);
-#ifndef GALOIS_FULL_MIRRORING     
       if (graph->isPhantom(dest_node)) {
           //uint32_t& hostID = graph->getHostIDForLocal(dest_node);
           //uint32_t& remoteLID = graph->getPhantomRemoteLID(dest_node);
@@ -121,13 +114,10 @@ struct InitializeGraph2 {
           net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dest_node), graph->getPhantomRemoteLID(dest_node), (uint32_t)1);
       }
       else {
-#endif
           NodeData& dest_data = graph->getData(dest_node);
           galois::atomicAdd(dest_data.current_degree, (uint32_t)1);
           bitset_current_degree.set(dest_node);
-#ifndef GALOIS_FULL_MIRRORING     
       }
-#endif
     }
   }
 };
@@ -249,23 +239,17 @@ struct KCoreStep1 {
                      galois::no_stats());
       StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
       _net.broadcastWorkTermination();
-#endif
 
       // do the trim sync; readSource because in symmetric graph
       // source=destination; not a readAny because any will grab non
       // source/dest nodes (which have degree 0, so they won't have a trim
       // anyways)
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-      syncSubstrate->poll_for_remote_work<Reduce_add_trim>();
-#else
       syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -294,7 +278,6 @@ struct KCoreStep1 {
 
         for (auto current_edge : graph->edges(src)) {
           GNode dst = graph->getEdgeDst(current_edge);
-#ifndef GALOIS_FULL_MIRRORING     
           if (graph->isPhantom(dst)) {
               //uint32_t& hostID = graph->getHostIDForLocal(dst);
               //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
@@ -302,13 +285,10 @@ struct KCoreStep1 {
               net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), (uint32_t)1);
           }
           else {
-#endif
               auto& dst_data = graph->getData(dst);
               galois::atomicAdd(dst_data.trim, (uint32_t)1);
               bitset_trim.set(dst);
-#ifndef GALOIS_FULL_MIRRORING     
           }
-#endif
         }
       }
     }

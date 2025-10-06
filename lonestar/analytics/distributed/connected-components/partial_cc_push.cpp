@@ -124,19 +124,13 @@ struct FirstItr_ConnectedComp {
         galois::steal(), galois::no_stats());
     StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
     // inform all other hosts that this host has finished sending messages
     // force all messages to be processed before continuing
     _net.flushRemoteWork();
     _net.broadcastWorkTermination();
-#endif
 
     StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-    syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
-#else
     syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current>();
-#endif
     StatTimer_comm.stop();
       
     _net.resetWorkTermination();
@@ -152,7 +146,6 @@ struct FirstItr_ConnectedComp {
 
     for (auto jj : graph->edges(src)) {
         GNode dst         = graph->getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
@@ -161,15 +154,12 @@ struct FirstItr_ConnectedComp {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
         }
         else {
-#endif
             auto& dnode       = graph->getData(dst);
             uint32_t new_dist = snode.comp_current;
             uint32_t old_dist = galois::atomicMin(dnode.comp_current, new_dist);
             if (old_dist > new_dist)
                 bitset_comp_current.set(dst);
-#ifndef GALOIS_FULL_MIRRORING     
         }
-#endif
     }
   }
 };
@@ -231,19 +221,13 @@ struct ConnectedComp {
           galois::no_stats(), galois::steal());
       StatTimer_compute.stop();
 
-#ifndef GALOIS_FULL_MIRRORING     
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       _net.flushRemoteWork();
       _net.broadcastWorkTermination();
-#endif
       
       StatTimer_comm.start();
-#ifdef GALOIS_NO_MIRRORING     
-      syncSubstrate->poll_for_remote_work<Reduce_min_comp_current>();
-#else
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current>();
-#endif
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -266,7 +250,6 @@ struct ConnectedComp {
         active_vertices += 1;
 
         GNode dst         = graph->getEdgeDst(jj);
-#ifndef GALOIS_FULL_MIRRORING     
         if (graph->isPhantom(dst)) {
             uint32_t new_dist = snode.comp_current;
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
@@ -275,15 +258,12 @@ struct ConnectedComp {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), new_dist);
         }
         else {
-#endif
             auto& dnode       = graph->getData(dst);
             uint32_t new_dist = snode.comp_current;
             uint32_t old_dist = galois::atomicMin(dnode.comp_current, new_dist);
             if (old_dist > new_dist)
                 bitset_comp_current.set(dst);
-#ifndef GALOIS_FULL_MIRRORING     
         }
-#endif
       }
     }
   }
