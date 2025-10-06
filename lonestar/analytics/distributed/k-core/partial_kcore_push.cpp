@@ -218,6 +218,8 @@ struct KCoreStep1 {
       galois::CondStatTimer<USER_STATS> StatTimer_step2(step2_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
@@ -241,8 +243,9 @@ struct KCoreStep1 {
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
+      StatTimer_flush.start();
       _net.flushRemoteWork();
-      _net.broadcastWorkTermination();
+      StatTimer_flush.stop();
 
       // do the trim sync; readSource because in symmetric graph
       // source=destination; not a readAny because any will grab non

@@ -200,6 +200,8 @@ struct ConnectedComp {
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
@@ -223,8 +225,9 @@ struct ConnectedComp {
 
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
+      StatTimer_flush.start();
       _net.flushRemoteWork();
-      _net.broadcastWorkTermination();
+      StatTimer_flush.stop();
       
       StatTimer_comm.start();
       syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current>();
