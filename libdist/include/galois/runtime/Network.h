@@ -201,6 +201,22 @@ private:
 
   std::vector<sendBufferData> sendData;
 
+  /**
+   * Single producer single consumer
+   */
+  class sendBufferComm {
+      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
+
+  public:
+      sendBufferComm() {}
+    
+      bool pop(uint8_t*& data, size_t& dataLen);
+
+      void push(uint8_t* data, size_t dataLen);
+  };
+
+  std::vector<sendBufferComm> sendCommData;
+
   /**   
    * single producer single consumer with single tag
    */
@@ -262,16 +278,21 @@ private:
       trackMessageSend(uint8_t* _buf) : buf(_buf) {}
   };
   
-  std::vector<std::deque<trackMessageSend>> sendInflight;
+  std::deque<trackMessageSend> sendInflightData;
+  std::vector<std::deque<trackMessageSend>> sendInflightWork;
+  std::deque<trackMessageSend> sendInflightComm;
     
-  void sendTrackCompleteLazy();
-  void sendTrackComplete();
+  void sendDataComplete();
+  void sendWorkComplete();
+  void sendWorkCompleteUntilEmpty();
+  void sendCommComplete();
+  void sendCommCompleteUntilEmpty();
 
-  void send(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
-  
-  void sendFullTrack(unsigned tid, uint32_t dest, uint8_t* buf);
-  
-  void sendPartialTrack(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
+  void sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
+  void sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf);
+  void sendPartialWork(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
+  void sendCommunication(uint32_t dest, uint8_t* buf, size_t bufLen);
+  void sendTermination(uint32_t dest, uint32_t tag);
 
   /**
    * Message type to recv in this network IO layer.
@@ -296,13 +317,15 @@ private:
   };
   
   std::deque<mpiWorkRecv> recvInflightWork;
-  
   std::deque<MPI_Request*> recvInflightComm;
   
   void recvProbeData();
   void recvProbeWorkComm();
   void recvProbeComm();
   void recvProbeDataTermination();
+
+  std::vector<MPI_Request> inflightTermination;
+  void terminationComplete();
   
   void commThread();
   
@@ -320,6 +343,7 @@ private:
   uint32_t hostWorkTerminationBase;
   std::atomic<uint32_t> hostWorkTerminationCount;
   
+  std::vector<std::atomic<bool>> sendDataTermination;
   std::atomic<uint32_t> hostDataTerminationCount;
   
   uint32_t terminationCountTemp;
