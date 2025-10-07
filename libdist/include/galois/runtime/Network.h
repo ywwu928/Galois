@@ -205,17 +205,17 @@ private:
    * Single producer single consumer
    */
   class sendBufferComm {
-      moodycamel::ReaderWriterQueue<std::pair<uint8_t*, size_t>> messages;
+      moodycamel::ReaderWriterQueue<std::tuple<uint32_t, uint8_t*, size_t>> messages;
 
   public:
       sendBufferComm() {}
     
-      bool pop(uint8_t*& data, size_t& dataLen);
+      bool pop(uint32_t& dest, uint8_t*& data, size_t& dataLen);
 
-      void push(uint8_t* data, size_t dataLen);
+      void push(uint32_t dest, uint8_t* data, size_t dataLen);
   };
 
-  std::vector<sendBufferComm> sendCommData;
+  sendBufferComm sendCommData;
 
   /**   
    * single producer single consumer with single tag
@@ -284,9 +284,7 @@ private:
     
   void sendDataComplete();
   void sendWorkComplete();
-  void sendWorkCompleteUntilEmpty();
-  void sendCommComplete();
-  void sendCommCompleteUntilEmpty();
+  void sendWorkCommCompleteUntilEmpty();
 
   void sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
   void sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf);
@@ -332,11 +330,11 @@ private:
   std::thread comm;
   std::atomic<int> ready;
   
-  std::atomic<bool> flush;
+  std::atomic<bool> flushWork;
+  std::atomic<bool> flushComm;
   std::vector<uint8_t*> partialBuf;
   std::vector<size_t> partialBufLen;
 
-  std::atomic<bool> recvAllWork;
   std::atomic<bool> recvAll;
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
@@ -404,8 +402,8 @@ public:
   
   //! move send buffers out to network
   void flushRemoteWork();
-
-  void recvWorkDone();
+  
+  void flushCommunication();
   
   void excludeSendWorkTermination(uint32_t host);
   

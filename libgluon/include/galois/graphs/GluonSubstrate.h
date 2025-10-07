@@ -964,9 +964,9 @@ private:
   template <typename ReduceFnTy, typename BitsetFnTy>
   void reduce() {
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
+    net.flushCommunication();
 
     poll_for_remote_work<ReduceFnTy>();
-    net.recvWorkDone();
 
     syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
   }

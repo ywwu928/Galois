@@ -155,17 +155,18 @@ void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t 
     messages.enqueue(std::make_tuple(tag, data, dataLen));
 }
 
-bool NetworkInterface::sendBufferComm::pop(uint8_t*& data, size_t& dataLen) {
-    std::pair<uint8_t*, size_t> message;
+bool NetworkInterface::sendBufferComm::pop(uint32_t& dest, uint8_t*& data, size_t& dataLen) {
+    std::tuple<uint32_t, uint8_t*, size_t> message;
     bool success = messages.try_dequeue(message);
-    data = message.first;
-    dataLen = message.second;
+    dest = std::get<0>(message);
+    data = std::get<1>(message);
+    dataLen = std::get<2>(message);
 
     return success;
 }
 
-void NetworkInterface::sendBufferComm::push(uint8_t* data, size_t dataLen) {
-    messages.enqueue(std::make_pair(data, dataLen));
+void NetworkInterface::sendBufferComm::push(uint32_t dest, uint8_t* data, size_t dataLen) {
+    messages.enqueue(std::make_tuple(dest, data, dataLen));
 }
 
 void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
@@ -248,7 +249,8 @@ void NetworkInterface::sendWorkComplete() {
     }
 }
 
-void NetworkInterface::sendWorkCompleteUntilEmpty() {
+void NetworkInterface::sendWorkCommCompleteUntilEmpty() {
+    // remote work
     bool empty;
     do {
         empty = true;
@@ -273,25 +275,8 @@ void NetworkInterface::sendWorkCompleteUntilEmpty() {
             }
         }
     } while (!empty);
-}
 
-void NetworkInterface::sendCommComplete() {
-    if (!sendInflightComm.empty()) {
-        int flag = 0;
-        MPI_Status status;
-        auto& f = sendInflightComm.front();
-        MPI_Test(&f.req, &flag, &status);
-        if (flag) {
-            sendInflightComm.pop_front();
-        }
-        else {
-            sendInflightData.push_back(f);
-            sendInflightData.pop_front();
-        }
-    }
-}
-
-void NetworkInterface::sendCommCompleteUntilEmpty() {
+    // communication
     while (!sendInflightComm.empty()) {
         int flag = 0;
         MPI_Status status;
@@ -584,7 +569,7 @@ void NetworkInterface::commThread() {
     recvAllocator.touch();
     
     while (ready.load(std::memory_order_acquire) == 3) {
-        while (ready.load(std::memory_order_acquire) == 3 && !flush.load(std::memory_order_acquire)) {
+        while (ready.load(std::memory_order_acquire) == 3 && !flushWork.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
                 unsigned h = hostOrder[i];
 
@@ -650,61 +635,36 @@ void NetworkInterface::commThread() {
         }
 
         // reset flush
-        flush.store(false, std::memory_order_relaxed);
+        flushWork.store(false, std::memory_order_relaxed);
 
-        while (ready.load(std::memory_order_acquire) == 3 && !recvAllWork.load(std::memory_order_acquire)) {
-            // handle send queue
-            sendCommComplete();
-            
+        while (ready.load(std::memory_order_acquire) == 3 && !flushComm.load(std::memory_order_acquire)) {
             // push progress forward on the network IO
             recvProbeWorkComm();
-            
-            for (unsigned i = 0; i < Num - 1; ++i) {
-                unsigned h = hostOrder[i];
-
-                // send data
-                uint8_t* data;
-                size_t dataLen;
-                bool success = sendCommData[h].pop(data, dataLen);
-              
-                if (success) {
-                    sendCommunication(h, data, dataLen);
-                }
-            }
         }
 
-        // reset recvAllWork
-        recvAllWork.store(false, std::memory_order_relaxed);
+        // flush communication messages
+        uint32_t dest;
+        uint8_t* data;
+        size_t dataLen;
+        bool success = sendCommData.pop(dest, data, dataLen);
+        while (success) {
+            sendCommunication(dest, data, dataLen);
+            success = sendCommData.pop(dest, data, dataLen);
+        }
 
-        // handle send queue
-        sendWorkCompleteUntilEmpty();
+        // reset flush
+        flushComm.store(false, std::memory_order_relaxed);
 
         while (ready.load(std::memory_order_acquire) == 3 && !recvAll.load(std::memory_order_acquire)) {
-            // handle send queue
-            sendCommComplete();
-            
             // push progress forward on the network IO
-            recvProbeComm();
-            
-            for (unsigned i = 0; i < Num - 1; ++i) {
-                unsigned h = hostOrder[i];
-
-                // send data
-                uint8_t* data;
-                size_t dataLen;
-                bool success = sendCommData[h].pop(data, dataLen);
-              
-                if (success) {
-                    sendCommunication(h, data, dataLen);
-                }
-            }
+            recvProbeWorkComm();
         }
 
         // reset recvAll
         recvAll.store(false, std::memory_order_relaxed);
 
         // handle send queue
-        sendCommCompleteUntilEmpty();
+        sendWorkCommCompleteUntilEmpty();
 
         terminationComplete();
     }
@@ -754,7 +714,8 @@ NetworkInterface::NetworkInterface()
     recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready.load(std::memory_order_acquire) != 1) {};
 
-    flush.store(false, std::memory_order_relaxed);
+    flushWork.store(false, std::memory_order_relaxed);
+    flushComm.store(false, std::memory_order_relaxed);
     partialBuf = decltype(partialBuf)(Num);
     partialBufLen = decltype(partialBufLen)(Num);
     for (unsigned i=0; i<Num; i++) {
@@ -764,7 +725,6 @@ NetworkInterface::NetworkInterface()
 
     recvData = decltype(recvData)(Num);
     sendData = decltype(sendData)(Num);
-    sendCommData = decltype(sendCommData)(Num);
     sendRemoteWork.resize(Num);
     for (auto& hostSendRemoteWork : sendRemoteWork) {
         std::vector<sendBufferRemoteWork> temp(numT);
@@ -777,7 +737,6 @@ NetworkInterface::NetworkInterface()
         }
     }
 
-    recvAllWork.store(false, std::memory_order_relaxed);
     recvAll.store(false, std::memory_order_relaxed);
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
@@ -839,7 +798,7 @@ template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, 
 template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
 
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
-    sendCommData[dest].push(bufPtr, len);
+    sendCommData.push(dest, bufPtr, len);
 }
 
 void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
@@ -1031,11 +990,11 @@ void NetworkInterface::flushRemoteWork() {
         }
     }
 
-    flush.store(true, std::memory_order_release);
+    flushWork.store(true, std::memory_order_release);
 }
-  
-void NetworkInterface::recvWorkDone() {
-    recvAllWork.store(true, std::memory_order_release);
+
+void NetworkInterface::flushCommunication() {
+    flushComm.store(true, std::memory_order_release);
 }
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
