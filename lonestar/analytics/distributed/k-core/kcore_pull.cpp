@@ -85,10 +85,10 @@ struct DegreeCounting {
 
   /* Initialize the entire graph node-by-node */
   void static go(Graph& _graph) {
-    const auto& presentNodes = _graph.presentNodesRange();
+    const auto& allNodes = _graph.allNodesRange();
 
     galois::do_all(
-        galois::iterate(presentNodes), DegreeCounting{&_graph},
+        galois::iterate(allNodes), DegreeCounting{&_graph},
         galois::steal(), galois::no_stats());
   }
 
@@ -96,9 +96,11 @@ struct DegreeCounting {
    * adding for every dest (works same way in pull version since it's a
    * symmetric graph) */
   void operator()(GNode src) const {
-    NodeData& src_data = graph->getData(src);
-
-    src_data.current_degree = std::distance(graph->edge_begin(src), graph->edge_end(src));
+    for (auto current_edge : graph->edges(src)) {
+      GNode dst   = graph->getEdgeDst(current_edge);
+      auto& ddata = graph->getData(dst);
+      galois::atomicAdd(ddata.current_degree, (uint32_t)1);
+    }
   }
 };
 
@@ -191,14 +193,14 @@ struct LiveUpdate {
 
 /* Step that determines if a node is dead and updates its neighbors' trim
  * if it is */
-struct KCoreMaster {
+struct KCorePresent {
   Graph* graph;
 
-  KCoreMaster(Graph* _graph) : graph(_graph) {}
+  KCorePresent(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& masterNodes = _graph.masterNodesRange();
-    galois::do_all(galois::iterate(masterNodes), KCoreMaster{&_graph},
+    const auto& presentNodes = _graph.presentNodesRange();
+    galois::do_all(galois::iterate(presentNodes), KCorePresent{&_graph},
                    galois::no_stats(), galois::steal());
   }
 
@@ -299,7 +301,7 @@ struct KCoreSep {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      KCoreMaster::go(_graph);
+      KCorePresent::go(_graph);
       KCorePhantom::go(_graph);
       StatTimer_compute.stop();
       
@@ -317,15 +319,13 @@ struct KCoreSep {
       StatTimer_live.start();
       LiveUpdate::go(_graph, dga);
       StatTimer_live.stop();
+      
+      _net.resetWorkTermination();
 
       _num_iterations++;
 
       StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-        galois::gPrint("Number of iterations = ", _num_iterations, "\n");
-    }
   }
 };
 
@@ -400,10 +400,6 @@ struct KCoreAll {
 
       StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
-
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-        galois::gPrint("Number of iterations = ", _num_iterations, "\n");
-    }
   }
 
   void operator()(GNode src) const {
