@@ -57,8 +57,6 @@ struct NodeData {
   std::atomic<uint32_t> comp_current;
 };
 
-galois::DynamicBitSet bitset_comp_current;
-
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
@@ -85,7 +83,6 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
     sdata.comp_current = graph->getGID(src);
-    //bitset_comp_current.set(src);
   }
 };
 
@@ -204,7 +201,6 @@ struct ConnectedCompPresent {
     }
     
     if (updated) {
-        bitset_comp_current.set(src);
         active_vertices += 1;
     }
   }
@@ -236,24 +232,16 @@ struct ConnectedCompPhantom {
     // create register for phantom node data
     uint32_t scomp = UINT32_MAX;
 
-    bool send = false;
     for (auto jj : graph->edges(src)) {
         GNode dst         = graph->getEdgeDst(jj);
         auto& dnode       = graph->getData(dst);
 
         if (dnode.comp_current < scomp) {
             scomp = dnode.comp_current;
-            if (bitset_comp_current.test(dst)) {
-                send = true;
-            }
-            else {
-                send = false;
-            }
         }
     }
     
-    if (send) {
-        active_vertices += 1;
+    if (scomp != UINT32_MAX) {
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), scomp);
     }
   }
@@ -311,8 +299,6 @@ struct ConnectedCompSep {
       }
       StatTimer_compute.stop();
 
-      bitset_comp_current.reset();
-
       // inform all other hosts that this host has finished sending messages
       // force all messages to be processed before continuing
       StatTimer_flush.start();
@@ -320,7 +306,7 @@ struct ConnectedCompSep {
       StatTimer_flush.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->poll_for_remote_work_bitset<Reduce_min_comp_current>(bitset_comp_current);
+      syncSubstrate->poll_for_remote_work_active<Reduce_min_comp_current>(dga);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
@@ -535,8 +521,6 @@ int main(int argc, char** argv) {
   std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
   //std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t, false>();
 
-  bitset_comp_current.resize(hg->actualSize());
-
   galois::runtime::getHostBarrier().wait();
   net.forwardPass();
 
@@ -569,8 +553,6 @@ int main(int argc, char** argv) {
     ConnectedCompSanityCheck::go(*hg, active_vertices64);
 
     if ((run + 1) != numRuns) {
-      bitset_comp_current.reset();
-
       (*syncSubstrate).set_num_run(run + 1);
       InitializeGraph::go((*hg));
     }
