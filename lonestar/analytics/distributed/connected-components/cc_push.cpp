@@ -314,7 +314,7 @@ int main(int argc, char** argv) {
 
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) =
-      symmetricDistGraphInitialization<NodeData, void>();
+      symmetricDistGraphInitialization<NodeData, void>(false);
 
   bitset_comp_current.resize(hg->size());
 

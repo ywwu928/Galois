@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>();
+  std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>(true);
 
   bitset_comp_current.resize(hg->size());
 

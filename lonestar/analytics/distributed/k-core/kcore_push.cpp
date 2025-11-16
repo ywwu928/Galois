@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> h_graph;
-  std::tie(h_graph, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>();
+  std::tie(h_graph, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void>(false);
 
   bitset_current_degree.resize(h_graph->size());
   bitset_trim.resize(h_graph->size());

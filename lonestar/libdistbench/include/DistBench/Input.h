@@ -135,7 +135,7 @@ using DistGraphPtr =
  */
 template <typename NodeData, typename EdgeData>
 DistGraphPtr<NodeData, EdgeData>
-constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
+constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor), bool transpose) {
   if (!symmetricGraph) {
     GALOIS_DIE("application requires a symmetric graph input;"
                " please use the -symmetricGraph flag "
@@ -144,25 +144,21 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   switch (partitionScheme) {
   case HASH:
-    return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<Hash, NodeData, EdgeData>(
+        inputFile, transpose);
   case OEC:
   case IEC:
-    return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true, inputFileTranspose,
-        mastersFile);
+    return galois::cuspPartitionSymmetricGraph<NoCommunication, NodeData, EdgeData>(
+        inputFile, transpose, mastersFile);
   case HOVC:
   case HIVC:
-    return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<GenericHVC, NodeData, EdgeData>(
+        inputFile, transpose);
 
   case CART_VCUT:
   case CART_VCUT_IEC:
-    return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<GenericCVC, NodeData, EdgeData>(
+        inputFile, transpose);
 
     // case CEC:
     //  return new Graph_customEdgeCut(inputFile, "", net.ID, net.Num,
@@ -170,20 +166,17 @@ constructSymmetricGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case GINGER_O:
   case GINGER_I:
-    return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<GingerP, NodeData, EdgeData>(
+        inputFile, transpose);
 
   case FENNEL_O:
   case FENNEL_I:
-    return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<FennelP, NodeData, EdgeData>(
+        inputFile, transpose);
 
   case SUGAR_O:
-    return galois::cuspPartitionGraph<SugarP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, true,
-        inputFileTranspose);
+    return galois::cuspPartitionSymmetricGraph<SugarP, NodeData, EdgeData>(
+        inputFile, transpose);
   default:
     GALOIS_DIE("partition scheme specified is invalid: ", partitionScheme);
     return DistGraphPtr<NodeData, EdgeData>(nullptr);
@@ -211,24 +204,24 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
   auto& net = galois::runtime::getSystemNetworkInterface();
   if (net.Num == 1) {
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
   }
 
   switch (partitionScheme) {
   case HASH:
     return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
   
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose, mastersFile);
   case IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR,
           inputFileTranspose, mastersFile);
     } else {
       GALOIS_DIE("incoming edge cut requires transpose graph");
@@ -237,12 +230,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case HOVC:
     return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
   case HIVC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR,
           inputFileTranspose);
     } else {
       GALOIS_DIE("incoming hybrid cut requires transpose graph");
@@ -251,13 +244,13 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case CART_VCUT:
     return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
 
   case CART_VCUT_IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericCVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR,
           inputFileTranspose);
     } else {
       GALOIS_DIE("cvc incoming cut requires transpose graph");
@@ -270,12 +263,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case GINGER_O:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
   case GINGER_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Ginger requires transpose graph");
@@ -284,12 +277,12 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case FENNEL_O:
     return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
   case FENNEL_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSR, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSR,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Fennel requires transpose graph");
@@ -298,7 +291,7 @@ constructGraph(std::vector<unsigned>& GALOIS_UNUSED(scaleFactor)) {
 
   case SUGAR_O:
     return galois::cuspPartitionGraph<SugarP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSR, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSR,
         inputFileTranspose);
 
   default:
@@ -330,7 +323,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   if (net.Num == 1) {
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC,
           inputFileTranspose);
     } else {
       fprintf(stderr, "WARNING: Loading transpose graph through in-memory "
@@ -338,7 +331,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
                       "graph with -graphTranspose to avoid unnecessary "
                       "overhead.\n");
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
           inputFileTranspose);
     }
   }
@@ -346,17 +339,17 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
   switch (partitionScheme) {
   case HASH:
     return galois::cuspPartitionGraph<Hash, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
   
   case OEC:
     return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose, mastersFile);
   case IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<NoCommunication, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC,
           inputFileTranspose, mastersFile);
     } else {
       GALOIS_DIE("iec requires transpose graph");
@@ -365,12 +358,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case HOVC:
     return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
   case HIVC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericHVC, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC,
           inputFileTranspose);
     } else {
       GALOIS_DIE("hivc requires transpose graph");
@@ -379,13 +372,13 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case CART_VCUT:
     return galois::cuspPartitionGraph<GenericCVCColumnFlip, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
   case CART_VCUT_IEC:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GenericCVCColumnFlip, NodeData,
                                         EdgeData>(inputFile, galois::CUSP_CSC,
-                                                  galois::CUSP_CSC, false,
+                                                  galois::CUSP_CSC,
                                                   inputFileTranspose);
     } else {
       GALOIS_DIE("cvc requires transpose graph");
@@ -394,12 +387,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case GINGER_O:
     return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
   case GINGER_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<GingerP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Ginger requires transpose graph");
@@ -408,12 +401,12 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case FENNEL_O:
     return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
   case FENNEL_I:
     if (inputFileTranspose.size()) {
       return galois::cuspPartitionGraph<FennelP, NodeData, EdgeData>(
-          inputFile, galois::CUSP_CSC, galois::CUSP_CSC, false,
+          inputFile, galois::CUSP_CSC, galois::CUSP_CSC,
           inputFileTranspose);
     } else {
       GALOIS_DIE("Fennel requires transpose graph");
@@ -422,7 +415,7 @@ DistGraphPtr<NodeData, EdgeData> constructGraph(std::vector<unsigned>&) {
 
   case SUGAR_O:
     return galois::cuspPartitionGraph<SugarColumnFlipP, NodeData, EdgeData>(
-        inputFile, galois::CUSP_CSR, galois::CUSP_CSC, false,
+        inputFile, galois::CUSP_CSR, galois::CUSP_CSC,
         inputFileTranspose);
 
   default:

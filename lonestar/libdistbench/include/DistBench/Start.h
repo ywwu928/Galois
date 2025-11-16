@@ -174,7 +174,7 @@ loadDistGraph(std::vector<unsigned>& scaleFactor) {
  */
 template <typename NodeData, typename EdgeData>
 static DistGraphPtr<NodeData, EdgeData>
-loadSymmetricDistGraph(std::vector<unsigned>& scaleFactor) {
+loadSymmetricDistGraph(std::vector<unsigned>& scaleFactor, bool pull) {
   galois::StatTimer dGraphTimer("GraphConstructTime", "DistBench");
   dGraphTimer.start();
 
@@ -182,7 +182,7 @@ loadSymmetricDistGraph(std::vector<unsigned>& scaleFactor) {
 
   // make sure that the symmetric graph flag was passed in
   if (symmetricGraph) {
-    loadedGraph = constructSymmetricGraph<NodeData, EdgeData>(scaleFactor);
+    loadedGraph = constructSymmetricGraph<NodeData, EdgeData>(scaleFactor, pull);
   } else {
     GALOIS_DIE("This application requires a symmetric graph input;"
                " please use the -symmetricGraph flag "
@@ -264,9 +264,9 @@ template <typename NodeData, typename EdgeData>
 std::pair<DistGraphPtr<NodeData, EdgeData>,
           DistSubstratePtr<NodeData, EdgeData>>
 #ifdef GALOIS_ENABLE_GPU
-symmetricDistGraphInitialization(struct CUDA_Context** cuda_ctx) {
+symmetricDistGraphInitialization(struct CUDA_Context** cuda_ctx, bool pull) {
 #else
-symmetricDistGraphInitialization() {
+symmetricDistGraphInitialization(bool pull) {
 #endif
   using Graph     = galois::graphs::DistGraph<NodeData, EdgeData>;
   using Substrate = galois::graphs::GluonSubstrate<Graph>;
@@ -277,7 +277,7 @@ symmetricDistGraphInitialization() {
 #ifdef GALOIS_ENABLE_GPU
   internal::heteroSetup(scaleFactor);
 #endif
-  g = loadSymmetricDistGraph<NodeData, EdgeData>(scaleFactor);
+  g = loadSymmetricDistGraph<NodeData, EdgeData>(scaleFactor, pull);
   // load substrate
   const auto& net = galois::runtime::getSystemNetworkInterface();
   s = std::make_unique<Substrate>(*g, net.ID, net.Num, g->isTransposed(),
