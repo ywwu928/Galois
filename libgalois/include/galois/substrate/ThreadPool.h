@@ -178,10 +178,10 @@ public:
   bool isRunning() const { return running; }
 
   //! return the number of non-reserved threads in the pool
-  unsigned getMaxUsableThreads() const { return mi.maxThreads - commThreadNum - reserved; }
+  unsigned getMaxUsableThreads() const { return mi.maxThreads - reserved; }
   //! return the number of threads supported by the thread pool on the current
   //! machine
-  unsigned getMaxThreads() const { return mi.maxThreads - commThreadNum; }
+  unsigned getMaxThreads() const { return mi.maxThreads; }
   unsigned getMaxCores() const { return mi.maxCores; }
   unsigned getMaxSockets() const { return mi.maxSockets; }
   unsigned getMaxNumaNodes() const { return mi.maxNumaNodes; }
