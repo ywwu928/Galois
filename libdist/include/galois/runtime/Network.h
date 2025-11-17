@@ -58,8 +58,6 @@ public:
   
   uint32_t workCount;
   size_t aggMsgSize;
-  size_t sendBufCount;
-  size_t recvBufCount;  
   
 protected:
   //! Initialize the MPI system. Should only be called once per process.
@@ -69,9 +67,6 @@ protected:
   void finalizeMPI();
 
 private:
-  std::vector<FixedSizeBufferAllocator> sendAllocators;
-  FixedSizeBufferAllocator recvAllocator;
-
   std::vector<uint8_t*> recvCommBuffer;
 
   unsigned numT;
@@ -206,6 +201,7 @@ private:
    */
   class sendBufferRemoteWork {
       NetworkInterface* net;
+      size_t aggMsgSize;
       unsigned tid;
 
       moodycamel::ReaderWriterQueue<uint8_t*> messages;
@@ -214,9 +210,9 @@ private:
       uint32_t msgCount;
 
   public:
-      sendBufferRemoteWork() : net(nullptr), tid(0), buf(nullptr), msgCount(0) {}
+      sendBufferRemoteWork() : net(nullptr), aggMsgSize(0), tid(0), buf(nullptr), msgCount(0) {}
 
-      void setNet(NetworkInterface* _net);
+      void setNet(NetworkInterface* _net, size_t _aggMsgSize);
       
       inline void setTID(unsigned _tid) {
           tid = _tid;

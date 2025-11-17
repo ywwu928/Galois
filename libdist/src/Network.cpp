@@ -38,14 +38,6 @@ constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
 cll::opt<uint32_t> workCountExp("workCountExp",
                                 cll::desc("The number of remote work in an aggregated message (exponent with base 2)"),
                                 cll::init(12));
-cll::opt<uint32_t> sendBufCountExp("sendBufCountExp",
-                                   cll::desc("The number of send buffers in the pool"),
-                                   cll::init(14));
-cll::opt<uint32_t> recvBufCountExp("recvBufCountExp",
-                                   cll::desc("The number of receive buffers in the pool"),
-                                   cll::init(16));
-//uint32_t sendBufCountExp = 26 - workCountExp;
-//uint32_t recvBufCountExp = 28 - workCountExp;
 
 namespace galois::runtime {
 
@@ -155,11 +147,12 @@ void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t 
     messages.enqueue(std::make_tuple(tag, data, dataLen));
 }
 
-void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
+void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net, size_t _aggMsgSize) {
     net = _net;
   
     // allocate new buffer
-    buf = net->sendAllocators[tid].allocate();
+    aggMsgSize = _aggMsgSize;
+    buf = (uint8_t*)malloc(aggMsgSize);
     __builtin_prefetch(buf, 1, 3);
 }
 
@@ -188,7 +181,7 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
         messages.enqueue(buf);
 
         // allocate new buffer
-        buf = net->sendAllocators[tid].allocate();
+        buf = (uint8_t*)malloc(aggMsgSize);
         __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
@@ -224,7 +217,7 @@ void NetworkInterface::sendWorkComplete() {
             MPI_Test(&f.req, &flag, &status);
             if (flag) {
                 // return buffer back to pool
-                sendAllocators[t].deallocate(f.buf);
+                free(f.buf);
                 sendInflightWork[t].pop_front();
             }
             else {
@@ -249,7 +242,7 @@ void NetworkInterface::sendWorkCompleteUntilEmpty() {
                 MPI_Test(&f.req, &flag, &status);
                 if (flag) {
                     // return buffer back to pool
-                    sendAllocators[t].deallocate(f.buf);
+                    free(f.buf);
                     sendInflightWork[t].pop_front();
                 }
                 else {
@@ -325,7 +318,7 @@ void NetworkInterface::recvProbeWork() {
         if (status.MPI_TAG ==  (int)remoteWorkTag) {
             // allocate new buffer
             uint8_t* buf;
-            buf = recvAllocator.allocate();
+            buf = (uint8_t*)malloc(aggMsgSize);
             __builtin_prefetch(buf, 1, 3);
 
             recvInflightWork.emplace_back(buf, nbytes);
@@ -508,8 +501,6 @@ void NetworkInterface::commThread() {
         *(recvCommBuffer[i]) = (uint8_t)0;
     }
     
-    recvAllocator.touch();
-    
     while (ready.load(std::memory_order_acquire) == 3) {
         while (ready.load(std::memory_order_acquire) == 3 && !flush.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
@@ -563,7 +554,7 @@ void NetworkInterface::commThread() {
                 sendPartialWork(0, h, partialBuf[h], partialBufLen[h]);
             }
             else {
-                sendAllocators[0].deallocate(partialBuf[h]);
+                free(partialBuf[h]);
             }
 
             // send work termination
@@ -644,18 +635,11 @@ void NetworkInterface::commThread() {
 
 NetworkInterface::NetworkInterface()
     : workCount(1 << workCountExp),
-      aggMsgSize(workSize * workCount),
-      sendBufCount(1 << sendBufCountExp),
-      recvBufCount(1 << recvBufCountExp) {
+      aggMsgSize(workSize * workCount) {
     ready.store(0, std::memory_order_release);
     initializeMPI();
     comm = std::thread(&NetworkInterface::commThread, this);
     numT = galois::getActiveThreads();
-    sendAllocators = decltype(sendAllocators)(numT);
-    for (unsigned t=0; t<numT; t++) {
-        sendAllocators[t].setup(aggMsgSize, sendBufCount);
-    }
-    recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready.load(std::memory_order_acquire) != 1) {};
 
     flush.store(false, std::memory_order_relaxed);
@@ -675,7 +659,7 @@ NetworkInterface::NetworkInterface()
     }
     for (unsigned i=0; i<Num; i++) {
         for (unsigned t=0; t<numT; t++) {
-            sendRemoteWork[i][t].setNet(this);
+            sendRemoteWork[i][t].setNet(this, aggMsgSize);
             sendRemoteWork[i][t].setTID(t);
         }
     }
@@ -757,10 +741,6 @@ void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
         }
         recvCommBuffer[i] = (uint8_t*)ptr;
     }
-}
-
-void NetworkInterface::deallocateRecvBuffer(uint8_t* buf) {
-    recvAllocator.deallocate(buf);
 }
 
 void NetworkInterface::handleReceives() {
@@ -860,7 +840,7 @@ void NetworkInterface::flushRemoteWork() {
             continue;
         }
         
-        uint8_t* aggBuf = sendAllocators[0].allocate();
+        uint8_t* aggBuf = (uint8_t*)malloc(aggMsgSize);
         __builtin_prefetch(aggBuf, 1, 3);
         uint32_t aggMsgCount = 0;
         uint32_t remainWorkCount = workCount;
@@ -888,7 +868,7 @@ void NetworkInterface::flushRemoteWork() {
 
                     sendRemoteWork[h][0].enqueue(aggBuf);
                     
-                    aggBuf = sendAllocators[0].allocate();
+                    aggBuf = (uint8_t*)malloc(aggMsgSize);
                     __builtin_prefetch(aggBuf, 1, 3);
                     
                     aggMsgCount = 0;
@@ -902,7 +882,7 @@ void NetworkInterface::flushRemoteWork() {
 
                     sendRemoteWork[h][0].enqueue(aggBuf);
 
-                    aggBuf = sendAllocators[0].allocate();
+                    aggBuf = (uint8_t*)malloc(aggMsgSize);
                     __builtin_prefetch(aggBuf, 1, 3);
 
                     aggMsgCount = msgCount - remainWorkCount;
@@ -960,8 +940,6 @@ void NetworkInterface::signalDataTermination(uint32_t dest) {
 
 void NetworkInterface::touchBufferPool() {
     galois::on_each([&](unsigned tid, unsigned) {
-        sendAllocators[tid].touch();
-
         for (unsigned i=0; i<Num; i++) {
             sendRemoteWork[i][tid].touchBuf();
         }

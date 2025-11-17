@@ -1301,7 +1301,7 @@ public:
                             FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                         }
                         
-                        net.deallocateRecvBuffer(buf);
+                        free(buf);
                     }
                 }
             }
@@ -1347,7 +1347,7 @@ public:
                             }
                         }
                         
-                        net.deallocateRecvBuffer(buf);
+                        free(buf);
                     }
                 }
             }
@@ -1393,7 +1393,7 @@ public:
                             }
                         }
                         
-                        net.deallocateRecvBuffer(buf);
+                        free(buf);
                     }
                 }
             }
