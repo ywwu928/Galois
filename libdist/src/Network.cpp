@@ -157,7 +157,9 @@ void NetworkInterface::sendBufferData::push(uint32_t tag, uint8_t* data, size_t 
 
 void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
     net = _net;
-  
+}
+
+void NetworkInterface::sendBufferRemoteWork::setBuf() {
     // allocate new buffer
     buf = net->sendAllocators[tid].allocate();
     __builtin_prefetch(buf, 1, 3);
@@ -707,6 +709,19 @@ NetworkInterface::~NetworkInterface() {
         }
         
         free(recvCommBuffer[i]);
+    }
+}
+
+void NetworkInterface::allocateBufferPool() {
+    for (unsigned t=0; t<numT; t++) {
+        sendAllocators[t].allocateRegions();
+    }
+    recvAllocator.allocateRegions();
+
+    for (unsigned i=0; i<Num; i++) {
+        for (unsigned t=0; t<numT; t++) {
+            sendRemoteWork[i][t].setBuf();
+        }
     }
 }
 
