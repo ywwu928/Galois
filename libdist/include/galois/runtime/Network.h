@@ -222,6 +222,8 @@ private:
           tid = _tid;
       }
 
+      void setBuf();
+
       inline uint8_t* getBuf() {
           return buf;
       }
@@ -342,6 +344,8 @@ public:
    * Destructor destroys MPI (if it exists).
    */
   ~NetworkInterface();
+
+  void allocateBufferPool();
 
   inline void forwardPass() {
       ready.store(3, std::memory_order_release);

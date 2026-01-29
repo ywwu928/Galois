@@ -566,6 +566,8 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
 
+  net.allocateBufferPool();
+
   galois::runtime::getHostBarrier().wait();
   net.forwardPass();
 
