@@ -468,6 +468,8 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t, false>();
 
+  net.allocateBufferPool();
+
   bitset_dist_current.resize(hg->size());
 
   // accumulators for use in operators

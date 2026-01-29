@@ -535,6 +535,8 @@ int main(int argc, char** argv) {
   std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
   //std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, uint32_t, false>();
 
+  net.allocateBufferPool();
+
   bitset_comp_current.resize(hg->actualSize());
 
   galois::runtime::getHostBarrier().wait();
