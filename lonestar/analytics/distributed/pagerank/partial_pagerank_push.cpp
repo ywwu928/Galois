@@ -422,6 +422,8 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
+  net.allocateBufferPool();
+
   hg->sortEdgesByDestination();
 
   galois::runtime::getHostBarrier().wait();

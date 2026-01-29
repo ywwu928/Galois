@@ -1074,7 +1074,7 @@ public:
 
         bufferPool.reserve(bufferCount);
         factor = 1;
-        allocateRegions();
+        //allocateRegions();
         alloc = true;
     }
 
@@ -1115,7 +1115,6 @@ public:
         }
     }
 
-private:
     void allocateRegions() {
         // allocate new regions
         for (uint32_t i=0; i<factor; i++) {
@@ -1135,6 +1134,7 @@ private:
         factor = factor << 1;
     }
     
+private:
     void freeRegions() {
         // free the regions
         for (auto region : regions) {

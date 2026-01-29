@@ -361,6 +361,8 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
 
+  net.allocateBufferPool();
+
   hg->sortEdgesByDestination();
 
   galois::runtime::getHostBarrier().wait();

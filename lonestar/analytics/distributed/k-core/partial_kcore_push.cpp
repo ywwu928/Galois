@@ -382,6 +382,8 @@ int main(int argc, char** argv) {
 
   std::unique_ptr<Graph> h_graph;
   std::tie(h_graph, syncSubstrate) = symmetricDistGraphInitialization<NodeData, void, uint32_t>();
+
+  net.allocateBufferPool();
   
   h_graph->sortEdgesByDestination();
 
