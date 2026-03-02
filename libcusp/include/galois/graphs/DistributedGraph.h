@@ -428,13 +428,13 @@ protected:
 
     // loop 6 more times
     for (unsigned i = 0; i < 6; i++) {
-      token = strtok(NULL, " ");
+      token = strtok(nullptr, " ");
     }
     std::string left(token);
 
     // 3 more times for right
     for (unsigned i = 0; i < 3; i++) {
-      token = strtok(NULL, " ");
+      token = strtok(nullptr, " ");
     }
     std::string right(token);
 

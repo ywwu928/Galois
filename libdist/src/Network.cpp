@@ -60,7 +60,7 @@ uint32_t getHostNum() { return NetworkInterface::Num; }
 void NetworkInterface::initializeMPI() {
     int supportProvided;
     int initSuccess =
-        MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &supportProvided);
+        MPI_Init_thread(nullptr, nullptr, MPI_THREAD_MULTIPLE, &supportProvided);
     if (initSuccess != MPI_SUCCESS) {
         MPI_Abort(MPI_COMM_WORLD, initSuccess);
     }

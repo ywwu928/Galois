@@ -60,7 +60,7 @@ TimeAccumulator& TimeAccumulator::operator+=(const Timer& rhs) {
 
 StatTimer::StatTimer(const char* const name, const char* const region) {
   const char* n = name ? name : "Time";
-  const char* r = region ? region : "(NULL)";
+  const char* r = region ? region : "(nullptr)";
 
   name_   = gstl::makeStr(n);
   region_ = gstl::makeStr(r);

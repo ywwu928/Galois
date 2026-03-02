@@ -614,7 +614,7 @@ public:
    * Perform an in-memory transpose of the graph, replacing the original
    * CSR to CSC
    */
-  void transpose(const char* regionName = NULL) {
+  void transpose(const char* regionName = nullptr) {
     galois::StatTimer timer("TIMER_GRAPH_TRANSPOSE", regionName);
     timer.start();
 

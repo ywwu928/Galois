@@ -492,7 +492,7 @@ public:
     size_t alignedSize = (size + sizeof(double) - 1) & ~(sizeof(double) - 1);
     if (sizeof(Block) + alignedSize > SourceHeap::AllocSize) {
       void* p = malloc(alignedSize + sizeof(Block));
-      refill(p, fallbackHead, NULL);
+      refill(p, fallbackHead, nullptr);
       return (char*)p + sizeof(Block);
     }
     // Check current block
@@ -1118,7 +1118,7 @@ public:
     void allocateRegions() {
         // allocate new regions
         for (uint32_t i=0; i<factor; i++) {
-            void* region = mmap(NULL, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED | MAP_POPULATE, -1, 0);
+            void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED | MAP_POPULATE, -1, 0);
             if (region == MAP_FAILED) {
                 alloc = false;
                 break;

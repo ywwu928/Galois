@@ -182,7 +182,7 @@ public:
       n.next = popChunk();
       if (n.next && !n.next->empty())
         return &n.next->back();
-      return NULL;
+      return nullptr;
     } else {
       if (n.cur && !n.cur->empty())
         return &n.cur->front();
@@ -195,7 +195,7 @@ public:
       }
       if (n.cur && !n.cur->empty())
         return &n.cur->front();
-      return NULL;
+      return nullptr;
     }
   }
 

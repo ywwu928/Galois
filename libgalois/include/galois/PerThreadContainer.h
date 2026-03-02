@@ -64,12 +64,12 @@ struct WLindexer {
 
   PerThrdCont* wl;
 
-  WLindexer() : wl(NULL) {}
+  WLindexer() : wl(nullptr) {}
 
   WLindexer(PerThrdCont& _wl) : wl(&_wl) {}
 
   Ret_ty& operator()(unsigned i) const {
-    assert(wl != NULL);
+    assert(wl != nullptr);
     assert(i < wl->numRows());
     return const_cast<Ret_ty&>(wl->get(i));
   }
@@ -141,7 +141,7 @@ class OuterPerThreadWLIter
   }
 
 public:
-  OuterPerThreadWLIter() : workList(NULL), row(0) {}
+  OuterPerThreadWLIter() : workList(nullptr), row(0) {}
 
   OuterPerThreadWLIter(PerThrdCont& wl, const GlobalPos& pos)
       : workList(&wl), row(0) {
@@ -283,14 +283,14 @@ private:
   void destroy() {
     for (unsigned i = 0; i < perThrdCont.size(); ++i) {
       delete *perThrdCont.getRemote(i);
-      *perThrdCont.getRemote(i) = NULL;
+      *perThrdCont.getRemote(i) = nullptr;
     }
   }
 
 protected:
   PerThreadContainer() : perThrdCont() {
     for (unsigned i = 0; i < perThrdCont.size(); ++i) {
-      *perThrdCont.getRemote(i) = NULL;
+      *perThrdCont.getRemote(i) = nullptr;
     }
   }
 

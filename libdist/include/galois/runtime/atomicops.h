@@ -627,7 +627,7 @@ namespace moodycamel
 				// Note: In an ISR context, if this causes a task to unblock,
 				// the caller won't know about it
 				if (xPortIsInsideInterrupt())
-					return xSemaphoreTakeFromISR(m_sema, NULL) == pdTRUE;
+					return xSemaphoreTakeFromISR(m_sema, nullptr) == pdTRUE;
 				return xSemaphoreTake(m_sema, 0) == pdTRUE;
 			}
 
@@ -646,7 +646,7 @@ namespace moodycamel
 				// the caller won't know about it
 				BaseType_t rc;
 				if (xPortIsInsideInterrupt())
-					rc = xSemaphoreGiveFromISR(m_sema, NULL);
+					rc = xSemaphoreGiveFromISR(m_sema, nullptr);
 				else
 					rc = xSemaphoreGive(m_sema);
 				assert(rc == pdTRUE);
