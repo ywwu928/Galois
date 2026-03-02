@@ -159,7 +159,7 @@ public:
    */
   NewDistGraphGeneric(
       const std::string& filename, unsigned host, unsigned _numHosts,
-      bool cuspAsync = true, uint32_t stateRounds = 100, bool transpose = false,
+      bool cuspAsync = true, uint32_t stateRounds = 100,
       // galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
       galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
       uint32_t nodeWeight = 0, uint32_t edgeWeight = 0,
@@ -338,15 +338,7 @@ public:
       base_DistGraph::numNodesWithEdges = base_DistGraph::numNodes;
     }
 
-    if (transpose) {
-      base_DistGraph::transposed        = true;
-      base_DistGraph::numNodesWithEdges = base_DistGraph::numNodes;
-      if (base_DistGraph::numNodes > 0) {
-        // consider all nodes to have outgoing edges (TODO better way to do
-        // this?) for now it's fine I guess
-        base_DistGraph::graph.transpose(GRNAME);
-      }
-    }
+    base_DistGraph::graph.constructIncoming(GRNAME);
 
     galois::CondStatTimer<MORE_DIST_STATS> Tthread_ranges("ThreadRangesTime",
                                                           GRNAME);

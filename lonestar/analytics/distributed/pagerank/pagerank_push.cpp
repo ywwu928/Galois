@@ -253,8 +253,8 @@ struct PageRank {
 
       active_vertices += 1; // this should be moved to Pagerank_delta operator
 
-      for (auto nbr : graph->edges(src)) {
-        GNode dst       = graph->getEdgeDst(nbr);
+      for (auto nbr : graph->outEdges(src)) {
+        GNode dst       = graph->getOutEdgeDst(nbr);
         if (graph->isPhantom(dst)) {
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
             //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);

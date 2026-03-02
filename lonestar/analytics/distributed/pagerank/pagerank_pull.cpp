@@ -111,22 +111,21 @@ struct InitializeGraph {
     // init graph
     ResetGraph::go(_graph);
 
-    auto& allNodes = _graph.allNodesRange();
+    const auto& presentNodes = _graph.presentNodesRange();
 
     // doing a local do all because we are looping over edges
     galois::do_all(
-        galois::iterate(allNodes), InitializeGraph{&_graph},
+        galois::iterate(presentNodes), InitializeGraph{&_graph},
         galois::steal(), galois::no_stats());
   }
 
   // Calculate "outgoing" edges for destination nodes (note we are using
   // the tranpose graph for pull algorithms)
   void operator()(GNode src) const {
-    for (auto nbr : graph->edges(src)) {
-      GNode dst   = graph->getEdgeDst(nbr);
-      auto& ddata = graph->getData(dst);
-      galois::atomicAdd(ddata.nout, (uint32_t)1);
-    }
+    NodeData& sdata = graph->getData(src);
+    uint32_t num_edges =
+        std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
+    galois::atomicAdd(sdata.nout, num_edges);
   }
 };
 
@@ -182,17 +181,17 @@ struct PageRankPresent {
   }
 
   // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode src) const {
-    // source node must be master or mirror
-    auto& sdata = graph->getData(src);
+  void operator()(GNode dst) const {
+    // destination node must be master or mirror
+    auto& ddata = graph->getData(dst);
 
-    for (auto nbr : graph->edges(src)) {
-        GNode dst   = graph->getEdgeDst(nbr);
-        // destination node must be masters
-        auto& ddata = graph->getData(dst);
+    for (auto nbr : graph->inEdges(dst)) {
+        GNode src   = graph->getInEdgeSrc(nbr);
+        // source node must be masters
+        auto& sdata = graph->getData(src);
 
-        if (ddata.delta > 0) {
-            galois::add(sdata.residual, ddata.delta);
+        if (sdata.delta > 0) {
+            galois::add(ddata.residual, sdata.delta);
         }
     }
   }
@@ -215,23 +214,23 @@ struct PageRankPhantom {
   }
 
   // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode src) const {
-    // source node must be phantom
+  void operator()(GNode dst) const {
+    // destination node must be phantom
     // create register for phantom node data
-    float sresidual = 0;
+    float dresidual = 0;
     
-    for (auto nbr : graph->edges(src)) {
-        GNode dst   = graph->getEdgeDst(nbr);
-        // destination node must be masters
-        auto& ddata = graph->getData(dst);
+    for (auto nbr : graph->inEdges(dst)) {
+        GNode src   = graph->getInEdgeSrc(nbr);
+        // source node must be masters
+        auto& sdata = graph->getData(src);
 
-        if (ddata.delta > 0) {
-            sresidual = sresidual + ddata.delta;
+        if (sdata.delta > 0) {
+            dresidual = dresidual + sdata.delta;
         }
     }
 
-    if (sresidual != 0) {
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+    if (dresidual != 0) {
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), dresidual);
     }
   }
 };
@@ -276,16 +275,22 @@ struct PageRankSep {
       syncSubstrate->set_num_round(_num_iterations);
 
       dga.reset();
+
+      galois::gPrint("Host ", _net.ID, " : point 1\n");
       
       StatTimer_delta.start();
       PageRank_delta::go(_graph, dga);
       StatTimer_delta.stop();
+      galois::gPrint("Host ", _net.ID, " : point 2\n");
 
       _net.prefetchBuffers();
+      galois::gPrint("Host ", _net.ID, " : point 3\n");
 
       StatTimer_compute.start();
       PageRankPresent::go(_graph);
+      galois::gPrint("Host ", _net.ID, " : point 4\n");
       PageRankPhantom::go(_graph);
+      galois::gPrint("Host ", _net.ID, " : point 5\n");
       StatTimer_compute.stop();
 
       // inform all other hosts that this host has finished sending messages
@@ -293,12 +298,15 @@ struct PageRankSep {
       StatTimer_flush.start();
       _net.flushRemoteWork();
       StatTimer_flush.stop();
+      galois::gPrint("Host ", _net.ID, " : point 6\n");
 
       StatTimer_comm.start();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
       StatTimer_comm.stop();
+      galois::gPrint("Host ", _net.ID, " : point 7\n");
       
       _net.resetWorkTermination();
+      galois::gPrint("Host ", _net.ID, " : point 8\n");
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)_graph.sizeEdges());
 
@@ -387,35 +395,35 @@ struct PageRankAll {
   }
 
   // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode src) const {
+  void operator()(GNode dst) const {
     // source node can be master, mirror or phantom
-    if (graph->isPhantom(src)) {
+    if (graph->isPhantom(dst)) {
         // create register for phantom node data
-        float sresidual = 0;
+        float dresidual = 0;
         
-        for (auto nbr : graph->edges(src)) {
-            GNode dst   = graph->getEdgeDst(nbr);
+        for (auto nbr : graph->inEdges(dst)) {
+            GNode src   = graph->getInEdgeSrc(nbr);
             // destination node must be masters
-            auto& ddata = graph->getData(dst);
+            auto& sdata = graph->getData(src);
 
-            if (ddata.delta > 0) {
-                sresidual = sresidual + ddata.delta;
+            if (sdata.delta > 0) {
+                dresidual = dresidual + sdata.delta;
             }
         }
 
-        if (sresidual != 0) {
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(src), graph->getPhantomRemoteLID(src), sresidual);
+        if (dresidual != 0) {
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), dresidual);
         }
     } else {
-        auto& sdata = graph->getData(src);
+        auto& ddata = graph->getData(dst);
 
-        for (auto nbr : graph->edges(src)) {
-            GNode dst   = graph->getEdgeDst(nbr);
+        for (auto nbr : graph->inEdges(dst)) {
+            GNode src   = graph->getInEdgeSrc(nbr);
             // destination node must be masters
-            auto& ddata = graph->getData(dst);
+            auto& sdata = graph->getData(src);
 
-            if (ddata.delta > 0) {
-                galois::add(sdata.residual, ddata.delta);
+            if (sdata.delta > 0) {
+                galois::add(ddata.residual, sdata.delta);
             }
         }
     }

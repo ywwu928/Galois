@@ -100,26 +100,16 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
   if (!symmetricGraph) {
     // out edges or in edges
     std::string inputToUse;
-    // depending on output type may need to transpose edges
-    bool useTranspose;
 
     // see what input is specified
     if (inputType == CUSP_CSR) {
       inputToUse = graphFile;
-      if (outputType == CUSP_CSR) {
-        useTranspose = false;
-      } else if (outputType == CUSP_CSC) {
-        useTranspose = true;
-      } else {
+      if (outputType != CUSP_CSR && outputType != CUSP_CSC) {
         GALOIS_DIE("CuSP output graph type is invalid");
       }
     } else if (inputType == CUSP_CSC) {
       inputToUse = transposeGraphFile;
-      if (outputType == CUSP_CSR) {
-        useTranspose = true;
-      } else if (outputType == CUSP_CSC) {
-        useTranspose = false;
-      } else {
+      if (outputType != CUSP_CSR && outputType != CUSP_CSC) {
         GALOIS_DIE("CuSP output graph type is invalid");
       }
     } else {
@@ -127,13 +117,13 @@ cuspPartitionGraph(std::string graphFile, CUSP_GRAPH_TYPE inputType,
     }
 
     return std::make_unique<DistGraphConstructor>(
-        inputToUse, net.ID, net.Num, cuspAsync, cuspStateRounds, useTranspose,
+        inputToUse, net.ID, net.Num, cuspAsync, cuspStateRounds,
         readPolicy, nodeWeight, edgeWeight, masterBlockFile);
   } else {
     // symmetric graph path: assume the passed in graphFile is a symmetric
     // graph; output is also symmetric
     return std::make_unique<DistGraphConstructor>(
-        graphFile, net.ID, net.Num, cuspAsync, cuspStateRounds, false,
+        graphFile, net.ID, net.Num, cuspAsync, cuspStateRounds,
         readPolicy, nodeWeight, edgeWeight, masterBlockFile);
   }
 }
