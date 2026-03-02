@@ -82,8 +82,6 @@ cll::opt<std::string> mastersFile("mastersFile",
                                   cll::desc("File specifying masters blocking"),
                                   cll::init(""), cll::Hidden);
 
-int mirrorThreshold = 1;
-
 cll::opt<uint32_t> stopThreshold("stopThreshold",
                                  cll::desc("Threshold to stop sweeping memory overhead"),
                                  cll::init(1));

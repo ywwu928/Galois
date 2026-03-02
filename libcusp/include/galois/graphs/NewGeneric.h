@@ -159,7 +159,6 @@ public:
    */
   NewDistGraphGeneric(
       const std::string& filename, unsigned host, unsigned _numHosts,
-      int mirrorThreshold,
       bool cuspAsync = true, uint32_t stateRounds = 100, bool transpose = false,
       // galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_EDGES_OF_MASTERS,
       galois::graphs::MASTERS_DISTRIBUTION md = BALANCED_MASTERS_AND_EDGES,
@@ -271,7 +270,7 @@ public:
       base_DistGraph::numOwned = nodeEnd - nodeBegin;
       uint64_t edgeOffset      = *bufGraph.edgeBegin(nodeBegin);
       // edge prefix sum, no comm required
-      edgeCutInspection(bufGraph, mirrorThreshold, inspectionTimer, edgeOffset, prefixSumOfEdges);
+      edgeCutInspection(bufGraph, inspectionTimer, edgeOffset, prefixSumOfEdges);
     }
     // inspection timer is stopped in edgeInspection function
 
@@ -1479,7 +1478,6 @@ private:
   }
 
   void edgeCutInspection(galois::graphs::BufferedGraph<EdgeTy>& bufGraph,
-                         int mirrorThreshold,
                          galois::StatTimer& inspectionTimer,
                          uint64_t edgeOffset,
                          galois::gstl::Vector<uint64_t>& prefixSumOfEdges) {
@@ -1554,29 +1552,22 @@ private:
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
 
-    if (mirrorThreshold == 0) { // full mirroring
-        partialMirrorCount = fullMirrorCount;
-    }
-    else if (mirrorThreshold < 0) { // no mirroring
-        partialMirrorCount = 0;
-    }
-    else {
-        galois::GAccumulator<uint32_t> partialMirrorAccumulator;
-        partialMirrorAccumulator.reset();
-      
-        galois::on_each([&](unsigned tid, unsigned nthreads) {
-            size_t beginNode;
-            size_t endNode;
-            std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
-            for (size_t i = beginNode; i < endNode; i++) {
-                if (incomingDegree[i] > (uint32_t)mirrorThreshold) {
-                    partialMirrorAccumulator += 1;
-                }
+    const uint32_t mirrorThreshold = 1;
+    galois::GAccumulator<uint32_t> partialMirrorAccumulator;
+    partialMirrorAccumulator.reset();
+  
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        size_t beginNode;
+        size_t endNode;
+        std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
+        for (size_t i = beginNode; i < endNode; i++) {
+            if (incomingDegree[i] > mirrorThreshold) {
+                partialMirrorAccumulator += 1;
             }
-        });
+        }
+    });
 
-        partialMirrorCount = partialMirrorAccumulator.reduce();
-    }
+    partialMirrorCount = partialMirrorAccumulator.reduce();
     uint32_t phantomCount = fullMirrorCount - partialMirrorCount;
 
     base_DistGraph::localToGlobalVector.resize(base_DistGraph::localToGlobalVector.size() + fullMirrorCount);
@@ -1656,7 +1647,7 @@ private:
             uint64_t phantom_count = 0;
             for (size_t i = beginNode; i < endNode; i++) {
                 if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] > (uint32_t)mirrorThreshold)
+                    if (incomingDegree[i] > mirrorThreshold)
                         ++mirror_count;
                     else
                         ++phantom_count;
@@ -1689,7 +1680,7 @@ private:
             uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
                 if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] > (uint32_t)mirrorThreshold) {
+                    if (incomingDegree[i] > mirrorThreshold) {
                       base_DistGraph::localToGlobalVector[startingNodeIndex +
                                                           threadStartLocation +
                                                           handledNodes] = i;
@@ -1720,7 +1711,7 @@ private:
             uint32_t handledNodes = 0;
             for (size_t i = beginNode; i < endNode; i++) {
                 if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] <= (uint32_t)mirrorThreshold) {
+                    if (incomingDegree[i] <= mirrorThreshold) {
                       base_DistGraph::localToGlobalVector[startingNodeIndex +
                                                           threadStartLocation +
                                                           handledNodes] = i;
