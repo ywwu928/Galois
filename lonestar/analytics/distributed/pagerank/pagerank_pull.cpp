@@ -569,7 +569,7 @@ int main(int argc, char** argv) {
   net.allocateBufferPool();
 
   galois::runtime::getHostBarrier().wait();
-  net.forwardPass();
+  net.partitionDone();
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
