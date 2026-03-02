@@ -526,7 +526,7 @@ public:
       }                                                                        \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {      \
+    static bool reduce_atomic(struct NodeData& node, ValTy y) {                \
       {                                                                        \
         galois::atomicAdd(node.fieldname, y);                                  \
         return true;                                                           \
@@ -1262,7 +1262,7 @@ public:
       { return y < galois::min(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t, struct NodeData& node, ValTy y) {      \
+    static bool reduce_atomic(struct NodeData& node, ValTy y) {                \
       { return y < galois::atomicMin(node.fieldname, y); }                     \
     }                                                                          \
                                                                                \
@@ -1448,8 +1448,7 @@ public:
       { return y > galois::max(node.fieldname, y); }                           \
     }                                                                          \
                                                                                \
-    static bool reduce_atomic(uint32_t, struct NodeData& node,                 \
-                       ValTy y) {                                              \
+    static bool reduce_atomic(struct NodeData& node, ValTy y) {                \
       { return y > galois::atomicMax(node.fieldname, y); }                     \
     }                                                                          \
                                                                                \

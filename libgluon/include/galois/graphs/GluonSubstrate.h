@@ -35,6 +35,7 @@
 #include <sstream>
 
 #include "galois/runtime/GlobalObj.h"
+#include "galois/DReducible.h"
 #include "galois/runtime/DistStats.h"
 #include "galois/runtime/SyncStructures.h"
 #include "galois/runtime/DataCommMode.h"
@@ -1301,6 +1302,98 @@ public:
                             FnTy::reduce_atomic_void(userGraph.getData(lid), val);
                         }
                         
+                        net.deallocateRecvBuffer(buf);
+                    }
+                }
+            }
+        );
+    }
+
+    template<typename FnTy>
+    void poll_for_remote_work_active(galois::DGAccumulator<unsigned int>& active_vertices) {
+        std::atomic<bool> terminateFlag;
+        terminateFlag.store(false, std::memory_order_release);
+
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
+
+                uint32_t msgCount;
+
+                uint32_t lid;
+                ValTy val;
+                bool update;
+
+                while(!terminateFlag.load(std::memory_order_acquire)) {
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+
+                    if (success) { // received message
+                        if (fullFlag) {
+                            msgCount = net.workCount;
+                        }
+                        else {
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                        }
+
+                        for (uint32_t i=0; i<msgCount; i++) {
+                            lid = *((uint32_t*)buf + (i << 1));
+                            val = *((ValTy*)buf + (i << 1) + 1);
+                            update = FnTy::reduce_atomic(userGraph.getData(lid), val);
+
+                            if (update) {
+                                active_vertices += 1;
+                            }
+                        }
+
+                        net.deallocateRecvBuffer(buf);
+                    }
+                }
+            }
+        );
+    }
+
+    template<typename FnTy>
+    void poll_for_remote_work_bitset(galois::DynamicBitSet& bitset) {
+        std::atomic<bool> terminateFlag;
+        terminateFlag.store(false, std::memory_order_release);
+
+        galois::on_each(
+            [&](unsigned, unsigned) {
+                bool success;
+                bool fullFlag;
+                uint8_t* buf;
+                size_t bufLen;
+
+                uint32_t msgCount;
+
+                uint32_t lid;
+                ValTy val;
+                bool update;
+
+                while(!terminateFlag.load(std::memory_order_acquire)) {
+                    success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
+
+                    if (success) { // received message
+                        if (fullFlag) {
+                            msgCount = net.workCount;
+                        }
+                        else {
+                            msgCount = *((uint32_t*)(buf + bufLen - sizeof(uint32_t)));
+                        }
+
+                        for (uint32_t i=0; i<msgCount; i++) {
+                            lid = *((uint32_t*)buf + (i << 1));
+                            val = *((ValTy*)buf + (i << 1) + 1);
+                            update = FnTy::reduce_atomic(userGraph.getData(lid), val);
+
+                            if (update) {
+                                bitset.set(lid);
+                            }
+                        }
+
                         net.deallocateRecvBuffer(buf);
                     }
                 }
