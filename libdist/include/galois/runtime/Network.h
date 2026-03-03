@@ -321,7 +321,6 @@ private:
   
   void recvProbeData();
   void recvProbeWorkComm();
-  void recvProbeComm();
   void recvProbeDataTermination();
 
   std::vector<MPI_Request> inflightTermination;

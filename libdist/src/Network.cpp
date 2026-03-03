@@ -398,7 +398,6 @@ void NetworkInterface::recvProbeWorkComm() {
             }
             
             recvInflightWork.pop_front();
-
             return;
         }
         else {
@@ -413,39 +412,6 @@ void NetworkInterface::recvProbeWorkComm() {
         }
     }
     
-    if (!recvInflightComm.empty()) {
-        MPI_Request* req  = recvInflightComm.front();
-        flag = 0;
-        MPI_Test(req, &flag, &status);
-        if (flag) {
-            recvCommunication.add(status.MPI_SOURCE);
-            free(req);
-            recvInflightComm.pop_front();
-        }
-        else {
-            recvInflightComm.push_back(req);
-            recvInflightComm.pop_front();
-        }
-    }
-}
-
-void NetworkInterface::recvProbeComm() {
-    int flag = 0;
-    MPI_Status status;
-    // check for new messages
-    MPI_Iprobe(MPI_ANY_SOURCE, communicationTag, comm_comm, &flag, &status);
-    if (flag) {
-        int nbytes;
-        MPI_Get_count(&status, MPI_BYTE, &nbytes);
-
-        __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-
-        MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
-        recvInflightComm.push_back(req);
-        MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
-    }
-
-    // complete messages
     if (!recvInflightComm.empty()) {
         MPI_Request* req  = recvInflightComm.front();
         flag = 0;
@@ -770,7 +736,7 @@ NetworkInterface::NetworkInterface()
 }
 
 NetworkInterface::~NetworkInterface() {
-    ready = 5;
+    ready.store(5, std::memory_order_release);
     comm.join();
   
     finalizeMPI();
@@ -1018,7 +984,7 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
   
 void NetworkInterface::excludeHostWorkTermination() {
     hostWorkTerminationBase += 1;
-    hostWorkTerminationCount += 1;
+    hostWorkTerminationCount.fetch_add(1, std::memory_order_relaxed);
 }
   
 void NetworkInterface::resetWorkTermination() {
