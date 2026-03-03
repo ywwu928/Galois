@@ -276,21 +276,15 @@ struct PageRankSep {
 
       dga.reset();
 
-      galois::gPrint("Host ", _net.ID, " : point 1\n");
-      
       StatTimer_delta.start();
       PageRank_delta::go(_graph, dga);
       StatTimer_delta.stop();
-      galois::gPrint("Host ", _net.ID, " : point 2\n");
 
       _net.prefetchBuffers();
-      galois::gPrint("Host ", _net.ID, " : point 3\n");
 
       StatTimer_compute.start();
       PageRankPresent::go(_graph);
-      galois::gPrint("Host ", _net.ID, " : point 4\n");
       PageRankPhantom::go(_graph);
-      galois::gPrint("Host ", _net.ID, " : point 5\n");
       StatTimer_compute.stop();
 
       // inform all other hosts that this host has finished sending messages
@@ -298,15 +292,13 @@ struct PageRankSep {
       StatTimer_flush.start();
       _net.flushRemoteWork();
       StatTimer_flush.stop();
-      galois::gPrint("Host ", _net.ID, " : point 6\n");
 
       StatTimer_comm.start();
+      _net.flushCommunication();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
       StatTimer_comm.stop();
-      galois::gPrint("Host ", _net.ID, " : point 7\n");
       
       _net.resetWorkTermination();
-      galois::gPrint("Host ", _net.ID, " : point 8\n");
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)_graph.sizeEdges());
 
@@ -381,6 +373,7 @@ struct PageRankAll {
       StatTimer_flush.stop();
 
       StatTimer_comm.start();
+      _net.flushCommunication();
       syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
       StatTimer_comm.stop();
       
