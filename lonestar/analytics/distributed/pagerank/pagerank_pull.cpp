@@ -167,22 +167,22 @@ struct PageRank_delta {
   }
 };
 
-struct PageRankPresent {
+struct PageRankMaster {
   Graph* graph;
 
-  PageRankPresent(Graph* _graph) : graph(_graph) {}
+  PageRankMaster(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-      const auto& presentNodes = _graph.presentNodesRange();
+      const auto& masterNodes = _graph.masterNodesRange();
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(presentNodes), PageRankPresent{&_graph},
+          galois::iterate(masterNodes), PageRankMaster{&_graph},
           galois::steal(), galois::no_stats());
   }
 
   // Pull deltas from neighbor nodes, then add to self-residual
   void operator()(GNode dst) const {
-    // destination node must be master or mirror
+    // destination node must be master
     auto& ddata = graph->getData(dst);
 
     for (auto nbr : graph->inEdges(dst)) {
@@ -197,26 +197,26 @@ struct PageRankPresent {
   }
 };
 
-struct PageRankPhantom {
+struct PageRankRemote {
   Graph* graph;
 
   galois::runtime::NetworkInterface& net;
 
-  PageRankPhantom(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
+  PageRankRemote(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
-      const auto& phantomNodes = _graph.phantomNodesRange();
+      const auto& remoteNodes = _graph.remoteNodesRange();
 
       // launch all other threads to compute
       galois::do_all(
-          galois::iterate(phantomNodes), PageRankPhantom{&_graph},
+          galois::iterate(remoteNodes), PageRankRemote{&_graph},
           galois::steal(), galois::no_stats());
   }
 
   // Pull deltas from neighbor nodes, then add to self-residual
   void operator()(GNode dst) const {
-    // destination node must be phantom
-    // create register for phantom node data
+    // destination node must be remote
+    // create register for remote node data
     float dresidual = 0;
     
     for (auto nbr : graph->inEdges(dst)) {
@@ -230,7 +230,7 @@ struct PageRankPhantom {
     }
 
     if (dresidual != 0) {
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), dresidual);
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
     }
   }
 };
@@ -283,8 +283,8 @@ struct PageRankSep {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      PageRankPresent::go(_graph);
-      PageRankPhantom::go(_graph);
+      PageRankMaster::go(_graph);
+      PageRankRemote::go(_graph);
       StatTimer_compute.stop();
 
       // inform all other hosts that this host has finished sending messages
@@ -390,8 +390,20 @@ struct PageRankAll {
   // Pull deltas from neighbor nodes, then add to self-residual
   void operator()(GNode dst) const {
     // source node can be master, mirror or phantom
-    if (graph->isPhantom(dst)) {
-        // create register for phantom node data
+    if (graph->isOwned(dst)) {
+        auto& ddata = graph->getData(dst);
+
+        for (auto nbr : graph->inEdges(dst)) {
+            GNode src   = graph->getInEdgeSrc(nbr);
+            // destination node must be masters
+            auto& sdata = graph->getData(src);
+
+            if (sdata.delta > 0) {
+                galois::add(ddata.residual, sdata.delta);
+            }
+        }
+    } else {
+        // create register for remote node data
         float dresidual = 0;
         
         for (auto nbr : graph->inEdges(dst)) {
@@ -405,19 +417,7 @@ struct PageRankAll {
         }
 
         if (dresidual != 0) {
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), dresidual);
-        }
-    } else {
-        auto& ddata = graph->getData(dst);
-
-        for (auto nbr : graph->inEdges(dst)) {
-            GNode src   = graph->getInEdgeSrc(nbr);
-            // destination node must be masters
-            auto& sdata = graph->getData(src);
-
-            if (sdata.delta > 0) {
-                galois::add(ddata.residual, sdata.delta);
-            }
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
         }
     }
   }

@@ -214,6 +214,33 @@ private:
           },
           galois::no_stats());
     }
+
+    // send off the mirror master nodes
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      galois::runtime::SendBuffer b;
+      gSerialize(b, masterNodes[x]);
+      net.sendTagged(x, galois::runtime::evilPhase, b);
+    }
+    
+    // receive the mirror remote nodes
+    std::vector<std::vector<size_t>> mirrorRemoteNodes;
+    mirrorRemoteNodes.resize(numHosts);
+    for (unsigned x = 0; x < numHosts; ++x) {
+      if (x == id)
+        continue;
+
+      decltype(net.receiveTagged(galois::runtime::evilPhase)) p;
+      do {
+        p = net.receiveTagged(galois::runtime::evilPhase);
+      } while (!p);
+
+      galois::runtime::gDeserialize(p->second, mirrorRemoteNodes[p->first]);
+    }
+    
+    incrementEvilPhase();
     
     // send off the phantom nodes
     for (unsigned x = 0; x < numHosts; ++x) {
@@ -296,7 +323,7 @@ private:
     
     incrementEvilPhase();
 
-    userGraph.constructPhantomLocalToRemoteVector(phantomRemoteNodes);
+    userGraph.constructLocalToRemoteVector(mirrorRemoteNodes, phantomRemoteNodes);
   }
 
   /**

@@ -257,9 +257,9 @@ struct PageRank {
         GNode dst       = graph->getOutEdgeDst(nbr);
         if (graph->isPhantom(dst)) {
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
-            //uint32_t& remoteLID = graph->getPhantomRemoteLID(dst);
+            //uint32_t& remoteLID = graph->getRemoteLID(dst);
             //unsigned tid = galois::substrate::ThreadPool::getTID();
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getPhantomRemoteLID(dst), _delta);
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), _delta);
         }
         else {
             NodeData& ddata = graph->getData(dst);

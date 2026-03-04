@@ -70,21 +70,17 @@ private:
   // vector for determining range objects for master nodes + nodes
   // with edges (which includes masters)
   //! represents split of all nodes among threads to balance edges
-  std::vector<uint32_t> allNodesRanges;
+  std::vector<uint32_t> allRanges;
   //! represents split of present nodes (master + mirror) among threads
-  std::vector<uint32_t> presentNodesRanges;
+  std::vector<uint32_t> presentRanges;
   //! represents split of master nodes among threads
   std::vector<uint32_t> masterRanges;
   //! represents split of mirror nodes among threads
   std::vector<uint32_t> mirrorRanges;
   //! represents split of phantom nodes among threads
   std::vector<uint32_t> phantomRanges;
-  
-  std::vector<uint32_t> allNodesRangesReserved;
-  std::vector<uint32_t> presentNodesRangesReserved;
-  std::vector<uint32_t> masterRangesReserved;
-  std::vector<uint32_t> mirrorRangesReserved;
-  std::vector<uint32_t> phantomRangesReserved;
+  //! represents split of remote nodes (mirror + phantom) among threads
+  std::vector<uint32_t> remoteRanges;
   
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
@@ -137,8 +133,8 @@ protected:
   
   //! Host ID = localHostVector[LID]
   std::vector<uint32_t> localHostVector;
-  //! Remote LID = phantomLocalToRemote[LID]
-  std::vector<uint32_t> phantomLocalToRemoteVector;
+  //! Remote LID = localToRemote[LID]
+  std::vector<uint32_t> localToRemoteVector;
 
   //! Increments evilPhase, a phase counter used by communication.
   void inline increment_evilPhase() {
@@ -537,15 +533,6 @@ public:
 
     return mirrorRangesVector;
   }
-  
-  std::vector<std::pair<uint32_t, uint32_t>> getPhantomRanges() const {
-    std::vector<std::pair<uint32_t, uint32_t>> phantomRangesVector;
-    if (numActualNodes != numNodes) {
-      assert(numActualNodes < numNodes);
-      phantomRangesVector.push_back(std::make_pair(numActualNodes, numNodes));
-    }
-    return phantomRangesVector;
-  }
 
   std::vector<std::vector<size_t>>& getMirrorNodes() { return mirrorNodes; }
   std::vector<std::vector<size_t>>& getPhantomNodes() { return phantomNodes; }
@@ -622,18 +609,24 @@ public:
    */
   inline uint32_t getLID(const uint64_t nodeID) const { return G2L(nodeID); }
 
-  void constructPhantomLocalToRemoteVector(std::vector<std::vector<size_t>>& phantomRemoteNodes) {
-      phantomLocalToRemoteVector.resize(numNodes - numActualNodes);
+  void constructLocalToRemoteVector(std::vector<std::vector<size_t>>& mirrorRemoteNodes, std::vector<std::vector<size_t>>& phantomRemoteNodes) {
+      localToRemoteVector.resize(numNodes - numOwned);
+
+      for (uint32_t i=0; i<numHosts; i++) {
+          for (size_t j=0; j<mirrorRemoteNodes[i].size(); j++) {
+              localToRemoteVector[mirrorNodes[i][j] - numOwned] = mirrorRemoteNodes[i][j];
+          }
+      }
 
       for (uint32_t i=0; i<numHosts; i++) {
           for (size_t j=0; j<phantomRemoteNodes[i].size(); j++) {
-              phantomLocalToRemoteVector[phantomNodes[i][j] - numActualNodes] = phantomRemoteNodes[i][j];
+              localToRemoteVector[phantomNodes[i][j] - numOwned] = phantomRemoteNodes[i][j];
           }
       }
   }
   
-  inline uint32_t& getPhantomRemoteLID(const uint32_t phantomLID) {
-      return phantomLocalToRemoteVector[phantomLID - numActualNodes];
+  inline uint32_t& getRemoteLID(const uint32_t LID) {
+      return localToRemoteVector[LID - numOwned];
   }
 
   /**
@@ -843,49 +836,15 @@ public:
   inline const NodeRangeType& phantomNodesRange() const {
     return specificRanges[4];
   }
-  
-  inline const NodeRangeType& allNodesRangeReserved() const {
-    return specificRanges[5];
-  }
 
   /**
-   * Returns a range object that encapsulates both master and mirror nodes in this
+   * Returns a range object that encapsulates both mirror and phantom nodes in this
    * graph.
    *
-   * @returns A range object that contains both the master and mirror nodes in this graph
+   * @returns A range object that contains both the mirror and phantom nodes in this graph
    */
-  inline const NodeRangeType& presentNodesRangeReserved() const {
-    return specificRanges[6];
-  }
-  
-  /**
-   * Returns a range object that encapsulates only master nodes in this
-   * graph.
-   *
-   * @returns A range object that contains the master nodes in this graph
-   */
-  inline const NodeRangeType& masterNodesRangeReserved() const {
-    return specificRanges[7];
-  }
-  
-  /**
-   * Returns a range object that encapsulates only mirror nodes in this
-   * graph.
-   *
-   * @returns A range object that contains the mirror nodes in this graph
-   */
-  inline const NodeRangeType& mirrorNodesRangeReserved() const {
-    return specificRanges[8];
-  }
-  
-  /**
-   * Returns a range object that encapsulates only phantom nodes in this
-   * graph.
-   *
-   * @returns A range object that contains the phantom nodes in this graph
-   */
-  inline const NodeRangeType& phantomNodesRangeReserved() const {
-    return specificRanges[9];
+  inline const NodeRangeType& remoteNodesRange() const {
+    return specificRanges[5];
   }
   
   /**
@@ -914,8 +873,8 @@ protected:
    * The call uses binary search to determine the ranges.
    */
   void determineThreadRanges() {
-    assert(allNodesRanges.size() != 0);
-    allNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum());
+    assert(allRanges.size() != 0);
+    allRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum());
   }
 
   /**
@@ -926,8 +885,8 @@ protected:
    */
   void determineThreadRangesPresent() {
     // make sure this hasn't been called before
-    assert(presentNodesRanges.size() == 0);
-    presentNodesRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
+    assert(presentRanges.size() == 0);
+    presentRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
   }
 
   /**
@@ -966,29 +925,16 @@ protected:
     phantomRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
 
-  void determineThreadRangesReserved(uint32_t reserved) {
-    assert(allNodesRangesReserved.size() != 0);
-    allNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum());
-  }
-  
-  void determineThreadRangesPresentReserved(uint32_t reserved) {
-    assert(presentNodesRangesReserved.size() != 0);
-    presentNodesRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
-  }
-  
-  void determineThreadRangesMasterReserved(uint32_t reserved) {
-    assert(masterRangesReserved.size() != 0);
-    masterRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
-  }
-  
-  void determineThreadRangesMirrorReserved(uint32_t reserved) {
-    assert(mirrorRangesReserved.size() != 0);
-    mirrorRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
-  }
-  
-  void determineThreadRangesPhantomReserved(uint32_t reserved) {
-    assert(phantomRangesReserved.size() != 0);
-    phantomRangesReserved = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads() - reserved, graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
+  /**
+   * Determines the thread ranges for remote nodes only and saves them to
+   * the object.
+   *
+   * Only call after graph is constructed + only call once
+   */
+  void determineThreadRangesRemote() {
+    // make sure this hasn't been called before
+    assert(remoteRanges.size() == 0);
+    remoteRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numNodes, 0);
   }
 
   /**
@@ -999,23 +945,24 @@ protected:
     assert(specificRanges.size() == 0);
     // TODO/FIXME assertion likely not safe if a host gets no nodes
     // make sure the thread ranges have already been calculated
-    // for the 5 ranges
-    assert(allNodesRanges.size() != 0);
-    assert(presentNodesRanges.size() != 0);
+    // for the 6 ranges
+    assert(allRanges.size() != 0);
+    assert(presentRanges.size() != 0);
     assert(masterRanges.size() != 0);
     assert(mirrorRanges.size() != 0);
     assert(phantomRanges.size() != 0);
+    assert(remoteRanges.size() != 0);
 
     // 0 is all nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(0),
-        boost::counting_iterator<size_t>(size()), allNodesRanges.data()));
+        boost::counting_iterator<size_t>(size()), allRanges.data()));
 
-    // 1 is master nodes
+    // 1 is present nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(beginMaster),
         boost::counting_iterator<size_t>(beginMaster + numActualNodes),
-        presentNodesRanges.data()));
+        presentRanges.data()));
 
     // 2 is master nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
@@ -1034,43 +981,14 @@ protected:
         boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
         phantomRanges.data()));
-    
-    assert(allNodesRangesReserved.size() != 0);
-    assert(presentNodesRangesReserved.size() != 0);
-    assert(masterRangesReserved.size() != 0);
-    assert(mirrorRangesReserved.size() != 0);
-    assert(phantomRangesReserved.size() != 0);
-    
-    // 5 is all nodes reserved
-    specificRanges.push_back(galois::runtime::makeSpecificRange(
-        boost::counting_iterator<size_t>(0),
-        boost::counting_iterator<size_t>(size()), allNodesRangesReserved.data()));
-
-    // 6 is master nodes reserved
-    specificRanges.push_back(galois::runtime::makeSpecificRange(
-        boost::counting_iterator<size_t>(beginMaster),
-        boost::counting_iterator<size_t>(beginMaster + numActualNodes),
-        presentNodesRangesReserved.data()));
-
-    // 7 is master nodes reserved
-    specificRanges.push_back(galois::runtime::makeSpecificRange(
-        boost::counting_iterator<size_t>(beginMaster),
-        boost::counting_iterator<size_t>(beginMaster + numOwned),
-        masterRangesReserved.data()));
-
-	// 8 is mirror nodes reserved
+	
+    // 5 is remote nodes
     specificRanges.push_back(galois::runtime::makeSpecificRange(
         boost::counting_iterator<size_t>(numOwned),
-        boost::counting_iterator<size_t>(numActualNodes),
-        mirrorRangesReserved.data()));
-	
-    // 9 is phantom nodes reserved
-    specificRanges.push_back(galois::runtime::makeSpecificRange(
-        boost::counting_iterator<size_t>(numActualNodes),
         boost::counting_iterator<size_t>(numNodes),
-        phantomRangesReserved.data()));
+        remoteRanges.data()));
     
-    assert(specificRanges.size() == 5);
+    assert(specificRanges.size() == 6);
   }
 
 public:
