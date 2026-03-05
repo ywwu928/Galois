@@ -71,7 +71,7 @@ typedef typename Graph::GraphNode GNode;
 
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
 
-#include "pagerank_pull_sync.hh"
+#include "pagerank_sync.hh"
 
 /******************************************************************************/
 /* Algorithm structures */

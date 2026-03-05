@@ -66,7 +66,7 @@ typedef GNode WorkItem;
 
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
 
-#include "pagerank_push_sync.hh"
+#include "pagerank_sync.hh"
 
 /******************************************************************************/
 /* Algorithm structures */
