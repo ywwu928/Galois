@@ -66,6 +66,8 @@ struct NodeData {
   float delta;
 };
 
+galois::DynamicBitSet bitset_residual;
+
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
 
@@ -111,11 +113,11 @@ struct InitializeGraph {
     // init graph
     ResetGraph::go(_graph);
 
-    const auto& presentNodes = _graph.presentNodesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
 
     // doing a local do all because we are looping over edges
     galois::do_all(
-        galois::iterate(presentNodes), InitializeGraph{&_graph},
+        galois::iterate(masterNodes), InitializeGraph{&_graph},
         galois::steal(), galois::no_stats());
   }
 
@@ -144,9 +146,9 @@ struct PageRank_delta {
         graph(_graph), active_vertices(_dga) {}
 
   void static go(Graph& _graph, DGTerminatorDetector& dga) {
-    const auto& presentNodes = _graph.presentNodesRange();
+    const auto& masterNodes = _graph.masterNodesRange();
     galois::do_all(
-        galois::iterate(presentNodes.begin(), presentNodes.end()),
+        galois::iterate(masterNodes),
         PageRank_delta{alpha, tolerance, &_graph, dga}, galois::no_stats());
   }
 
