@@ -129,18 +129,21 @@ struct PageRank_delta {
   const float& local_alpha;
   cll::opt<float>& local_tolerance;
   Graph* graph;
+  
+  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
+  DGTerminatorDetector& active_vertices;
 
   PageRank_delta(const float& _local_alpha, cll::opt<float>& _local_tolerance,
-                 Graph* _graph)
+                 Graph* _graph, DGTerminatorDetector& _dga)
       : local_alpha(_local_alpha), local_tolerance(_local_tolerance),
-        graph(_graph) {}
+        graph(_graph), active_vertices(_dga) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, DGTerminatorDetector& _dga) {
     const auto& masterNodes = _graph.masterNodesRange();
 
     galois::do_all(
         galois::iterate(masterNodes),
-        PageRank_delta{alpha, tolerance, &_graph}, galois::no_stats());
+        PageRank_delta{alpha, tolerance, &_graph, _dga}, galois::no_stats());
   }
 
   void operator()(WorkItem src) const {
@@ -153,6 +156,7 @@ struct PageRank_delta {
       if (residual_old > this->local_tolerance) {
         if (sdata.nout > 0) {
           sdata.delta = residual_old * (1 - local_alpha) / sdata.nout;
+          active_vertices += 1;
         }
       }
     }
@@ -161,14 +165,11 @@ struct PageRank_delta {
 
 struct PageRank {
   Graph* graph;
-  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
-
-  DGTerminatorDetector& active_vertices;
-
+  
   galois::runtime::NetworkInterface& net;
 
-  PageRank(Graph* _g, DGTerminatorDetector& _dga)
-      : graph(_g), active_vertices(_dga), net(galois::runtime::getSystemNetworkInterface()) {}
+  PageRank(Graph* _g)
+      : graph(_g), net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -181,6 +182,7 @@ struct PageRank {
 
     const auto& masterNodes = _graph.masterNodesRange();
 
+    using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
     DGTerminatorDetector dga;
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
@@ -214,14 +216,14 @@ struct PageRank {
       StatTimer_reset.stop();
       
       StatTimer_delta.start();
-      PageRank_delta::go(_graph);
+      PageRank_delta::go(_graph, dga);
       StatTimer_delta.stop();
 
       _net.prefetchBuffers();
 
       // launch all other threads to compute
       StatTimer_compute.start();
-      galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, dga},
+      galois::do_all(galois::iterate(masterNodes), PageRank{&_graph},
                      galois::no_stats(), galois::steal());
       StatTimer_compute.stop();
 
@@ -250,8 +252,6 @@ struct PageRank {
     if (sdata.delta > 0) {
       float _delta = sdata.delta;
       sdata.delta  = 0;
-
-      active_vertices += 1; // this should be moved to Pagerank_delta operator
 
       for (auto nbr : graph->outEdges(src)) {
         GNode dst       = graph->getOutEdgeDst(nbr);
