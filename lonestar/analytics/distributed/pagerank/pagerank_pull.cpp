@@ -147,6 +147,7 @@ struct PageRank_delta {
 
   void static go(Graph& _graph, DGTerminatorDetector& dga) {
     const auto& masterNodes = _graph.masterNodesRange();
+
     galois::do_all(
         galois::iterate(masterNodes),
         PageRank_delta{alpha, tolerance, &_graph, dga}, galois::no_stats());

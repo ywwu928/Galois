@@ -148,17 +148,17 @@ struct PageRank_delta {
 
   void operator()(WorkItem src) const {
     NodeData& sdata = graph->getData(src);
+    sdata.delta = 0;
 
     if (sdata.residual > 0) {
-      float residual_old = sdata.residual;
-      sdata.residual     = 0;
-      sdata.value += residual_old;
-      if (residual_old > this->local_tolerance) {
+      sdata.value += sdata.residual;
+      if (sdata.residual > this->local_tolerance) {
         if (sdata.nout > 0) {
-          sdata.delta = residual_old * (1 - local_alpha) / sdata.nout;
+          sdata.delta = sdata.residual * (1 - local_alpha) / sdata.nout;
           active_vertices += 1;
         }
       }
+      sdata.residual = 0;
     }
   }
 };
@@ -250,21 +250,18 @@ struct PageRank {
   void operator()(WorkItem src) const {
     NodeData& sdata = graph->getData(src);
     if (sdata.delta > 0) {
-      float _delta = sdata.delta;
-      sdata.delta  = 0;
-
       for (auto nbr : graph->outEdges(src)) {
         GNode dst       = graph->getOutEdgeDst(nbr);
         if (graph->isPhantom(dst)) {
             //uint32_t& hostID = graph->getHostIDForLocal(dst);
             //uint32_t& remoteLID = graph->getRemoteLID(dst);
             //unsigned tid = galois::substrate::ThreadPool::getTID();
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), _delta);
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), sdata.delta);
         }
         else {
             NodeData& ddata = graph->getData(dst);
 
-            galois::atomicAddVoid(ddata.residual, _delta);
+            galois::atomicAddVoid(ddata.residual, sdata.delta);
 
             bitset_residual.set(dst);
         }
