@@ -994,7 +994,8 @@ private:
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
     net.flushCommunication();
 
-    poll_for_remote_work<ReduceFnTy>();
+    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
+    poll_for_remote_work_bitset<ReduceFnTy>(bitset_compute);
 
     syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
   }

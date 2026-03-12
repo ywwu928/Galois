@@ -99,6 +99,12 @@ public:
   size_t size() const { return num_bits; }
 
   /**
+   * Gets the size of the vector in bytes
+   * @returns The number of bytes held by the vector
+   */
+  size_t byte_size() const { return ((num_bits + bits_uint64 - 1) / bits_uint64) * (bits_uint64 / 8); }
+
+  /**
    * Gets the space taken by the bitset
    * @returns the space in bytes taken by this bitset
    */
@@ -108,6 +114,11 @@ public:
    * Unset every bit in the bitset.
    */
   void reset() { std::fill(bitvec.begin(), bitvec.end(), 0); }
+
+  /**
+   * Set every bit in the bitset.
+   */
+  void set_all() { std::fill(bitvec.begin(), bitvec.end(), UINT64_MAX); }
 
   /**
    * Unset a range of bits given an inclusive range
