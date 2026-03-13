@@ -333,15 +333,8 @@ public:
     galois::do_all(
         galois::iterate(bitvec.begin(), bitvec.end()),
         [&](uint64_t n) {
-#ifdef __GNUC__
-          ret += __builtin_popcountll(n);
-#else
-          n = n - ((n >> 1) & 0x5555555555555555UL);
-          n = (n & 0x3333333333333333UL) + ((n >> 2) & 0x3333333333333333UL);
-          ret +=
-              (((n + (n >> 4)) & 0xF0F0F0F0F0F0F0FUL) * 0x101010101010101UL) >>
-              56;
-#endif
+          ret += std::popcount(n);
+          //ret += __builtin_popcountll(n);
         },
         galois::no_stats());
     return ret.reduce();

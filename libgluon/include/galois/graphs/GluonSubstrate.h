@@ -846,11 +846,19 @@ private:
 
             unsigned int count = 0;
             size_t threadOffset = bufOffset + start * sizeof(uint8_t);
-            for (unsigned int i = start; i < end; ++i) {
+            unsigned int index = start;
+            while (index <= end - 8) {
+                uint64_t bit = *((uint64_t*)(bufPtr + threadOffset));
+                threadOffset += sizeof(uint64_t);
+                count += std::popcount(bit);
+                index += 8;
+            }
+            while (index < end) {
                 uint8_t bit = *((uint8_t*)(bufPtr + threadOffset));
                 threadOffset += sizeof(uint8_t);
                 if (bit == (uint8_t)1)
                     ++count;
+                index++;
             }
 
             t_prefix_bit_counts[tid] = count;
