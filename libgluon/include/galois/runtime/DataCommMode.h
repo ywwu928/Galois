@@ -30,7 +30,7 @@
 
 //! Enumeration of data communication modes that can be used in synchronization
 //! @todo document the enums in doxygen
-enum DataCommMode {
+enum DataCommMode : uint64_t {
   noData, //!< send no data
   bitsetData,
   offsetsData,
@@ -55,7 +55,7 @@ extern DataCommMode enforcedDataMode;
  * @returns an appropriate DataCommMode to use for synchronization
  */
 template <typename DataType>
-DataCommMode get_data_mode(size_t num_selected, size_t num_total) {
+DataCommMode get_data_mode(uint32_t num_selected, uint32_t num_total) {
   DataCommMode data_mode = noData;
   if (enforcedDataMode != noData) {
     data_mode = enforcedDataMode;
@@ -65,8 +65,8 @@ DataCommMode get_data_mode(size_t num_selected, size_t num_total) {
     } else if (num_selected == num_total) {
       data_mode = onlyData;
     } else {
-      size_t bitsetSize = num_total * sizeof(uint8_t);
-      size_t offsetsSize = sizeof(size_t) + num_selected * sizeof(uint32_t);
+      size_t bitsetSize = ((num_total + 63u) >> 6) << 3;
+      size_t offsetsSize = sizeof(uint32_t) + num_selected * sizeof(uint32_t);
       // find the minimum size one
       if (bitsetSize < offsetsSize) {
         data_mode = bitsetData;
