@@ -72,7 +72,7 @@ struct InitializeGraph {
     const auto& masterNodes = _graph.masterNodesRange();
 
     galois::do_all(
-        galois::iterate(presentNodes),
+        galois::iterate(masterNodes),
         InitializeGraph{&_graph}, galois::no_stats());
   }
 
