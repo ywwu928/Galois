@@ -189,16 +189,16 @@ struct ConnectedComp {
   void operator()(GNode src) const {
     if (active_bitset_ptr->test(src)) {
       NodeData& snode = graph->getData(src);
-      uint32_t new_dist = snode.comp_current;
+      uint32_t new_comp = snode.comp_current;
       
       for (auto jj : graph->outEdges(src)) {
         GNode dst         = graph->getOutEdgeDst(jj);
         if (graph->isPhantom(dst)) {
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_dist);
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_comp);
         }
         else {
             auto& dnode       = graph->getData(dst);
-            bool dirty = galois::atomicMinBool(dnode.comp_current, new_dist);
+            bool dirty = galois::atomicMinBool(dnode.comp_current, new_comp);
             if (dirty) {
                 dirty_bitset_ptr->set(dst);
             }
