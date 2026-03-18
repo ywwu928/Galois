@@ -492,11 +492,13 @@ int main(int argc, char** argv) {
 
   net.allocateBufferPool();
 
-  bitset_comp_current_odd.resize(hg->actualSize());
-  bitset_comp_current_even.resize(hg->actualSize());
+  hg->sortEdgesByDestination();
 
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
+
+  bitset_comp_current_odd.resize(hg->actualSize());
+  bitset_comp_current_even.resize(hg->actualSize());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
