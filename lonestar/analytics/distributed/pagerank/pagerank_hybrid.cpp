@@ -464,7 +464,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
   net.allocateBufferPool();
 
