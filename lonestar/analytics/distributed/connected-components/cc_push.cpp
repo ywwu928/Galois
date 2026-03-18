@@ -265,10 +265,8 @@ std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
 /* Main */
 /******************************************************************************/
 
-constexpr static const char* const name = "ConnectedComp - Distributed "
-                                          "Heterogeneous with filter.";
-constexpr static const char* const desc =
-    "ConnectedComp on Distributed Galois.";
+constexpr static const char* const name = "Distributed Connected Components (Push)";
+constexpr static const char* const desc = "Distributed Connected Components (Push)";
 constexpr static const char* const url = nullptr;
 
 int main(int argc, char** argv) {

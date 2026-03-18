@@ -349,10 +349,8 @@ std::vector<float> makeResults(std::unique_ptr<Graph>& hg) {
 /* Main */
 /******************************************************************************/
 
-constexpr static const char* const name = "PageRank - Compiler Generated "
-                                          "Distributed Heterogeneous";
-constexpr static const char* const desc = "Residual PageRank on Distributed "
-                                          "Galois.";
+constexpr static const char* const name = "Distributed Pagerank (Push)";
+constexpr static const char* const desc = "Distributed Pagerank (Push)";
 constexpr static const char* const url = 0;
 
 int main(int argc, char** argv) {
