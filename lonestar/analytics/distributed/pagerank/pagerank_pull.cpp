@@ -171,14 +171,19 @@ struct PageRankMaster {
   void operator()(GNode dst) const {
     auto& ddata = graph->getData(dst);
 
+    bool dirty = false;
     for (auto nbr : graph->inEdges(dst)) {
         GNode src   = graph->getInEdgeSrc(nbr);
 
         if (bitset_delta.test(src)) {
             auto& sdata = graph->getData(src);
             galois::addVoid(ddata.residual, sdata.delta);
-            bitset_residual.set(dst);
+            dirty = true;
         }
+    }
+
+    if (dirty) {
+        bitset_residual.set(dst);
     }
   }
 };
