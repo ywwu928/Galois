@@ -71,7 +71,7 @@ struct InitializeGraph {
   void static go(Graph& _graph) {
     const auto& presentNodes = _graph.presentNodesRange();
     galois::do_all(
-        galois::iterate(presentNodes.begin(), presentNodes.end()),
+        galois::iterate(presentNodes),
         InitializeGraph{&_graph}, galois::no_stats());
   }
 
@@ -191,8 +191,6 @@ struct ConnectedComp {
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
       std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
@@ -211,13 +209,10 @@ struct ConnectedComp {
 
       StatTimer_compute.start();
       ConnectedCompRemote::go(_graph);
+      _net.flushRemoteWork();
       bitset_comp_current_odd.reset();
       ConnectedCompMaster::go(_graph);
       StatTimer_compute.stop();
-
-      StatTimer_flush.start();
-      _net.flushRemoteWork();
-      StatTimer_flush.stop();
 
       StatTimer_comm.start();
       _net.flushCommunication();
@@ -257,8 +252,7 @@ struct ConnectedCompSanityCheck {
   void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
     dga.reset();
 
-    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                   _graph.masterNodesRange().end()),
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
                      ConnectedCompSanityCheck(&_graph, dga), galois::no_stats());
 
     uint64_t num_components = dga.reduce();
