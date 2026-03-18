@@ -46,14 +46,6 @@ static cll::opt<unsigned int>
                   cll::desc("Maximum iterations: Default 1000"),
                   cll::init(1000));
 
-enum IterMode { All, Separate };
-
-static cll::opt<IterMode> iterMode(
-    "iterMode", cll::desc("Iterate Mode (default value Separate):"),
-    cll::values(clEnumVal(All, "iterate through all nodes"),
-                clEnumVal(Separate, "iterate through present nodes first and then phantom nodes")),
-    cll::init(Separate));
-
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
 /******************************************************************************/
@@ -61,12 +53,12 @@ static cll::opt<IterMode> iterMode(
 static const float alpha = (1.0 - 0.85);
 struct NodeData {
   float value;
-  std::atomic<uint32_t> nout;
-  std::atomic<float> residual;
   float delta;
+  std::atomic<float> residual;
 };
 
 galois::DynamicBitSet bitset_residual;
+galois::DynamicBitSet bitset_delta;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
@@ -79,123 +71,53 @@ std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
 /* Algorithm structures */
 /******************************************************************************/
 
-/* (Re)initialize all fields to 0 except for residual which needs to be 0.15
- * everywhere */
-struct ResetGraph {
-  const float& local_alpha;
-  Graph* graph;
-
-  ResetGraph(const float& _local_alpha, Graph* _graph)
-      : local_alpha(_local_alpha), graph(_graph) {}
-
-  void static go(Graph& _graph) {
-    const auto& presentNodes = _graph.presentNodesRange();
-    galois::do_all(
-        galois::iterate(presentNodes.begin(), presentNodes.end()),
-        ResetGraph{alpha, &_graph}, galois::no_stats());
-  }
-
-  void operator()(GNode src) const {
-    auto& sdata    = graph->getData(src);
-    sdata.value    = 0;
-    sdata.nout     = 0;
-    sdata.delta    = 0;
-    sdata.residual = local_alpha;
-  }
-};
-
 struct InitializeGraph {
   Graph* graph;
 
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    // init graph
-    ResetGraph::go(_graph);
-
-    const auto& masterNodes = _graph.masterNodesRange();
-
-    // doing a local do all because we are looping over edges
-    galois::do_all(
-        galois::iterate(masterNodes), InitializeGraph{&_graph},
-        galois::steal(), galois::no_stats());
-  }
-
-  // Calculate "outgoing" edges for destination nodes (note we are using
-  // the tranpose graph for pull algorithms)
-  void operator()(GNode src) const {
-    NodeData& sdata = graph->getData(src);
-    uint32_t num_edges =
-        std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
-    galois::atomicAdd(sdata.nout, num_edges);
-  }
-};
-
-struct PageRank_delta {
-  const float& local_alpha;
-  cll::opt<float>& local_tolerance;
-  Graph* graph;
-
-  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
-
-  DGTerminatorDetector& active_vertices;
-
-  PageRank_delta(const float& _local_alpha, cll::opt<float>& _local_tolerance,
-                 Graph* _graph, DGTerminatorDetector& _dga)
-      : local_alpha(_local_alpha), local_tolerance(_local_tolerance),
-        graph(_graph), active_vertices(_dga) {}
-
-  void static go(Graph& _graph, DGTerminatorDetector& dga) {
     const auto& masterNodes = _graph.masterNodesRange();
 
     galois::do_all(
         galois::iterate(masterNodes),
-        PageRank_delta{alpha, tolerance, &_graph, dga}, galois::no_stats());
+        InitializeGraph{&_graph}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
-    auto& sdata = graph->getData(src);
-    sdata.delta = 0;
-
-    if (sdata.residual > 0) {
-      sdata.value += sdata.residual;
-      if (sdata.residual > this->local_tolerance) {
-        if (sdata.nout > 0) {
-          sdata.delta = sdata.residual * (1 - local_alpha) / sdata.nout;
-          active_vertices += 1;
-        }
-      }
-      sdata.residual = 0;
-    }
+    NodeData& sdata = graph->getData(src);
+    sdata.value    = 0;
+    sdata.delta    = 0;
+    sdata.residual = alpha;
   }
 };
 
-struct PageRankMaster {
+struct PageRank_delta {
   Graph* graph;
 
-  PageRankMaster(Graph* _graph) : graph(_graph) {}
+  PageRank_delta(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-      const auto& masterNodes = _graph.masterNodesRange();
-      // launch all other threads to compute
-      galois::do_all(
-          galois::iterate(masterNodes), PageRankMaster{&_graph},
-          galois::steal(), galois::no_stats());
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes),
+        PageRank_delta{&_graph}, galois::no_stats());
   }
 
-  // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode dst) const {
-    // destination node must be master
-    auto& ddata = graph->getData(dst);
+  void operator()(GNode src) const {
+    if (bitset_residual.test(src)) {
+      auto& sdata = graph->getData(src);
 
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-        // source node must be masters
-        auto& sdata = graph->getData(src);
-
-        if (sdata.delta > 0) {
-            galois::add(ddata.residual, sdata.delta);
+      sdata.value += sdata.residual;
+      if (sdata.residual > tolerance) {
+        uint32_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+        if (nout > 0) {
+          sdata.delta = sdata.residual * (1 - alpha) / nout;
+          bitset_delta.set(src);
         }
+      }
+      sdata.residual = 0;
     }
   }
 };
@@ -210,24 +132,19 @@ struct PageRankRemote {
   void static go(Graph& _graph) {
       const auto& remoteNodes = _graph.remoteNodesRange();
 
-      // launch all other threads to compute
       galois::do_all(
           galois::iterate(remoteNodes), PageRankRemote{&_graph},
           galois::steal(), galois::no_stats());
   }
 
-  // Pull deltas from neighbor nodes, then add to self-residual
   void operator()(GNode dst) const {
-    // destination node must be remote
-    // create register for remote node data
     float dresidual = 0;
     
     for (auto nbr : graph->inEdges(dst)) {
         GNode src   = graph->getInEdgeSrc(nbr);
-        // source node must be masters
-        auto& sdata = graph->getData(src);
 
-        if (sdata.delta > 0) {
+        if (bitset_delta.test(src)) {
+            auto& sdata = graph->getData(src);
             dresidual = dresidual + sdata.delta;
         }
     }
@@ -238,87 +155,38 @@ struct PageRankRemote {
   }
 };
 
-struct PageRankSep {
+struct PageRankMaster {
   Graph* graph;
 
-  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
-
-  PageRankSep(Graph* _graph) : graph(_graph) {}
+  PageRankMaster(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-#ifdef GALOIS_USER_STATS
-    constexpr bool USER_STATS = true;
-#else
-    constexpr bool USER_STATS = false;
-#endif
-
-    unsigned _num_iterations   = 0;
-
-    DGTerminatorDetector dga;
-  
-    auto& _net = galois::runtime::getSystemNetworkInterface();
-
-    do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-
-#ifdef GALOIS_PRINT_PROCESS
-      galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
-#endif
-
-      StatTimer_total.start();
-      syncSubstrate->set_num_round(_num_iterations);
-
-      dga.reset();
-
-      StatTimer_delta.start();
-      PageRank_delta::go(_graph, dga);
-      StatTimer_delta.stop();
-
-      _net.prefetchBuffers();
-
-      StatTimer_compute.start();
-      PageRankMaster::go(_graph);
-      PageRankRemote::go(_graph);
-      StatTimer_compute.stop();
-
-      // inform all other hosts that this host has finished sending messages
-      // force all messages to be processed before continuing
-      StatTimer_flush.start();
-      _net.flushRemoteWork();
-      StatTimer_flush.stop();
-
-      StatTimer_comm.start();
-      _net.flushCommunication();
-      syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
-      StatTimer_comm.stop();
+      const auto& masterNodes = _graph.masterNodesRange();
       
-      _net.resetWorkTermination();
+      galois::do_all(
+          galois::iterate(masterNodes), PageRankMaster{&_graph},
+          galois::steal(), galois::no_stats());
+  }
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)_graph.sizeEdges());
+  void operator()(GNode dst) const {
+    auto& ddata = graph->getData(dst);
 
-      ++_num_iterations;
+    for (auto nbr : graph->inEdges(dst)) {
+        GNode src   = graph->getInEdgeSrc(nbr);
 
-      StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
+        if (bitset_delta.test(src)) {
+            auto& sdata = graph->getData(src);
+            galois::addVoid(ddata.residual, sdata.delta);
+            bitset_residual.set(dst);
+        }
+    }
   }
 };
 
-struct PageRankAll {
+struct PageRank {
   Graph* graph;
-  using DGTerminatorDetector = galois::DGAccumulator<unsigned int>;
-  
-  galois::runtime::NetworkInterface& net;
 
-  PageRankAll(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
+  PageRank(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -329,9 +197,10 @@ struct PageRankAll {
 
     unsigned _num_iterations   = 0;
 
-    const auto& allNodes = _graph.allNodesRange();
+    uint64_t local_active_vertices = _graph.numMasters();
+    uint64_t global_active_vertices;
 
-    DGTerminatorDetector dga;
+    bitset_residual.set_all();
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
@@ -342,87 +211,55 @@ struct PageRankAll {
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
 
-      StatTimer_total.start();
       syncSubstrate->set_num_round(_num_iterations);
 
-      dga.reset();
+      StatTimer_total.start();
+      bitset_delta.reset();
 
       StatTimer_delta.start();
-      PageRank_delta::go(_graph, dga);
+      PageRank_delta::go(_graph);
       StatTimer_delta.stop();
+
+      local_active_vertices = bitset_delta.count();
+
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_vertices);
+
+      bitset_residual.reset();
 
       _net.prefetchBuffers();
 
-      // launch all other threads to compute
       StatTimer_compute.start();
-      galois::do_all(
-          galois::iterate(allNodes), PageRankAll{&_graph},
-          galois::steal(), galois::no_stats());
-      StatTimer_compute.stop();
-
-      // inform all other hosts that this host has finished sending messages
-      // force all messages to be processed before continuing
-      StatTimer_flush.start();
+      PageRankRemote::go(_graph);
       _net.flushRemoteWork();
-      StatTimer_flush.stop();
+      PageRankMaster::go(_graph);
+      StatTimer_compute.stop();
 
       StatTimer_comm.start();
       _net.flushCommunication();
-      syncSubstrate->poll_for_remote_work<Reduce_add_residual>();
+      syncSubstrate->poll_for_remote_work_bitset<Reduce_add_residual>(bitset_residual);
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), (unsigned long)_graph.sizeEdges());
-
       ++_num_iterations;
+      
+      StatTimer_active.start();
+      global_active_vertices = 0;
+      MPI_Allreduce(&local_active_vertices, &global_active_vertices, 1,
+                    MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
+      StatTimer_active.stop();
 
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && dga.reduce(syncSubstrate->get_run_identifier()));
-  }
-
-  // Pull deltas from neighbor nodes, then add to self-residual
-  void operator()(GNode dst) const {
-    // source node can be master, mirror or phantom
-    if (graph->isOwned(dst)) {
-        auto& ddata = graph->getData(dst);
-
-        for (auto nbr : graph->inEdges(dst)) {
-            GNode src   = graph->getInEdgeSrc(nbr);
-            // destination node must be masters
-            auto& sdata = graph->getData(src);
-
-            if (sdata.delta > 0) {
-                galois::add(ddata.residual, sdata.delta);
-            }
-        }
-    } else {
-        // create register for remote node data
-        float dresidual = 0;
-        
-        for (auto nbr : graph->inEdges(dst)) {
-            GNode src   = graph->getInEdgeSrc(nbr);
-            // destination node must be masters
-            auto& sdata = graph->getData(src);
-
-            if (sdata.delta > 0) {
-                dresidual = dresidual + sdata.delta;
-            }
-        }
-
-        if (dresidual != 0) {
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
-        }
-    }
+    } while ((_num_iterations < maxIterations) && global_active_vertices);
   }
 };
 
@@ -476,8 +313,7 @@ struct PageRankSanity {
     min_residual.reset();
     DGA_residual_over_tolerance.reset();
 
-    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                   _graph.masterNodesRange().end()),
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
                    PageRankSanity(tolerance, &_graph, DGA_sum,
                                   DGA_sum_residual,
                                   DGA_residual_over_tolerance, max_value,
@@ -572,8 +408,13 @@ int main(int argc, char** argv) {
 
   net.allocateBufferPool();
 
+  hg->sortEdgesByDestination();
+
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
+
+  bitset_residual.resize(hg->numMasters());
+  bitset_delta.resize(hg->numMasters());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
@@ -599,11 +440,7 @@ int main(int argc, char** argv) {
     galois::runtime::getHostBarrier().wait();
 
     StatTimer_main.start();
-    if (iterMode == All) {
-        PageRankAll::go(*hg);
-    } else {
-        PageRankSep::go(*hg);
-    }
+    PageRank::go(*hg);
     StatTimer_main.stop();
     galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
@@ -613,8 +450,10 @@ int main(int argc, char** argv) {
                        max_residual, min_residual);
 
     if ((run + 1) != numRuns) {
+      bitset_residual.reset();
+      bitset_delta.reset();
+
       syncSubstrate->set_num_run(run + 1);
-      galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
       InitializeGraph::go(*hg);
     }
   }

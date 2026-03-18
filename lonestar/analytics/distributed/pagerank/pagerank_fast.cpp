@@ -23,12 +23,12 @@
 #include "galois/gstl.h"
 #include "galois/DReducible.h"
 #include "galois/runtime/Tracer.h"
+#include "galois/runtime/Profile.h"
 
 #include <algorithm>
 #include <iostream>
 #include <limits>
 #include <vector>
-#include <variant>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -53,19 +53,19 @@ static cll::opt<unsigned int>
 static const float alpha = (1.0 - 0.85);
 struct NodeData {
   float value;
-  float delta;
   std::atomic<float> residual;
 };
 
-galois::DynamicBitSet bitset_residual;
-galois::DynamicBitSet bitset_delta;
+galois::DynamicBitSet bitset_residual_odd;
+galois::DynamicBitSet bitset_residual_even;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
+typedef GNode WorkItem;
 
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph, float>> syncSubstrate;
 
-#include "pagerank_sync.hh"
+#include "pagerank_fast_sync.hh"
 
 /******************************************************************************/
 /* Algorithm structures */
@@ -87,140 +87,23 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata = graph->getData(src);
     sdata.value     = 0;
-    sdata.delta    = 0;
     sdata.residual  = alpha;
-  }
-};
-
-struct PageRank_delta {
-  Graph* graph;
-
-  PageRank_delta(Graph* _graph) : graph(_graph) {}
-
-  void static go(Graph& _graph) {
-    const auto& masterNodes = _graph.masterNodesRange();
-
-    galois::do_all(
-        galois::iterate(masterNodes),
-        PageRank_delta{&_graph}, galois::no_stats());
-  }
-
-  void operator()(GNode src) const {
-    if (bitset_residual.test(src)) {
-      auto& sdata = graph->getData(src);
-
-      sdata.value += sdata.residual;
-      if (sdata.residual > tolerance) {
-        uint32_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
-        if (nout > 0) {
-          sdata.delta = sdata.residual * (1 - alpha) / nout;
-          bitset_delta.set(src);
-        }
-      }
-      sdata.residual = 0;
-    }
-  }
-};
-
-struct PageRankPullRemote {
-  Graph* graph;
-
-  galois::runtime::NetworkInterface& net;
-
-  PageRankPullRemote(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
-
-  void static go(Graph& _graph) {
-      const auto& remoteNodes = _graph.remoteNodesRange();
-
-      galois::do_all(
-          galois::iterate(remoteNodes), PageRankPullRemote{&_graph},
-          galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-    float dresidual = 0;
-    
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            dresidual = dresidual + sdata.delta;
-        }
-    }
-
-    if (dresidual != 0) {
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
-    }
-  }
-};
-
-struct PageRankPullMaster {
-  Graph* graph;
-
-  PageRankPullMaster(Graph* _graph) : graph(_graph) {}
-
-  void static go(Graph& _graph) {
-      const auto& masterNodes = _graph.masterNodesRange();
-      
-      galois::do_all(
-          galois::iterate(masterNodes), PageRankPullMaster{&_graph},
-          galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-    auto& ddata = graph->getData(dst);
-
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            galois::addVoid(ddata.residual, sdata.delta);
-            bitset_residual.set(dst);
-        }
-    }
-  }
-};
-
-struct PageRankPush {
-  Graph* graph;
-  
-  galois::runtime::NetworkInterface& net;
-
-  PageRankPush(Graph* _g)
-      : graph(_g), net(galois::runtime::getSystemNetworkInterface()) {}
-
-  void static go(Graph& _graph) {
-      const auto& masterNodes = _graph.masterNodesRange();
-      
-      galois::do_all(galois::iterate(masterNodes), PageRankPush{&_graph},
-                     galois::no_stats(), galois::steal());
-  }
-
-  void operator()(GNode src) const {
-    if (bitset_delta.test(src)) {
-        NodeData& sdata = graph->getData(src);
-
-        for (auto nbr : graph->outEdges(src)) {
-            GNode dst       = graph->getOutEdgeDst(nbr);
-            if (graph->isPhantom(dst)) {
-                net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), sdata.delta);
-            }
-            else {
-                NodeData& ddata = graph->getData(dst);
-                galois::atomicAddVoid(ddata.residual, sdata.delta);
-                bitset_residual.set(dst);
-            }
-        }
-    }
   }
 };
 
 struct PageRank {
   Graph* graph;
+  
+  galois::DynamicBitSet* active_bitset_ptr;
+  galois::DynamicBitSet* dirty_bitset_ptr;
+  
+  galois::runtime::NetworkInterface& net;
 
-  PageRank(Graph* _graph) : graph(_graph) {}
+  PageRank(Graph* _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::DynamicBitSet* _dirty_bitset_ptr)
+      : graph(_graph),
+        active_bitset_ptr(_active_bitset_ptr),
+        dirty_bitset_ptr(_dirty_bitset_ptr),
+        net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -234,19 +117,22 @@ struct PageRank {
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
 
-    bitset_residual.set_all();
+    bool odd = true;
+    bitset_residual_odd.set_all();
 
-    bool pull = true;
+    const auto& masterNodes = _graph.masterNodesRange();
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string flush_str("Flush_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_flush(flush_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
       std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
@@ -257,57 +143,58 @@ struct PageRank {
 #endif
 
       syncSubstrate->set_num_round(_num_iterations);
-      
-      StatTimer_total.start();
-      bitset_delta.reset();
-
-      StatTimer_delta.start();
-      PageRank_delta::go(_graph);
-      StatTimer_delta.stop();
-
-      local_active_vertices = bitset_delta.count();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_vertices);
 
-      bitset_residual.reset();
+      StatTimer_total.start();
+      
+      // reset residual on mirrors
+      StatTimer_reset.start();
+      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      StatTimer_reset.stop();
 
       _net.prefetchBuffers();
 
-      if (pull) {
+      if (odd) {
+          bitset_residual_even.reset();
+
           StatTimer_compute.start();
-          PageRankPullRemote::go(_graph);
-          _net.flushRemoteWork();
-          PageRankPullMaster::go(_graph);
+          galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, &bitset_residual_odd, &bitset_residual_even},
+                         galois::no_stats(), galois::steal());
           StatTimer_compute.stop();
-          
+
+          StatTimer_flush.start();
+          _net.flushRemoteWork();
+          StatTimer_flush.stop();
+
           StatTimer_comm.start();
-          _net.flushCommunication();
-          syncSubstrate->poll_for_remote_work_bitset<Reduce_add_residual>(bitset_residual);
+          syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual_even>();
           StatTimer_comm.stop();
+          
+          local_active_vertices = bitset_residual_even.count();
       }
       else {
-          std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
-          galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
-          
-          StatTimer_reset.start();
-          syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-          StatTimer_reset.stop();
+          bitset_residual_odd.reset();
 
           StatTimer_compute.start();
-          PageRankPush::go(_graph);
-          _net.flushRemoteWork();
+          galois::do_all(galois::iterate(masterNodes), PageRank{&_graph, &bitset_residual_even, &bitset_residual_odd},
+                         galois::no_stats(), galois::steal());
           StatTimer_compute.stop();
-          
+
+          StatTimer_flush.start();
+          _net.flushRemoteWork();
+          StatTimer_flush.stop();
+
           StatTimer_comm.start();
-          syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
+          syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual_odd>();
           StatTimer_comm.stop();
+          
+          local_active_vertices = bitset_residual_odd.count();
       }
+
+      odd = !odd;
       
       _net.resetWorkTermination();
-      
-      galois::runtime::reportStat_Single(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
-
-      pull = !pull;
 
       ++_num_iterations;
       
@@ -316,9 +203,35 @@ struct PageRank {
       MPI_Allreduce(&local_active_vertices, &global_active_vertices, 1,
                     MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
       StatTimer_active.stop();
-
+      
       StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && global_active_vertices);
+  }
+
+  void operator()(WorkItem src) const {
+    if (active_bitset_ptr->test(src)) {
+        NodeData& sdata = graph->getData(src);
+
+        float residual = sdata.residual.exchange(0);
+        sdata.value += residual;
+        if (residual > tolerance) {
+            uint32_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+            if (nout > 0) {
+                float delta = residual * (1 - alpha) / nout;
+                for (auto nbr : graph->outEdges(src)) {
+                    GNode dst       = graph->getOutEdgeDst(nbr);
+                    if (graph->isPhantom(dst)) {
+                        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), delta);
+                    }
+                    else {
+                        NodeData& ddata = graph->getData(dst);
+                        galois::atomicAddVoid(ddata.residual, delta);
+                        dirty_bitset_ptr->set(dst);
+                    }
+                }
+            }
+        }
+    }
   }
 };
 
@@ -372,8 +285,7 @@ struct PageRankSanity {
     min_residual.reset();
     DGA_residual_over_tolerance.reset();
 
-    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                   _graph.masterNodesRange().end()),
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
                    PageRankSanity(tolerance, &_graph, DGA_sum,
                                   DGA_sum_residual,
                                   DGA_residual_over_tolerance, max_value,
@@ -394,7 +306,8 @@ struct PageRankSanity {
       galois::gPrint("Min rank is ", min_rank, "\n");
       galois::gPrint("Rank sum is ", rank_sum, "\n");
       galois::gPrint("Residual sum is ", residual_sum, "\n");
-      galois::gPrint("# nodes with residual over ", tolerance, " (tolerance) is ", over_tolerance, "\n");
+      galois::gPrint("# nodes with residual over ", tolerance,
+                     " (tolerance) is ", over_tolerance, "\n");
       galois::gPrint("Max residual is ", max_res, "\n");
       galois::gPrint("Min residual is ", min_res, "\n");
     }
@@ -419,6 +332,10 @@ struct PageRankSanity {
   }
 };
 
+/******************************************************************************/
+/* Make results */
+/******************************************************************************/
+
 std::vector<float> makeResults(std::unique_ptr<Graph>& hg) {
   std::vector<float> values;
 
@@ -436,9 +353,9 @@ std::vector<float> makeResults(std::unique_ptr<Graph>& hg) {
 
 constexpr static const char* const name = "PageRank - Compiler Generated "
                                           "Distributed Heterogeneous";
-constexpr static const char* const desc = "PageRank Residual Pull version on "
-                                          "Distributed Galois.";
-constexpr static const char* const url = nullptr;
+constexpr static const char* const desc = "Residual PageRank on Distributed "
+                                          "Galois.";
+constexpr static const char* const url = 0;
 
 int main(int argc, char** argv) {
   galois::DistMemSys G;
@@ -447,24 +364,24 @@ int main(int argc, char** argv) {
   auto& net = galois::runtime::getSystemNetworkInterface();
 
   if (net.ID == 0) {
-    galois::runtime::reportParam(REGION_NAME, "Max Iterations", maxIterations);
+    galois::runtime::reportParam(REGION_NAME.c_str(), "Max Iterations", maxIterations);
     std::ostringstream ss;
     ss << tolerance;
-    galois::runtime::reportParam(REGION_NAME, "Tolerance", ss.str());
+    galois::runtime::reportParam(REGION_NAME.c_str(), "Tolerance", ss.str());
   }
-    
+
   if (partitionScheme != OEC) {
     galois::gPrint("This repo only supports OEC\n");
     return 1;
   }
-
+  
   galois::StatTimer StatTimer_total("TimerTotal", REGION_NAME.c_str());
   StatTimer_total.start();
   galois::StatTimer StatTimer_preprocess("TimerPreProcess", REGION_NAME.c_str());
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
   net.allocateBufferPool();
 
@@ -473,12 +390,12 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
-  bitset_residual.resize(hg->actualSize());
-  bitset_delta.resize(hg->numMasters());
+  bitset_residual_odd.resize(hg->actualSize());
+  bitset_residual_even.resize(hg->actualSize());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 
-  InitializeGraph::go(*hg);
+  InitializeGraph::go((*hg));
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
 
@@ -497,6 +414,7 @@ int main(int argc, char** argv) {
     galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     net.touchBufferPool();
+    
     galois::runtime::getHostBarrier().wait();
 
     StatTimer_main.start();
@@ -510,16 +428,17 @@ int main(int argc, char** argv) {
                        max_residual, min_residual);
 
     if ((run + 1) != numRuns) {
-      bitset_residual.reset();
-      bitset_delta.reset();
-      
-      syncSubstrate->set_num_run(run + 1);
+      bitset_residual_odd.reset();
+      bitset_residual_even.reset();
+
+      (*syncSubstrate).set_num_run(run + 1);
+      galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
       InitializeGraph::go(*hg);
     }
   }
 
   StatTimer_total.stop();
-
+  
   net.applicationDone();
 
   if (output) {
