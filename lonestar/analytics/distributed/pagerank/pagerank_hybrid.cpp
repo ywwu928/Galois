@@ -328,7 +328,6 @@ struct PageRank {
 
 // Gets various values from the pageranks values/residuals of the graph
 struct PageRankSanity {
-  cll::opt<float>& local_tolerance;
   Graph* graph;
 
   galois::DGAccumulator<float>& DGAccumulator_sum;
@@ -341,7 +340,7 @@ struct PageRankSanity {
   galois::DGReduceMin<float>& min_residual;
 
   PageRankSanity(
-      cll::opt<float>& _local_tolerance, Graph* _graph,
+      Graph* _graph,
       galois::DGAccumulator<float>& _DGAccumulator_sum,
       galois::DGAccumulator<float>& _DGAccumulator_sum_residual,
       galois::DGAccumulator<uint64_t>& _DGAccumulator_residual_over_tolerance,
@@ -349,7 +348,7 @@ struct PageRankSanity {
       galois::DGReduceMin<float>& _min_value,
       galois::DGReduceMax<float>& _max_residual,
       galois::DGReduceMin<float>& _min_residual)
-      : local_tolerance(_local_tolerance), graph(_graph),
+      : graph(_graph),
         DGAccumulator_sum(_DGAccumulator_sum),
         DGAccumulator_sum_residual(_DGAccumulator_sum_residual),
         DGAccumulator_residual_over_tolerance(
@@ -372,9 +371,8 @@ struct PageRankSanity {
     min_residual.reset();
     DGA_residual_over_tolerance.reset();
 
-    galois::do_all(galois::iterate(_graph.masterNodesRange().begin(),
-                                   _graph.masterNodesRange().end()),
-                   PageRankSanity(tolerance, &_graph, DGA_sum,
+    galois::do_all(galois::iterate(_graph.masterNodesRange()),
+                   PageRankSanity(&_graph, DGA_sum,
                                   DGA_sum_residual,
                                   DGA_residual_over_tolerance, max_value,
                                   min_value, max_residual, min_residual),
@@ -413,7 +411,7 @@ struct PageRankSanity {
     DGAccumulator_sum += sdata.value;
     DGAccumulator_sum_residual += sdata.residual;
 
-    if (sdata.residual > local_tolerance) {
+    if (sdata.residual > tolerance) {
       DGAccumulator_residual_over_tolerance += 1;
     }
   }
@@ -502,7 +500,6 @@ int main(int argc, char** argv) {
     StatTimer_main.stop();
     galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
-    // sanity check
     PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,
                        DGA_residual_over_tolerance, max_value, min_value,
                        max_residual, min_residual);
