@@ -213,6 +213,8 @@ struct BFS {
 #endif
 
     unsigned _num_iterations   = 0;
+  
+    auto& _net = galois::runtime::getSystemNetworkInterface();
 
     uint64_t local_active_vertices;
     if (_graph.isOwned(src_node)) {
@@ -224,8 +226,6 @@ struct BFS {
     uint64_t global_active_vertices;
 
     bool odd = true;
-  
-    auto& _net = galois::runtime::getSystemNetworkInterface();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));

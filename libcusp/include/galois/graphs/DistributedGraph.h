@@ -572,6 +572,10 @@ public:
       assert(lid < numNodes);
       return (lid < numActualNodes);
   }
+  inline bool isMaster(uint32_t lid) const {
+      assert(lid < numNodes);
+      return (lid < numOwned);
+  }
   //! Determine if a node is a phantom on this host
   inline bool isPhantom(uint32_t lid) const {
       assert(lid < numNodes);

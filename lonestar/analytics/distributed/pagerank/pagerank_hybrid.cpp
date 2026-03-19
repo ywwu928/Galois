@@ -88,7 +88,12 @@ struct InitializeGraph {
     NodeData& sdata = graph->getData(src);
     sdata.value     = 0;
     sdata.delta    = 0;
-    sdata.residual  = alpha;
+    if (graph->isMaster(src)) {
+        sdata.residual  = alpha;
+    }
+    else {
+        sdata.residual = 0;
+    }
   }
 };
 
@@ -230,6 +235,8 @@ struct PageRank {
 #endif
 
     unsigned _num_iterations   = 0;
+  
+    auto& _net = galois::runtime::getSystemNetworkInterface();
 
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
@@ -237,8 +244,6 @@ struct PageRank {
     bitset_residual.set_all();
 
     bool pull = true;
-  
-    auto& _net = galois::runtime::getSystemNetworkInterface();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -286,13 +291,6 @@ struct PageRank {
           StatTimer_comm.stop();
       }
       else {
-          std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
-          galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
-          
-          StatTimer_reset.start();
-          syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-          StatTimer_reset.stop();
-
           StatTimer_compute.start();
           PageRankPush::go(_graph);
           _net.flushRemoteWork();
@@ -301,6 +299,13 @@ struct PageRank {
           StatTimer_comm.start();
           syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
           StatTimer_comm.stop();
+          
+          std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));
+          galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
+          
+          StatTimer_reset.start();
+          syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+          StatTimer_reset.stop();
       }
       
       _net.resetWorkTermination();

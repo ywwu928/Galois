@@ -89,7 +89,12 @@ struct InitializeGraph {
     NodeData& sdata = graph->getData(src);
     sdata.value     = 0;
     sdata.delta    = 0;
-    sdata.residual  = alpha;
+    if (graph->isMaster(src)) {
+        sdata.residual  = alpha;
+    }
+    else {
+        sdata.residual = 0;
+    }
   }
 };
 
@@ -141,26 +146,26 @@ struct PageRank {
 
     unsigned _num_iterations   = 0;
 
+    const auto& masterNodes = _graph.masterNodesRange();
+  
+    auto& _net = galois::runtime::getSystemNetworkInterface();
+
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
 
     bitset_residual.set_all();
 
-    const auto& masterNodes = _graph.masterNodesRange();
-  
-    auto& _net = galois::runtime::getSystemNetworkInterface();
-
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string reset_str("ResetMirror_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
       std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
@@ -171,11 +176,6 @@ struct PageRank {
       syncSubstrate->set_num_round(_num_iterations);
 
       StatTimer_total.start();
-      
-      StatTimer_reset.start();
-      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
-      StatTimer_reset.stop();
-      
       bitset_delta.reset();
 
       StatTimer_delta.start();
@@ -201,6 +201,10 @@ struct PageRank {
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
+      
+      StatTimer_reset.start();
+      syncSubstrate->reset_mirrorField<Reduce_add_residual>();
+      StatTimer_reset.stop();
 
       ++_num_iterations;
       

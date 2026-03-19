@@ -106,15 +106,15 @@ struct ConnectedComp {
 
     unsigned _num_iterations = 0;
 
+    const auto& masterNodes = _graph.masterNodesRange();
+    
+    auto& _net = galois::runtime::getSystemNetworkInterface();
+
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
 
     bool odd = true;
     bitset_comp_current_odd.set_all();
-
-    const auto& masterNodes = _graph.masterNodesRange();
-    
-    auto& _net = galois::runtime::getSystemNetworkInterface();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
