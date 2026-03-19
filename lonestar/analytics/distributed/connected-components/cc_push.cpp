@@ -331,7 +331,6 @@ int main(int argc, char** argv) {
       bitset_comp_current_even.reset();
 
       (*syncSubstrate).set_num_run(run + 1);
-      galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
       InitializeGraph::go((*hg));
     }
   }
