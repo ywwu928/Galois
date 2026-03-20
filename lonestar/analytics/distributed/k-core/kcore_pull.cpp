@@ -75,6 +75,7 @@ struct InitializeGraph {
 
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
+#ifndef GALOIS_FULL_MIRRORING
   void static go(Graph& _graph) {
     const auto& masterNodes = _graph.masterNodesRange();
     
@@ -82,6 +83,15 @@ struct InitializeGraph {
         galois::iterate(masterNodes),
         InitializeGraph{&_graph}, galois::no_stats());
   }
+#else
+  void static go(Graph& _graph) {
+    const auto& presentNodes = _graph.presentNodesRange();
+
+    galois::do_all(
+        galois::iterate(presentNodes),
+        InitializeGraph{&_graph}, galois::no_stats());
+  }
+#endif
 
   void operator()(GNode src) const {
     NodeData& sdata      = graph->getData(src);
@@ -135,6 +145,7 @@ struct KCoreRemote {
   }
 
   void operator()(GNode dst) const {
+#ifndef GALOIS_FULL_MIRRORING
     uint32_t dtrim = 0;
       
     for (auto current_edge : graph->inEdges(dst)) {
@@ -147,6 +158,24 @@ struct KCoreRemote {
     if (dtrim != 0) {
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dtrim);
     }
+#else
+    if (!bitset_exclude.test(dst)) {
+        NodeData& ddata = graph->getData(dst);
+      
+        bool dirty = false;
+        for (auto current_edge : graph->inEdges(dst)) {
+            GNode src = graph->getInEdgeSrc(current_edge);
+            if (bitset_active.test(src)) {
+                galois::addVoid(ddata.trim, (uint32_t)1);
+                dirty = true;
+            }
+        }
+
+        if (dirty) {
+            bitset_trim.set(dst);
+        }
+    }
+#endif
   }
 };
 
@@ -236,10 +265,16 @@ struct KCore {
       KCoreMaster::go(_graph);
       StatTimer_compute.stop();
 
+#ifndef GALOIS_FULL_MIRRORING
       StatTimer_comm.start();
       _net.flushCommunication();
       syncSubstrate->poll_for_remote_work_bitset<Reduce_add_trim>(bitset_trim);
       StatTimer_comm.stop();
+#else
+      StatTimer_comm.start();
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
+      StatTimer_comm.stop();
+#endif
       
       _net.resetWorkTermination();
 
@@ -343,9 +378,15 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
+#ifndef GALOIS_FULL_MIRRORING
   bitset_exclude.resize(hg->numMasters());
   bitset_active.resize(hg->numMasters());
   bitset_trim.resize(hg->numMasters());
+#else
+  bitset_exclude.resize(hg->actualSize());
+  bitset_active.resize(hg->numMasters());
+  bitset_trim.resize(hg->actualSize());
+#endif
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 

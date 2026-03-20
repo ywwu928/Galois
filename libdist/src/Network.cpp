@@ -294,6 +294,22 @@ void NetworkInterface::sendWorkCommCompleteUntilEmpty() {
     }
 }
 
+void NetworkInterface::sendCommComplete() {
+    if (!sendInflightComm.empty()) {
+        int flag = 0;
+        MPI_Status status;
+        auto& f = sendInflightComm.front();
+        MPI_Test(&f.req, &flag, &status);
+        if (flag) {
+            sendInflightComm.pop_front();
+        }
+        else {
+            sendInflightData.push_back(f);
+            sendInflightData.pop_front();
+        }
+    }
+}
+
 void NetworkInterface::sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
     __builtin_prefetch(buf, 0, 3);
     sendInflightData.emplace_back(buf);
@@ -428,6 +444,39 @@ void NetworkInterface::recvProbeWorkComm() {
     }
 }
 
+void NetworkInterface::recvProbeComm() {
+    int flag = 0;
+    MPI_Status status;
+    // check for new messages
+    MPI_Iprobe(MPI_ANY_SOURCE, (int)communicationTag, comm_comm, &flag, &status);
+    if (flag) {
+        int nbytes;
+        MPI_Get_count(&status, MPI_BYTE, &nbytes);
+
+        __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
+
+        MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
+        recvInflightComm.push_back(req);
+        MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
+    }
+
+    // complete messages
+    if (!recvInflightComm.empty()) {
+        MPI_Request* req  = recvInflightComm.front();
+        flag = 0;
+        MPI_Test(req, &flag, &status);
+        if (flag) {
+            recvCommunication.add(status.MPI_SOURCE);
+            free(req);
+            recvInflightComm.pop_front();
+        }
+        else {
+            recvInflightComm.push_back(req);
+            recvInflightComm.pop_front();
+        }
+    }
+}
+
 void NetworkInterface::recvProbeDataTermination() {
     int flag = 0;
     MPI_Status status;
@@ -534,9 +583,12 @@ void NetworkInterface::commThread() {
         *(recvCommBuffer[i]) = (uint8_t)0;
     }
     
+#ifndef GALOIS_FULL_MIRRORING
     recvAllocator.touch();
+#endif
     
     while (ready.load(std::memory_order_acquire) == 3) {
+#ifndef GALOIS_FULL_MIRRORING
         while (ready.load(std::memory_order_acquire) == 3 && !flushWork.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
                 unsigned h = hostOrder[i];
@@ -635,6 +687,22 @@ void NetworkInterface::commThread() {
         sendWorkCommCompleteUntilEmpty();
 
         terminationComplete();
+#else
+        // handle send queue
+        sendCommComplete();
+
+        // push progress forward on the network IO
+        recvProbeComm();
+
+        uint32_t dest;
+        uint8_t* data;
+        size_t dataLen;
+        bool success = sendCommData.pop(dest, data, dataLen);
+        while (success) {
+            sendCommunication(dest, data, dataLen);
+            success = sendCommData.pop(dest, data, dataLen);
+        }
+#endif
     }
     
     // for collecting stats
@@ -751,6 +819,7 @@ NetworkInterface::~NetworkInterface() {
 }
 
 void NetworkInterface::allocateBufferPool() {
+#ifndef GALOIS_FULL_MIRRORING
     for (unsigned t=0; t<numT; t++) {
         sendAllocators[t].allocateRegions();
     }
@@ -761,6 +830,7 @@ void NetworkInterface::allocateBufferPool() {
             sendRemoteWork[i][t].setBuf();
         }
     }
+#endif
 }
 
 void NetworkInterface::sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf, int phase) {
@@ -892,6 +962,7 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
 }
 
 void NetworkInterface::flushRemoteWork() {
+#ifndef GALOIS_FULL_MIRRORING
     // aggregate partial messages across threads
     for (uint32_t h = 0; h < Num; ++h) {
         if (h == ID) {
@@ -972,10 +1043,13 @@ void NetworkInterface::flushRemoteWork() {
     }
 
     flushWork.store(true, std::memory_order_release);
+#endif
 }
 
 void NetworkInterface::flushCommunication() {
+#ifndef GALOIS_FULL_MIRRORING
     flushComm.store(true, std::memory_order_release);
+#endif
 }
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
@@ -1001,6 +1075,7 @@ void NetworkInterface::signalDataTermination(uint32_t dest) {
 }
 
 void NetworkInterface::touchBufferPool() {
+#ifndef GALOIS_FULL_MIRRORING
     galois::on_each([&](unsigned tid, unsigned) {
         sendAllocators[tid].touch();
 
@@ -1008,6 +1083,7 @@ void NetworkInterface::touchBufferPool() {
             sendRemoteWork[i][tid].touchBuf();
         }
     });
+#endif
 }
 
 void NetworkInterface::prefetchBuffers() {

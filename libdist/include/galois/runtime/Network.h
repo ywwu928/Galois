@@ -287,6 +287,7 @@ private:
   void sendDataComplete();
   void sendWorkComplete();
   void sendWorkCommCompleteUntilEmpty();
+  void sendCommComplete();
 
   void sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
   void sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf);
@@ -321,6 +322,7 @@ private:
   
   void recvProbeData();
   void recvProbeWorkComm();
+  void recvProbeComm();
   void recvProbeDataTermination();
 
   std::vector<MPI_Request> inflightTermination;

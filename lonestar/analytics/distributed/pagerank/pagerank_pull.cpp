@@ -76,6 +76,7 @@ struct InitializeGraph {
 
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
+#ifndef GALOIS_FULL_MIRRORING
   void static go(Graph& _graph) {
     const auto& masterNodes = _graph.masterNodesRange();
 
@@ -90,6 +91,27 @@ struct InitializeGraph {
     sdata.delta    = 0;
     sdata.residual = alpha;
   }
+#else
+  void static go(Graph& _graph) {
+    const auto& presentNodes = _graph.presentNodesRange();
+
+    galois::do_all(
+        galois::iterate(presentNodes),
+        InitializeGraph{&_graph}, galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    NodeData& sdata = graph->getData(src);
+    sdata.value    = 0;
+    sdata.delta    = 0;
+    if (graph->isMaster(src)) {
+        sdata.residual  = alpha;
+    }
+    else {
+        sdata.residual = 0;
+    }
+  }
+#endif
 };
 
 struct PageRank_delta {
@@ -138,6 +160,7 @@ struct PageRankRemote {
   }
 
   void operator()(GNode dst) const {
+#ifndef GALOIS_FULL_MIRRORING
     float dresidual = 0;
     
     for (auto nbr : graph->inEdges(dst)) {
@@ -152,6 +175,24 @@ struct PageRankRemote {
     if (dresidual != 0) {
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
     }
+#else
+    auto& ddata = graph->getData(dst);
+
+    bool dirty = false;
+    for (auto nbr : graph->inEdges(dst)) {
+        GNode src   = graph->getInEdgeSrc(nbr);
+
+        if (bitset_delta.test(src)) {
+            auto& sdata = graph->getData(src);
+            galois::addVoid(ddata.residual, sdata.delta);
+            dirty = true;
+        }
+    }
+
+    if (dirty) {
+        bitset_residual.set(dst);
+    }
+#endif
   }
 };
 
@@ -248,10 +289,16 @@ struct PageRank {
       PageRankMaster::go(_graph);
       StatTimer_compute.stop();
 
+#ifndef GALOIS_FULL_MIRRORING
       StatTimer_comm.start();
       _net.flushCommunication();
       syncSubstrate->poll_for_remote_work_bitset<Reduce_add_residual>(bitset_residual);
       StatTimer_comm.stop();
+#else
+      StatTimer_comm.start();
+      syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
+      StatTimer_comm.stop();
+#endif
       
       _net.resetWorkTermination();
 
@@ -406,7 +453,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.start();
 
   std::unique_ptr<Graph> hg;
-  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float, false>();
+  std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
   net.allocateBufferPool();
 
@@ -415,7 +462,11 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
+#ifndef GALOIS_FULL_MIRRORING
   bitset_residual.resize(hg->numMasters());
+#else
+  bitset_residual.resize(hg->actualSize());
+#endif
   bitset_delta.resize(hg->numMasters());
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");

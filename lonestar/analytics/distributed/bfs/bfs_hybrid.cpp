@@ -251,7 +251,7 @@ struct BFS {
     }
     uint64_t global_active_vertices;
 
-    bool odd = true;
+    bool odd = false;
     bool pull = true;
 
     do {

@@ -68,6 +68,7 @@ struct InitializeGraph {
 
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
+#ifndef GALOIS_FULL_MIRRORING
   void static go(Graph& _graph) {
     const auto& masterNodes = _graph.masterNodesRange();
 
@@ -75,6 +76,15 @@ struct InitializeGraph {
         galois::iterate(masterNodes),
         InitializeGraph{&_graph}, galois::no_stats());
   }
+#else
+  void static go(Graph& _graph) {
+    const auto& presentNodes = _graph.presentNodesRange();
+
+    galois::do_all(
+        galois::iterate(presentNodes),
+        InitializeGraph{&_graph}, galois::no_stats());
+  }
+#endif
 
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
@@ -98,6 +108,7 @@ struct ConnectedCompRemote {
   }
 
   void operator()(GNode dst) const {
+#ifndef GALOIS_FULL_MIRRORING
     uint32_t dcomp = UINT32_MAX;
     /*
     bool send = false;
@@ -133,6 +144,21 @@ struct ConnectedCompRemote {
     if (dcomp != UINT32_MAX) {
         net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dcomp);
     }
+#else
+    NodeData& dnode = graph->getData(dst);
+
+    uint32_t old_comp = dnode.comp_current;
+    for (auto jj : graph->inEdges(dst)) {
+        GNode src         = graph->getInEdgeSrc(jj);
+        auto& snode       = graph->getData(src);
+        uint32_t new_comp = snode.comp_current;
+        galois::minVoid(dnode.comp_current, new_comp);
+    }
+    
+    if (old_comp > dnode.comp_current) {
+        bitset_comp_current_odd.set(dst);
+    }
+#endif
   }
 };
 
@@ -208,6 +234,7 @@ struct ConnectedComp {
       StatTimer_total.start();
       _net.prefetchBuffers();
 
+#ifndef GALOIS_FULL_MIRRORING
       StatTimer_compute.start();
       ConnectedCompRemote::go(_graph);
       _net.flushRemoteWork();
@@ -219,6 +246,18 @@ struct ConnectedComp {
       _net.flushCommunication();
       syncSubstrate->poll_for_remote_work_bitset<Reduce_min_comp_current>(bitset_comp_current_odd);
       StatTimer_comm.stop();
+#else
+      bitset_comp_current_odd.reset();
+      
+      StatTimer_compute.start();
+      ConnectedCompRemote::go(_graph);
+      ConnectedCompMaster::go(_graph);
+      StatTimer_compute.stop();
+
+      StatTimer_comm.start();
+      syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current_odd>();
+      StatTimer_comm.stop();
+#endif
 
       local_active_vertices = bitset_comp_current_odd.count();
       
@@ -328,7 +367,11 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
+#ifndef GALOIS_FULL_MIRRORING
   bitset_comp_current_odd.resize(hg->numMasters());
+#else
+  bitset_comp_current_odd.resize(hg->actualSize());
+#endif
 
   galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
 

@@ -150,7 +150,7 @@ struct PageRank {
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
-    uint64_t local_active_vertices = _graph.numMasters();
+    uint64_t local_active_vertices;
     uint64_t global_active_vertices;
 
     bitset_residual.set_all();
@@ -224,14 +224,18 @@ struct PageRank {
 
         for (auto nbr : graph->outEdges(src)) {
             GNode dst       = graph->getOutEdgeDst(nbr);
+#ifndef GALOIS_FULL_MIRRORING
             if (graph->isPhantom(dst)) {
                 net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), sdata.delta);
             }
             else {
+#endif
                 NodeData& ddata = graph->getData(dst);
                 galois::atomicAddVoid(ddata.residual, sdata.delta);
                 bitset_residual.set(dst);
+#ifndef GALOIS_FULL_MIRRORING
             }
+#endif
         }
     }
   }
@@ -383,7 +387,7 @@ int main(int argc, char** argv) {
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
   net.allocateBufferPool();
-
+  
   hg->sortEdgesByDestination();
 
   galois::runtime::getHostBarrier().wait();

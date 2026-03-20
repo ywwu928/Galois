@@ -288,8 +288,8 @@ struct ConnectedComp {
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
 
-    bool odd = true;
-    bitset_comp_current_odd.set_all();
+    bool odd = false;
+    bitset_comp_current_even.set_all();
 
     bool pull = true;
 

@@ -214,16 +214,20 @@ struct KCore {
     if (bitset_active.test(src)) {
         for (auto current_edge : graph->outEdges(src)) {
             GNode dst = graph->getOutEdgeDst(current_edge);
+#ifndef GALOIS_FULL_MIRRORING
             if (graph->isPhantom(dst)) {
                 net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), (uint32_t)1);
             }
             else {
+#endif
                 if (!bitset_exclude.test(dst)) {
                     auto& ddata = graph->getData(dst);
                     galois::atomicAddVoid(ddata.trim, (uint32_t)1);
                     bitset_trim.set(dst);
                 }
+#ifndef GALOIS_FULL_MIRRORING
             }
+#endif
         }
     }
   }

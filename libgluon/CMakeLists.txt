@@ -28,6 +28,10 @@ if (GALOIS_USE_BARE_MPI)
   target_compile_definitions(galois_gluon PRIVATE GALOIS_USE_BARE_MPI=1)
 endif()
 
+if (GALOIS_FULL_MIRRORING)
+    target_compile_definitions(galois_gluon PRIVATE GALOIS_FULL_MIRRORING=1)
+endif()
+
 install(
   DIRECTORY include/
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"

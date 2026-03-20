@@ -113,8 +113,8 @@ struct ConnectedComp {
     uint64_t local_active_vertices = _graph.numMasters();
     uint64_t global_active_vertices;
 
-    bool odd = true;
-    bitset_comp_current_odd.set_all();
+    bool odd = false;
+    bitset_comp_current_even.set_all();
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -193,16 +193,20 @@ struct ConnectedComp {
       
       for (auto jj : graph->outEdges(src)) {
         GNode dst         = graph->getOutEdgeDst(jj);
+#ifndef GALOIS_FULL_MIRRORING
         if (graph->isPhantom(dst)) {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_comp);
         }
         else {
+#endif
             auto& dnode       = graph->getData(dst);
             bool dirty = galois::atomicMinBool(dnode.comp_current, new_comp);
             if (dirty) {
                 dirty_bitset_ptr->set(dst);
             }
+#ifndef GALOIS_FULL_MIRRORING
         }
+#endif
       }
     }
   }

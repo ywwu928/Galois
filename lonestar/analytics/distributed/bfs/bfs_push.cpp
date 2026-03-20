@@ -96,7 +96,7 @@ struct InitializeGraph {
     NodeData& sdata = graph->getData(src);
     if (graph->getGID(src) == src_node) {
         sdata.dist_current = 0;
-        bitset_dist_current_odd.set(src);
+        bitset_dist_current_even.set(src);
     }
     else {
         sdata.dist_current = infinity;
@@ -140,7 +140,7 @@ struct BFS {
     }
     uint64_t global_active_vertices;
 
-    bool odd = true;
+    bool odd = false;
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -219,17 +219,21 @@ struct BFS {
     
         for (auto jj : graph->outEdges(src)) {
           GNode dst         = graph->getOutEdgeDst(jj);
+#ifndef GALOIS_FULL_MIRRORING
           if (graph->isPhantom(dst)) {
             net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_dist);
           }
           else {
+#endif
             auto& dnode       = graph->getData(dst);     
             bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
           
             if (dirty) {
               dirty_bitset_ptr->set(dst);
             }
+#ifndef GALOIS_FULL_MIRRORING
           }
+#endif
         }
     }
   }

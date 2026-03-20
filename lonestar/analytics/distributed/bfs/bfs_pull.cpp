@@ -83,6 +83,7 @@ struct InitializeGraph {
 
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
+#ifndef GALOIS_FULL_MIRRORING
   void static go(Graph& _graph) {
     const auto& masterNodes = _graph.masterNodesRange();
     
@@ -90,12 +91,21 @@ struct InitializeGraph {
         galois::iterate(masterNodes),
         InitializeGraph(&_graph), galois::no_stats());
   }
+#else
+  void static go(Graph& _graph) {
+    const auto& presentNodes = _graph.presentNodesRange();
+    
+    galois::do_all(
+        galois::iterate(presentNodes),
+        InitializeGraph(&_graph), galois::no_stats());
+  }
+#endif
 
   void operator()(GNode src) const {
     NodeData& sdata = graph->getData(src);
     if (graph->getGID(src) == src_node) {
         sdata.dist_current = 0;
-        bitset_dist_current_odd.set(src);
+        bitset_dist_current_even.set(src);
     }
     else {
         sdata.dist_current = infinity;
@@ -103,6 +113,7 @@ struct InitializeGraph {
   }
 };
 
+#ifndef GALOIS_FULL_MIRRORING
 struct BFSRemote {
   Graph* graph;
   
@@ -161,6 +172,48 @@ struct BFSRemote {
     }
   }
 };
+#else
+struct BFSRemote {
+  Graph* graph;
+  
+  galois::DynamicBitSet* active_bitset_ptr;
+  galois::DynamicBitSet* dirty_bitset_ptr;
+
+  galois::runtime::NetworkInterface& net;
+
+  BFSRemote(Graph* _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::DynamicBitSet* _dirty_bitset_ptr)
+      : graph(_graph),
+        active_bitset_ptr(_active_bitset_ptr),
+        dirty_bitset_ptr(_dirty_bitset_ptr),
+        net(galois::runtime::getSystemNetworkInterface()) {}
+
+  void static go(Graph& _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::DynamicBitSet* _dirty_bitset_ptr) {
+      const auto& remoteNodes = _graph.remoteNodesRange();
+
+      galois::do_all(
+          galois::iterate(remoteNodes), BFSRemote{&_graph, _active_bitset_ptr, _dirty_bitset_ptr},
+          galois::steal(), galois::no_stats());
+  }
+
+  void operator()(GNode dst) const {
+    NodeData& dnode = graph->getData(dst);
+
+    uint32_t old_dist = dnode.dist_current;
+    for (auto jj : graph->inEdges(dst)) {
+        GNode src         = graph->getInEdgeSrc(jj);
+        if (active_bitset_ptr->test(src)) {
+            auto& snode       = graph->getData(src);
+            uint32_t new_dist = snode.dist_current + 1;
+            galois::minVoid(dnode.dist_current, new_dist);
+        }
+    }
+
+    if (old_dist > dnode.dist_current) {
+        dirty_bitset_ptr->set(dst);
+    }
+  }
+};
+#endif
 
 struct BFSMaster {
   Graph* graph;
@@ -225,7 +278,7 @@ struct BFS {
     }
     uint64_t global_active_vertices;
 
-    bool odd = true;
+    bool odd = false;
 
     do {
       std::string total_str("Total_Round_" + std::to_string(_num_iterations));
@@ -251,6 +304,7 @@ struct BFS {
       if (odd) {
           bitset_dist_current_even.reset();
 
+#ifndef GALOIS_FULL_MIRRORING
           StatTimer_compute.start();
           BFSRemote::go(_graph, &bitset_dist_current_odd);
           _net.flushRemoteWork();
@@ -261,12 +315,23 @@ struct BFS {
           _net.flushCommunication();
           syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
           StatTimer_comm.stop();
+#else
+          StatTimer_compute.start();
+          BFSRemote::go(_graph, &bitset_dist_current_odd, &bitset_dist_current_even);
+          BFSMaster::go(_graph, &bitset_dist_current_odd, &bitset_dist_current_even);
+          StatTimer_compute.stop();
+
+          StatTimer_comm.start();
+          syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current_even>();
+          StatTimer_comm.stop();
+#endif
           
           local_active_vertices = bitset_dist_current_even.count();
       }
       else {
           bitset_dist_current_odd.reset();
 
+#ifndef GALOIS_FULL_MIRRORING
           StatTimer_compute.start();
           BFSRemote::go(_graph, &bitset_dist_current_even);
           _net.flushRemoteWork();
@@ -277,6 +342,16 @@ struct BFS {
           _net.flushCommunication();
           syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_odd);
           StatTimer_comm.stop();
+#else
+          StatTimer_compute.start();
+          BFSRemote::go(_graph, &bitset_dist_current_even, &bitset_dist_current_odd);
+          BFSMaster::go(_graph, &bitset_dist_current_even, &bitset_dist_current_odd);
+          StatTimer_compute.stop();
+
+          StatTimer_comm.start();
+          syncSubstrate->sync<writeDestination, readSource, Reduce_min_dist_current, Bitset_dist_current_odd>();
+          StatTimer_comm.stop();
+#endif
           
           local_active_vertices = bitset_dist_current_odd.count();
       }
@@ -395,8 +470,13 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
+#ifndef GALOIS_FULL_MIRRORING
   bitset_dist_current_odd.resize(hg->numMasters());
   bitset_dist_current_even.resize(hg->numMasters());
+#else
+  bitset_dist_current_odd.resize(hg->actualSize());
+  bitset_dist_current_even.resize(hg->actualSize());
+#endif
 
   // accumulators for use in operators
   galois::DGAccumulator<uint64_t> DGAccumulator_sum;
