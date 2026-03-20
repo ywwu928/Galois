@@ -96,7 +96,7 @@ struct InitializeGraph {
     NodeData& sdata = graph->getData(src);
     if (graph->getGID(src) == src_node) {
         sdata.dist_current = 0;
-        bitset_dist_current_odd.set(src);
+        bitset_dist_current_even.set(src);
     }
     else {
         sdata.dist_current = infinity;
