@@ -197,7 +197,7 @@ struct PageRank {
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_residual, Bitset_residual>();
+      syncSubstrate->reduce<Reduce_add_residual, Bitset_residual>();
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();

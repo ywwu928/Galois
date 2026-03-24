@@ -284,7 +284,7 @@ struct KCore {
           StatTimer_compute.stop();
 
           StatTimer_comm.start();
-          syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
+          syncSubstrate->reduce<Reduce_add_trim, Bitset_trim>();
           StatTimer_comm.stop();
           
           std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));

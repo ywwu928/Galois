@@ -272,7 +272,7 @@ struct KCore {
       StatTimer_comm.stop();
 #else
       StatTimer_comm.start();
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
+      syncSubstrate->reduce<Reduce_add_trim, Bitset_trim>();
       StatTimer_comm.stop();
 #endif
       

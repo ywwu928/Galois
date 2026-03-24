@@ -181,7 +181,7 @@ struct KCore {
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->sync<writeDestination, readSource, Reduce_add_trim, Bitset_trim>();
+      syncSubstrate->reduce<Reduce_add_trim, Bitset_trim>();
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();

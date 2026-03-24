@@ -255,7 +255,7 @@ struct ConnectedComp {
       StatTimer_compute.stop();
 
       StatTimer_comm.start();
-      syncSubstrate->sync<writeDestination, readSource, Reduce_min_comp_current, Bitset_comp_current_odd>();
+      syncSubstrate->reduce<Reduce_min_comp_current, Bitset_comp_current_odd>();
       StatTimer_comm.stop();
 #endif
 
