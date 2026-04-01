@@ -93,14 +93,18 @@ struct InitializeGraph {
 struct KCore_trim {
   Graph* graph;
 
-  KCore_trim(Graph* _graph) : graph(_graph) {}
+  galois::GAccumulator<unsigned int>& active_edges;
 
-  void static go(Graph& _graph) {
+  KCore_trim(Graph* _graph, galois::GAccumulator<unsigned int>& _active_edges)
+      : graph(_graph),
+        active_edges (_active_edges) {}
+
+  void static go(Graph& _graph, galois::GAccumulator<unsigned int>& _active_edges) {
     const auto& masterNodes = _graph.masterNodesRange();
     
     galois::do_all(
         galois::iterate(masterNodes),
-        KCore_trim{&_graph}, galois::no_stats());
+        KCore_trim{&_graph, _active_edges}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -115,6 +119,9 @@ struct KCore_trim {
         if (sdata.current_degree < k_core_num) {
             bitset_exclude.set(src);
             bitset_active.set(src);
+            
+            unsigned int nout = std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
+            active_edges += nout;
         }
     }
   }
@@ -232,11 +239,13 @@ struct KCore {
     unsigned _num_iterations   = 0;
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
-    
-    KCore_trim::go(_graph);
 
-    uint64_t local_active_vertices = bitset_active.count();
-    uint64_t global_active_vertices;
+    galois::GAccumulator<unsigned int> active_edges;
+    uint64_t local_active_edges;
+    uint64_t global_active_edges;
+    
+    KCore_trim::go(_graph, active_edges);
+    local_active_edges = active_edges.reduce();
 
     bool pull = true;
 
@@ -258,7 +267,7 @@ struct KCore {
 
       syncSubstrate->set_num_round(_num_iterations);
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_vertices);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_edges);
 
       StatTimer_total.start();
       bitset_trim.reset();
@@ -302,23 +311,24 @@ struct KCore {
       pull = !pull;
       
       bitset_active.reset();
+      active_edges.reset();
 
       StatTimer_trim.start();
-      KCore_trim::go(_graph);
+      KCore_trim::go(_graph, active_edges);
       StatTimer_trim.stop();
       
-      local_active_vertices = bitset_active.count();
+      local_active_edges = active_edges.reduce();
 
       _num_iterations++;
       
       StatTimer_active.start();
-      global_active_vertices = 0;
-      MPI_Allreduce(&local_active_vertices, &global_active_vertices, 1,
+      global_active_edges = 0;
+      MPI_Allreduce(&local_active_edges, &global_active_edges, 1,
                     MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
       StatTimer_active.stop();
       
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && global_active_vertices);
+    } while ((_num_iterations < maxIterations) && global_active_edges);
   }
 };
 
