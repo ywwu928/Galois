@@ -32,7 +32,6 @@
 #include <chrono>
 #include <xmmintrin.h>
 #include <cstring>
-#include <ittnotify.h>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -818,7 +817,6 @@ void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
 }
 
 void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
-    __itt_resume();
     recvCommBuffer.resize(Num, nullptr);
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {
@@ -831,7 +829,6 @@ void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
         }
         recvCommBuffer[i] = (uint8_t*)ptr;
     }
-    __itt_pause();
 }
 
 void NetworkInterface::deallocateRecvBuffer(uint8_t* buf) {

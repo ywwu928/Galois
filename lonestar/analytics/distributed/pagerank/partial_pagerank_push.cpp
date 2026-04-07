@@ -29,7 +29,6 @@
 #include <iostream>
 #include <limits>
 #include <vector>
-#include <ittnotify.h>
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
@@ -423,7 +422,6 @@ int main(int argc, char** argv) {
   std::unique_ptr<Graph> hg;
   std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, void, float>();
 
-  __itt_resume();
   net.allocateBufferPool();
 
   hg->sortEdgesByDestination();
@@ -476,7 +474,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  __itt_pause();
   StatTimer_total.stop();
       
   galois::runtime::reportStat_Single(REGION_NAME.c_str(), "SendBufferPoolPeakUsage", net.getSendBufferPoolPeakUsage());

@@ -38,7 +38,6 @@
 #include <algorithm>
 #include <tuple>
 #include <unordered_set>
-#include <ittnotify.h>
 
 #define CUSP_PT_TIMER 0
 
@@ -294,11 +293,9 @@ public:
 
     base_DistGraph::beginMaster = 0;
     // Allocate and construct the graph
-    __itt_resume();
     base_DistGraph::graph.allocateFrom(base_DistGraph::numNodes,
                                        base_DistGraph::numActualNodes,
                                        base_DistGraph::numEdges);
-    __itt_pause();
     base_DistGraph::graph.constructNodes();
 
     // edge end fixing
