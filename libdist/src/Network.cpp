@@ -32,6 +32,7 @@
 #include <chrono>
 #include <xmmintrin.h>
 #include <cstring>
+#include <ittnotify.h>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -817,6 +818,7 @@ void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
 }
 
 void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
+    __itt_resume();
     recvCommBuffer.resize(Num, nullptr);
     for (unsigned i=0; i<Num; i++) {
         if (i == ID) {
@@ -829,6 +831,7 @@ void NetworkInterface::allocateRecvCommBuffer(size_t alloc_size) {
         }
         recvCommBuffer[i] = (uint8_t*)ptr;
     }
+    __itt_pause();
 }
 
 void NetworkInterface::deallocateRecvBuffer(uint8_t* buf) {
@@ -1050,6 +1053,30 @@ void NetworkInterface::prefetchBuffers() {
             sendRemoteWork[i][tid].prefetchBuf();
         }
     });
+}
+
+uint64_t NetworkInterface::getSendBufferPoolPeakUsage() {
+    uint64_t peakUsage = 0;
+    for (unsigned t=0; t<numT; t++) {
+        peakUsage += sendAllocators[t].getPeakBufferUsage();
+    }
+    return peakUsage;
+}
+
+uint64_t NetworkInterface::getSendBufferPoolTotalUsage() {
+    uint64_t totalUsage = 0;
+    for (unsigned t=0; t<numT; t++) {
+        totalUsage += sendAllocators[t].getTotalBufferUsage();
+    }
+    return totalUsage;
+}
+
+uint64_t NetworkInterface::getRecvBufferPoolPeakUsage() {
+    return recvAllocator.getPeakBufferUsage();
+}
+
+uint64_t NetworkInterface::getRecvBufferPoolTotalUsage() {
+    return recvAllocator.getTotalBufferUsage();
 }
 
 NetworkInterface& getSystemNetworkInterface() {
