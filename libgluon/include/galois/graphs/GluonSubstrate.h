@@ -527,6 +527,10 @@ public:
 
     // receive buffer
     net.allocateRecvCommBuffer(total_alloc_size);
+
+    uint64_t comm_buffer_size = total_alloc_size * (numHosts - 1);
+    galois::runtime::reportStat_Tsum(RNAME, "SendCommBufferUsage", comm_buffer_size);
+    galois::runtime::reportStat_Tsum(RNAME, "RecvCommBufferUsage", comm_buffer_size);
     
     // set thread communication range
     threadRangeMaster.resize(numHosts);

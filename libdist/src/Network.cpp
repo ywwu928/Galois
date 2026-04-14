@@ -1094,6 +1094,30 @@ void NetworkInterface::prefetchBuffers() {
     });
 }
 
+uint64_t NetworkInterface::getSendBufferPoolPeakUsage() {
+    uint64_t peakUsage = 0;
+    for (unsigned t=0; t<numT; t++) {
+        peakUsage += sendAllocators[t].getPeakBufferUsage();
+    }
+    return peakUsage;
+}
+
+uint64_t NetworkInterface::getSendBufferPoolTotalUsage() {
+    uint64_t totalUsage = 0;
+    for (unsigned t=0; t<numT; t++) {
+        totalUsage += sendAllocators[t].getTotalBufferUsage();
+    }
+    return totalUsage;
+}
+
+uint64_t NetworkInterface::getRecvBufferPoolPeakUsage() {
+    return recvAllocator.getPeakBufferUsage();
+}
+
+uint64_t NetworkInterface::getRecvBufferPoolTotalUsage() {
+    return recvAllocator.getTotalBufferUsage();
+}
+
 NetworkInterface& getSystemNetworkInterface() {
     static std::atomic<NetworkInterface*> net;
     static substrate::SimpleLock m_mutex;

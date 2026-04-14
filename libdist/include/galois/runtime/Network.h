@@ -423,6 +423,14 @@ public:
   void touchBufferPool();
   
   void prefetchBuffers();
+
+  uint64_t getSendBufferPoolPeakUsage();
+
+  uint64_t getSendBufferPoolTotalUsage();
+
+  uint64_t getRecvBufferPoolPeakUsage();
+
+  uint64_t getRecvBufferPoolTotalUsage();
 };
 
 //! Variable that keeps track of which network send/recv phase a program is

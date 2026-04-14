@@ -534,6 +534,11 @@ int main(int argc, char** argv) {
 
   StatTimer_total.stop();
 
+  galois::runtime::reportStat_Tsum(REGION_NAME.c_str(), "SendBufferPoolPeakUsage", net.getSendBufferPoolPeakUsage());
+  galois::runtime::reportStat_Tsum(REGION_NAME.c_str(), "SendBufferPoolTotalUsage", net.getSendBufferPoolTotalUsage());
+  galois::runtime::reportStat_Tsum(REGION_NAME.c_str(), "RecvBufferPoolPeakUsage", net.getRecvBufferPoolPeakUsage());
+  galois::runtime::reportStat_Tsum(REGION_NAME.c_str(), "RecvBufferPoolTotalUsage", net.getRecvBufferPoolTotalUsage());
+
   net.applicationDone();
 
   if (output) {

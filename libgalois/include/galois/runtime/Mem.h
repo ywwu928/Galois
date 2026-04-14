@@ -1059,6 +1059,10 @@ class FixedSizeBufferAllocator {
     uint32_t factor;
     bool alloc;
 
+    std::atomic<uint64_t> inUse;
+    std::atomic<uint64_t> peakUse;
+    std::atomic<uint64_t> totalBuffers;
+
 public:
     FixedSizeBufferAllocator() {}
 
@@ -1076,6 +1080,10 @@ public:
         factor = 1;
         //allocateRegions();
         alloc = true;
+
+        inUse.store(0);
+        peakUse.store(0);
+        totalBuffers.store(0);
     }
 
     uint8_t* allocate() {
@@ -1092,12 +1100,19 @@ public:
                 success = bufferPool.pop(buffer);
             } while(!success);
         }
+
+        uint64_t current = inUse.fetch_add(1, std::memory_order_relaxed) + 1;
+
+        uint64_t peak = peakUse.load(std::memory_order_relaxed);
+        while (current > peak && !peakUse.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}
         
         return buffer;
     }
 
     void deallocate(uint8_t* buffer) {
         bufferPool.push(buffer);
+
+        inUse.fetch_sub(1, std::memory_order_relaxed);
     }
 
     void touch() {
@@ -1129,9 +1144,24 @@ public:
             for (size_t j=0; j<regionSize; j+=bufferSize) {
                 bufferPool.push(static_cast<uint8_t*>(region) + j);
             }
+
+            uint64_t buffersPerRegion = regionSize / bufferSize;
+            totalBuffers.fetch_add(buffersPerRegion, std::memory_order_relaxed);
         }
         
         factor = factor << 1;
+    }
+
+    uint64_t getPeakBufferUsage() {
+        uint64_t peakBufferCount = peakUse.load(std::memory_order_relaxed);
+        uint64_t peakBufferByte = peakBufferCount * bufferSize;
+        return peakBufferByte;
+    }
+
+    uint64_t getTotalBufferUsage() {
+        uint64_t totalBufferCount = totalBuffers.load(std::memory_order_relaxed);
+        uint64_t totalBufferByte = totalBufferCount * bufferSize;
+        return totalBufferByte;
     }
     
 private:
