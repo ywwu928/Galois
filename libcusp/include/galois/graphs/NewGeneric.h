@@ -1763,7 +1763,7 @@ private:
   void edgeCutLoad(GraphTy& graph,
                    galois::graphs::BufferedGraph<EdgeTy>& bGraph) {
     if (base_DistGraph::id == 0) {
-      galois::gPrint("Loading edge-data while creating edges\n");
+      galois::gPrint("Creating edges\n");
     }
 
     uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
@@ -1783,8 +1783,9 @@ private:
           for (; ii < ee; ++ii) {
             auto gdst           = bGraph.edgeDestination(*ii);
             decltype(gdst) ldst = this->G2LEdgeCut(gdst, globalOffset);
-            auto gdata          = bGraph.edgeData(*ii);
-            graph.constructEdge(cur++, ldst, gdata);
+            //auto gdata          = bGraph.edgeData(*ii);
+            //graph.constructEdge(cur++, ldst, gdata);
+            graph.constructEdge(cur++, ldst);
           }
           assert(cur == (*graph.edge_end(lsrc)));
         },
@@ -1815,7 +1816,7 @@ private:
   void edgeCutLoad(GraphTy& graph,
                    galois::graphs::BufferedGraph<EdgeTy>& bGraph) {
     if (base_DistGraph::id == 0) {
-      galois::gPrint("Loading edge-data while creating edges\n");
+      galois::gPrint("Creating edges\n");
     }
 
     uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;

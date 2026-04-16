@@ -366,8 +366,8 @@ public:
     loadEdgeDest(graphFile, edgeStart, numLocalEdges, numGlobalNodes);
 
     // may or may not do something depending on EdgeDataType
-    loadEdgeData<EdgeDataType>(graphFile, edgeStart, numLocalEdges,
-                               numGlobalNodes, numGlobalEdges);
+    //loadEdgeData<EdgeDataType>(graphFile, edgeStart, numLocalEdges, numGlobalNodes, numGlobalEdges);
+    
     graphLoaded = true;
 
     graphFile.close();
@@ -467,9 +467,9 @@ public:
       GALOIS_DIE("Trying to get edge data when graph has no edge data.");
     }
 
-    if (numLocalEdges == 0) {
-      return 0;
-    }
+    //if (numLocalEdges == 0) {
+    //  return 0;
+    //}
 
     assert(edgeOffset <= globalEdgeID);
     assert(globalEdgeID < (edgeOffset + numLocalEdges));
