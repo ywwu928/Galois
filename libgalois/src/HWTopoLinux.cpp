@@ -42,9 +42,6 @@
 #include <sched.h>
 #endif
 
-int commThreadNum = 1;
-cll::opt<unsigned int> commCoreID("commCoreID", cll::desc("The core ID to pin the communication thread to"), cll::init(27));
-
 namespace {
 
 struct cpuinfo {
@@ -235,7 +232,7 @@ galois::substrate::HWTopoInfo makeHWTopo() {
   retMTI.maxNumaNodes = countNumaNodes(info);
 
   std::vector<galois::substrate::ThreadTopoInfo> retTTI;
-  retTTI.reserve(retMTI.maxThreads - commThreadNum);
+  retTTI.reserve(retMTI.maxThreads);
   // compute renumberings
   std::set<unsigned> sockets;
   std::set<unsigned> numaNodes;
@@ -246,25 +243,20 @@ galois::substrate::HWTopoInfo makeHWTopo() {
   unsigned mid = 0; // max socket id
   unsigned cur_tid = 0;
   for (unsigned i = 0; i < info.size(); ++i) {
-    if (info[i].proc == commCoreID) {
-        continue;
-    }
-    else {
-        unsigned pid = info[i].physid;
-        unsigned repid =
-            std::distance(sockets.begin(), sockets.find(info[i].physid));
-        mid             = std::max(mid, repid);
-        unsigned leader = std::distance(
-            info.begin(),
-            std::find_if(info.begin(), info.end(),
-                         [pid](const cpuinfo& c) { return c.physid == pid; }));
-        retTTI.push_back(galois::substrate::ThreadTopoInfo{
-            cur_tid, leader, repid,
-            (unsigned)std::distance(numaNodes.begin(),
-                                    numaNodes.find(info[i].numaNode)),
-            mid, info[i].proc, info[i].numaNode});
-        cur_tid += 1;
-    }
+      unsigned pid = info[i].physid;
+      unsigned repid =
+          std::distance(sockets.begin(), sockets.find(info[i].physid));
+      mid             = std::max(mid, repid);
+      unsigned leader = std::distance(
+          info.begin(),
+          std::find_if(info.begin(), info.end(),
+                       [pid](const cpuinfo& c) { return c.physid == pid; }));
+      retTTI.push_back(galois::substrate::ThreadTopoInfo{
+          cur_tid, leader, repid,
+          (unsigned)std::distance(numaNodes.begin(),
+                                  numaNodes.find(info[i].numaNode)),
+          mid, info[i].proc, info[i].numaNode});
+      cur_tid += 1;
   }
 
   return {

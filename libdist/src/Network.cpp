@@ -521,21 +521,6 @@ void NetworkInterface::terminationComplete() {
 }
 
 void NetworkInterface::commThread() {
-
-    // Set thread affinity
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);           // Clear the CPU set
-    CPU_SET(commCoreID, &cpuset);   // Set the specified core
-
-    // Get the native handle of the std::thread
-    pthread_t thread = pthread_self();
-
-    // Set the CPU affinity of the thread
-    if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) != 0) {
-        std::cerr << "Error setting thread affinity" << std::endl;
-        return;
-    }
-
     ID = getID();
     Num = getNum();
 
