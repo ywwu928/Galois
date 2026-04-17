@@ -144,95 +144,14 @@ struct PageRank_delta {
   }
 };
 
-struct PageRankRemote {
+struct PageRank {
   Graph* graph;
 
   galois::runtime::NetworkInterface& net;
 
-  PageRankRemote(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
-
-  void static go(Graph& _graph) {
-      const auto& remoteNodes = _graph.remoteNodesRange();
-
-      galois::do_all(
-          galois::iterate(remoteNodes), PageRankRemote{&_graph},
-          galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-#ifndef GALOIS_FULL_MIRRORING
-    float dresidual = 0;
-    
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            dresidual = dresidual + sdata.delta;
-        }
-    }
-
-    if (dresidual != 0) {
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
-    }
-#else
-    auto& ddata = graph->getData(dst);
-
-    bool dirty = false;
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            galois::addVoid(ddata.residual, sdata.delta);
-            dirty = true;
-        }
-    }
-
-    if (dirty) {
-        bitset_residual.set(dst);
-    }
-#endif
-  }
-};
-
-struct PageRankMaster {
-  Graph* graph;
-
-  PageRankMaster(Graph* _graph) : graph(_graph) {}
-
-  void static go(Graph& _graph) {
-      const auto& masterNodes = _graph.masterNodesRange();
-      
-      galois::do_all(
-          galois::iterate(masterNodes), PageRankMaster{&_graph},
-          galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-    auto& ddata = graph->getData(dst);
-
-    bool dirty = false;
-    for (auto nbr : graph->inEdges(dst)) {
-        GNode src   = graph->getInEdgeSrc(nbr);
-
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            galois::addVoid(ddata.residual, sdata.delta);
-            dirty = true;
-        }
-    }
-
-    if (dirty) {
-        bitset_residual.set(dst);
-    }
-  }
-};
-
-struct PageRank {
-  Graph* graph;
-
-  PageRank(Graph* _graph) : graph(_graph) {}
+  PageRank(Graph* _graph)
+      : graph(_graph),
+        net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -242,6 +161,8 @@ struct PageRank {
 #endif
 
     unsigned _num_iterations   = 0;
+
+    const auto& allNodes = _graph.allNodesRange();
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
@@ -284,9 +205,10 @@ struct PageRank {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      PageRankRemote::go(_graph);
+      galois::do_all(
+          galois::iterate(allNodes), PageRank{&_graph},
+          galois::steal(), galois::no_stats());
       _net.flushRemoteWork();
-      PageRankMaster::go(_graph);
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING
@@ -312,6 +234,43 @@ struct PageRank {
 
       StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && global_active_vertices);
+  }
+
+  void operator()(GNode dst) const {
+    if (graph->isMaster(dst)) {
+        auto& ddata = graph->getData(dst);
+
+        bool dirty = false;
+        for (auto nbr : graph->inEdges(dst)) {
+            GNode src   = graph->getInEdgeSrc(nbr);
+
+            if (bitset_delta.test(src)) {
+                auto& sdata = graph->getData(src);
+                galois::addVoid(ddata.residual, sdata.delta);
+                dirty = true;
+            }
+        }
+
+        if (dirty) {
+            bitset_residual.set(dst);
+        }
+    }
+    else {
+        float dresidual = 0;
+        
+        for (auto nbr : graph->inEdges(dst)) {
+            GNode src   = graph->getInEdgeSrc(nbr);
+
+            if (bitset_delta.test(src)) {
+                auto& sdata = graph->getData(src);
+                dresidual = dresidual + sdata.delta;
+            }
+        }
+
+        if (dresidual != 0) {
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dresidual);
+        }
+    }
   }
 };
 

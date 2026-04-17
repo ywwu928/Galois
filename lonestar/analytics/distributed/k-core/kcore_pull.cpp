@@ -130,91 +130,14 @@ struct KCore_trim {
   }
 };
 
-struct KCoreRemote {
+struct KCore {
   Graph* graph;
 
   galois::runtime::NetworkInterface& net;
 
-  KCoreRemote(Graph* _graph) : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
-
-  void static go(Graph& _graph) {
-    const auto& remoteNodes = _graph.remoteNodesRange();
-
-    galois::do_all(galois::iterate(remoteNodes), KCoreRemote{&_graph},
-                   galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-#ifndef GALOIS_FULL_MIRRORING
-    uint32_t dtrim = 0;
-      
-    for (auto current_edge : graph->inEdges(dst)) {
-        GNode src = graph->getInEdgeSrc(current_edge);
-        if (bitset_active.test(src)) {
-            dtrim += 1;
-        }
-    }
-    
-    if (dtrim != 0) {
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dtrim);
-    }
-#else
-    if (!bitset_exclude.test(dst)) {
-        NodeData& ddata = graph->getData(dst);
-      
-        bool dirty = false;
-        for (auto current_edge : graph->inEdges(dst)) {
-            GNode src = graph->getInEdgeSrc(current_edge);
-            if (bitset_active.test(src)) {
-                galois::addVoid(ddata.trim, (uint32_t)1);
-                dirty = true;
-            }
-        }
-
-        if (dirty) {
-            bitset_trim.set(dst);
-        }
-    }
-#endif
-  }
-};
-
-struct KCoreMaster {
-  Graph* graph;
-
-  KCoreMaster(Graph* _graph) : graph(_graph) {}
-
-  void static go(Graph& _graph) {
-    const auto& masterNodes = _graph.masterNodesRange();
-
-    galois::do_all(galois::iterate(masterNodes), KCoreMaster{&_graph},
-                   galois::steal(), galois::no_stats());
-  }
-
-  void operator()(GNode dst) const {
-    if (!bitset_exclude.test(dst)) {
-        NodeData& ddata = graph->getData(dst);
-      
-        bool dirty = false;
-        for (auto current_edge : graph->inEdges(dst)) {
-            GNode src = graph->getInEdgeSrc(current_edge);
-            if (bitset_active.test(src)) {
-                galois::addVoid(ddata.trim, (uint32_t)1);
-                dirty = true;
-            }
-        }
-
-        if (dirty) {
-            bitset_trim.set(dst);
-        }
-    }
-  }
-};
-
-struct KCore {
-  Graph* graph;
-
-  KCore(Graph* _graph) : graph(_graph) {}
+  KCore(Graph* _graph)
+      : graph(_graph),
+        net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
 #ifdef GALOIS_USER_STATS
@@ -224,6 +147,8 @@ struct KCore {
 #endif
 
     unsigned _num_iterations = 0;
+
+    const auto& allNodes = _graph.allNodesRange();
 
     uint64_t local_active_vertices;
     uint64_t global_active_vertices;
@@ -260,9 +185,10 @@ struct KCore {
       _net.prefetchBuffers();
 
       StatTimer_compute.start();
-      KCoreRemote::go(_graph);
+      galois::do_all(
+          galois::iterate(allNodes), KCore{&_graph},
+          galois::steal(), galois::no_stats());
       _net.flushRemoteWork();
-      KCoreMaster::go(_graph);
       StatTimer_compute.stop();
 
 #ifndef GALOIS_FULL_MIRRORING
@@ -296,6 +222,41 @@ struct KCore {
 
       StatTimer_total.stop();
     } while ((_num_iterations < maxIterations) && global_active_vertices);
+  }
+
+  void operator()(GNode dst) const {
+    if (graph->isMaster(dst)) {
+        if (!bitset_exclude.test(dst)) {
+            NodeData& ddata = graph->getData(dst);
+          
+            bool dirty = false;
+            for (auto current_edge : graph->inEdges(dst)) {
+                GNode src = graph->getInEdgeSrc(current_edge);
+                if (bitset_active.test(src)) {
+                    galois::addVoid(ddata.trim, (uint32_t)1);
+                    dirty = true;
+                }
+            }
+
+            if (dirty) {
+                bitset_trim.set(dst);
+            }
+        }
+    }
+    else {
+        uint32_t dtrim = 0;
+          
+        for (auto current_edge : graph->inEdges(dst)) {
+            GNode src = graph->getInEdgeSrc(current_edge);
+            if (bitset_active.test(src)) {
+                dtrim += 1;
+            }
+        }
+        
+        if (dtrim != 0) {
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dtrim);
+        }
+    }
   }
 };
 
