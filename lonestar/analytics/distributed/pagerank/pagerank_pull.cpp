@@ -128,9 +128,10 @@ struct PageRank_delta {
   }
 
   void operator()(GNode src) const {
+    auto& sdata = graph->getData(src);
+    sdata.delta = 0;
+    
     if (bitset_residual.test(src)) {
-      auto& sdata = graph->getData(src);
-
       sdata.value += sdata.residual;
       if (sdata.residual > tolerance) {
         uint32_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
@@ -166,10 +167,8 @@ struct PageRankRemote {
     for (auto nbr : graph->inEdges(dst)) {
         GNode src   = graph->getInEdgeSrc(nbr);
 
-        if (bitset_delta.test(src)) {
-            auto& sdata = graph->getData(src);
-            dresidual = dresidual + sdata.delta;
-        }
+        auto& sdata = graph->getData(src);
+        dresidual = dresidual + sdata.delta;
     }
 
     if (dresidual != 0) {

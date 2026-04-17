@@ -133,11 +133,9 @@ struct ConnectedCompRemote {
     */
     for (auto jj : graph->inEdges(dst)) {
         GNode src         = graph->getInEdgeSrc(jj);
-        if (bitset_comp_current_odd.test(src)) {
-            auto& snode       = graph->getData(src);
-            if (snode.comp_current < dcomp) {
-                dcomp = snode.comp_current;
-            }
+        auto& snode       = graph->getData(src);
+        if (snode.comp_current < dcomp) {
+            dcomp = snode.comp_current;
         }
     }
     
