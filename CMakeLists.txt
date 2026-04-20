@@ -23,7 +23,6 @@ endif()
 ###### Options (alternatively pass as options to cmake -DName=Value) ######
 ###### Distributed-heterogeneous features ######
 set(GALOIS_ENABLE_DIST OFF CACHE BOOL "Enable distributed features")
-set(GALOIS_FULL_MIRRORING OFF CACHE BOOL "Use full mirroring")
 set(GALOIS_PRINT_PROCESS OFF CACHE BOOL "Print the process of program execution")
 set(GALOIS_CUDA_CAPABILITY "" CACHE STRING "Semi-colon list of CUDA compute capability version numbers to enable GPU features") # e.g., "3.7;6.1"
 set(GALOIS_COMM_STATS OFF CACHE BOOL "Report more detailed statistics of communication")

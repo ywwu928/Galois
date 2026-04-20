@@ -583,111 +583,7 @@ void NetworkInterface::commThread() {
         *(recvCommBuffer[i]) = (uint8_t)0;
     }
     
-#ifndef GALOIS_FULL_MIRRORING
-    recvAllocator.touch();
-#endif
-    
     while (ready.load(std::memory_order_acquire) == 3) {
-#ifndef GALOIS_FULL_MIRRORING
-        while (ready.load(std::memory_order_acquire) == 3 && !flushWork.load(std::memory_order_acquire)) {
-            for (unsigned i = 0; i < Num - 1; ++i) {
-                unsigned h = hostOrder[i];
-
-                // handle send queue
-                sendWorkComplete();
-
-                // remote work
-                for (unsigned t=0; t<numT; t++) {
-                    // push progress forward on the network IO
-                    recvProbeWorkComm();
-
-                    auto& srw = sendRemoteWork[h][t];
-
-                    uint8_t* work;
-                    bool success = srw.pop(work);
-
-                    if (success) {
-                        sendFullWork(t, h, work);
-                    }
-                }
-            }
-        }
-
-        // flush all full work messages
-        for (unsigned i = 0; i < Num - 1; ++i) {
-            unsigned h = hostOrder[i];
-            
-            for (unsigned t=0; t<numT; t++) {
-                // push progress forward on the network IO
-                recvProbeWorkComm();
-  
-                auto& srw = sendRemoteWork[h][t];
-
-                uint8_t* work;
-                bool success = srw.pop(work);
-              
-                while (success) {
-                    sendFullWork(t, h, work);
-                    success = srw.pop(work);
-                }
-            }
-        }
-
-        // flush all partial work messages
-        for (unsigned i = 0; i < Num - 1; ++i) {
-            unsigned h = hostOrder[i];
-
-            if (partialBufLen[h] > 0) {
-                sendPartialWork(0, h, partialBuf[h], partialBufLen[h]);
-            }
-            else {
-                sendAllocators[0].deallocate(partialBuf[h]);
-            }
-
-            // send work termination
-            if (sendWorkTermination[h].load(std::memory_order_acquire)) {
-                sendTermination(h, workTerminationTag);
-                sendWorkTermination[h].store(false, std::memory_order_relaxed);
-            }
-
-            partialBuf[h] = nullptr;
-            partialBufLen[h] = 0;
-        }
-
-        // reset flush
-        flushWork.store(false, std::memory_order_relaxed);
-
-        while (ready.load(std::memory_order_acquire) == 3 && !flushComm.load(std::memory_order_acquire)) {
-            // push progress forward on the network IO
-            recvProbeWorkComm();
-        }
-
-        // flush communication messages
-        uint32_t dest;
-        uint8_t* data;
-        size_t dataLen;
-        bool success = sendCommData.pop(dest, data, dataLen);
-        while (success) {
-            sendCommunication(dest, data, dataLen);
-            success = sendCommData.pop(dest, data, dataLen);
-        }
-
-        // reset flush
-        flushComm.store(false, std::memory_order_relaxed);
-
-        while (ready.load(std::memory_order_acquire) == 3 && !recvAll.load(std::memory_order_acquire)) {
-            // push progress forward on the network IO
-            recvProbeWorkComm();
-        }
-
-        // reset recvAll
-        recvAll.store(false, std::memory_order_relaxed);
-
-        // handle send queue
-        sendWorkCommCompleteUntilEmpty();
-
-        terminationComplete();
-#else
         // handle send queue
         sendCommComplete();
 
@@ -702,7 +598,6 @@ void NetworkInterface::commThread() {
             sendCommunication(dest, data, dataLen);
             success = sendCommData.pop(dest, data, dataLen);
         }
-#endif
     }
     
     // for collecting stats
@@ -818,20 +713,7 @@ NetworkInterface::~NetworkInterface() {
     }
 }
 
-void NetworkInterface::allocateBufferPool() {
-#ifndef GALOIS_FULL_MIRRORING
-    for (unsigned t=0; t<numT; t++) {
-        sendAllocators[t].allocateRegions();
-    }
-    recvAllocator.allocateRegions();
-
-    for (unsigned i=0; i<Num; i++) {
-        for (unsigned t=0; t<numT; t++) {
-            sendRemoteWork[i][t].setBuf();
-        }
-    }
-#endif
-}
+void NetworkInterface::allocateBufferPool() {}
 
 void NetworkInterface::sendTagged(uint32_t dest, uint32_t tag, SendBuffer& buf, int phase) {
     tag += phase;
@@ -961,96 +843,9 @@ void NetworkInterface::receiveComm(uint32_t& host, uint8_t*& work) {
     work = recvCommBuffer[host];
 }
 
-void NetworkInterface::flushRemoteWork() {
-#ifndef GALOIS_FULL_MIRRORING
-    // aggregate partial messages across threads
-    for (uint32_t h = 0; h < Num; ++h) {
-        if (h == ID) {
-            continue;
-        }
+void NetworkInterface::flushRemoteWork() {}
 
-        uint8_t* aggBuf = sendAllocators[0].allocate();
-        __builtin_prefetch(aggBuf, 1, 3);
-        uint32_t aggMsgCount = 0;
-        uint32_t remainWorkCount = workCount;
-        for (unsigned t=0; t<numT; t++) {
-            auto& srw = sendRemoteWork[h][t];
-            uint32_t msgCount = srw.getMsgCount();
-
-            if (msgCount != 0) {
-                size_t aggBufLen = aggMsgCount << 3; // 2 * sizeof(uint32_t) * aggMsgCount
-                uint8_t* buf = srw.getBuf();
-
-                if (msgCount < remainWorkCount) {
-                    size_t bufLen = msgCount << 3;
-
-                    std::memcpy((aggBuf + aggBufLen), buf, bufLen);
-
-                    aggMsgCount += msgCount;
-                    remainWorkCount -= msgCount;
-                    srw.resetMsgCount();
-                }
-                else if (msgCount == remainWorkCount) {
-                    size_t bufLen = msgCount << 3;
-
-                    std::memcpy((aggBuf + aggBufLen), buf, bufLen);
-
-                    sendRemoteWork[h][0].enqueue(aggBuf);
-
-                    aggBuf = sendAllocators[0].allocate();
-                    __builtin_prefetch(aggBuf, 1, 3);
-
-                    aggMsgCount = 0;
-                    remainWorkCount = workCount;
-                    srw.resetMsgCount();
-                }
-                else { // msgCount > remainWorkCount
-                    size_t remainLen = remainWorkCount << 3;
-
-                    std::memcpy((aggBuf + aggBufLen), buf, remainLen);
-
-                    sendRemoteWork[h][0].enqueue(aggBuf);
-
-                    aggBuf = sendAllocators[0].allocate();
-                    __builtin_prefetch(aggBuf, 1, 3);
-
-                    aggMsgCount = msgCount - remainWorkCount;
-                    remainWorkCount = workCount - aggMsgCount;
-
-                    aggBufLen = aggMsgCount << 3;
-
-                    std::memcpy(aggBuf, (buf + remainLen), aggBufLen);
-
-                    srw.resetMsgCount();
-                }
-            }
-        }
-
-        partialBuf[h] = aggBuf;
-        if (aggMsgCount != 0) {
-            size_t aggBufLen = aggMsgCount << 3;
-            *((uint32_t*)(aggBuf + aggBufLen)) = aggMsgCount;
-            aggBufLen += sizeof(uint32_t);
-            partialBufLen[h] = aggBufLen;
-        }
-        else {
-            partialBufLen[h] = 0;
-        }
-
-        if (sendWorkTerminationValid[h]) {
-            sendWorkTermination[h].store(true, std::memory_order_release);
-        }
-    }
-
-    flushWork.store(true, std::memory_order_release);
-#endif
-}
-
-void NetworkInterface::flushCommunication() {
-#ifndef GALOIS_FULL_MIRRORING
-    flushComm.store(true, std::memory_order_release);
-#endif
-}
+void NetworkInterface::flushCommunication() {}
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
     sendWorkTerminationValid[host] = false;
@@ -1074,17 +869,7 @@ void NetworkInterface::signalDataTermination(uint32_t dest) {
     sendDataTermination[dest].store(true, std::memory_order_release);
 }
 
-void NetworkInterface::touchBufferPool() {
-#ifndef GALOIS_FULL_MIRRORING
-    galois::on_each([&](unsigned tid, unsigned) {
-        sendAllocators[tid].touch();
-
-        for (unsigned i=0; i<Num; i++) {
-            sendRemoteWork[i][tid].touchBuf();
-        }
-    });
-#endif
-}
+void NetworkInterface::touchBufferPool() {}
 
 void NetworkInterface::prefetchBuffers() {
     galois::on_each([&](unsigned tid, unsigned) {

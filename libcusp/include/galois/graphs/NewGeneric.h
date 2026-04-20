@@ -1539,26 +1539,7 @@ private:
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
 
-#ifndef GALOIS_FULL_MIRRORING
-    const uint32_t mirrorThreshold = 1;
-    galois::GAccumulator<uint32_t> partialMirrorAccumulator;
-    partialMirrorAccumulator.reset();
-  
-    galois::on_each([&](unsigned tid, unsigned nthreads) {
-        size_t beginNode;
-        size_t endNode;
-        std::tie(beginNode, endNode) = galois::block_range(0u, totalNumNodes, tid, nthreads);
-        for (size_t i = beginNode; i < endNode; i++) {
-            if (incomingDegree[i] > mirrorThreshold) {
-                partialMirrorAccumulator += 1;
-            }
-        }
-    });
-
-    partialMirrorCount = partialMirrorAccumulator.reduce();
-#else
     partialMirrorCount = fullMirrorCount;
-#endif
     uint32_t phantomCount = fullMirrorCount - partialMirrorCount;
 
     base_DistGraph::localToGlobalVector.resize(base_DistGraph::localToGlobalVector.size() + fullMirrorCount);
@@ -1624,102 +1605,6 @@ private:
           threadPrefixSums.clear();
           freeVector(threadPrefixSums); // should no longer use this variable
       }
-#ifndef GALOIS_FULL_MIRRORING
-      else {
-          // TODO move this part below into separate function
-          uint32_t activeThreads = galois::getActiveThreads();
-          std::vector<uint64_t> threadMirrorPrefixSums(activeThreads);
-          std::vector<uint64_t> threadPhantomPrefixSums(activeThreads);
-          galois::on_each([&](unsigned tid, unsigned nthreads) {
-            size_t beginNode;
-            size_t endNode;
-            std::tie(beginNode, endNode) =
-                galois::block_range(0u, totalNumNodes, tid, nthreads);
-            uint64_t mirror_count = 0;
-            uint64_t phantom_count = 0;
-            for (size_t i = beginNode; i < endNode; i++) {
-                if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] > mirrorThreshold)
-                        ++mirror_count;
-                    else
-                        ++phantom_count;
-                }
-            }
-            threadMirrorPrefixSums[tid] = mirror_count;
-            threadPhantomPrefixSums[tid] = phantom_count;
-          });
-          // get prefix sums
-          for (uint32_t i = 1; i < activeThreads; i++) {
-            threadMirrorPrefixSums[i] += threadMirrorPrefixSums[i - 1];
-            threadPhantomPrefixSums[i] += threadPhantomPrefixSums[i - 1];
-          }
-
-          assert(threadMirrorPrefixSums.back() == partialMirrorCount);
-          assert(threadPhantomPrefixSums.back() == phantomCount);
-
-          // actual mirrors first
-          uint32_t startingNodeIndex = base_DistGraph::numOwned;
-          galois::on_each([&](unsigned tid, unsigned nthreads) {
-            size_t beginNode;
-            size_t endNode;
-            std::tie(beginNode, endNode) =
-                galois::block_range(0u, totalNumNodes, tid, nthreads);
-            // start location to start adding things into prefix sums/vectors
-            uint32_t threadStartLocation = 0;
-            if (tid != 0) {
-              threadStartLocation = threadMirrorPrefixSums[tid - 1];
-            }
-            uint32_t handledNodes = 0;
-            for (size_t i = beginNode; i < endNode; i++) {
-                if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] > mirrorThreshold) {
-                      base_DistGraph::localToGlobalVector[startingNodeIndex +
-                                                          threadStartLocation +
-                                                          handledNodes] = i;
-                      base_DistGraph::localHostVector[startingNodeIndex +
-                                                      threadStartLocation +
-                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
-                      handledNodes++;
-                    }
-                }
-            }
-          });
-
-          threadMirrorPrefixSums.clear();
-          freeVector(threadMirrorPrefixSums); // should no longer use this variable
-
-          // then phantom
-          startingNodeIndex = base_DistGraph::numOwned + partialMirrorCount;
-          galois::on_each([&](unsigned tid, unsigned nthreads) {
-            size_t beginNode;
-            size_t endNode;
-            std::tie(beginNode, endNode) =
-                galois::block_range(0u, totalNumNodes, tid, nthreads);
-            // start location to start adding things into prefix sums/vectors
-            uint32_t threadStartLocation = 0;
-            if (tid != 0) {
-              threadStartLocation = threadPhantomPrefixSums[tid - 1];
-            }
-            uint32_t handledNodes = 0;
-            for (size_t i = beginNode; i < endNode; i++) {
-                if (incomingMirrors.test(i)) {
-                    if (incomingDegree[i] <= mirrorThreshold) {
-                      base_DistGraph::localToGlobalVector[startingNodeIndex +
-                                                          threadStartLocation +
-                                                          handledNodes] = i;
-                      base_DistGraph::localHostVector[startingNodeIndex +
-                                                      threadStartLocation +
-                                                      handledNodes] = graphPartitioner->retrieveMaster(i);
-                      handledNodes++;
-                    }
-                }
-            }
-          });
-
-          threadPhantomPrefixSums.clear();
-          freeVector(threadPhantomPrefixSums); // should no longer use this variable
-      }
-#endif
     }
     
     incomingDegree.clear();

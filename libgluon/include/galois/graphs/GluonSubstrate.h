@@ -1012,11 +1012,6 @@ public:
   template <typename ReduceFnTy, typename BitsetFnTy>
   void reduce() {
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
-#ifndef GALOIS_FULL_MIRRORING
-    net.flushCommunication();
-    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
-    poll_for_remote_work_bitset<ReduceFnTy>(bitset_compute);
-#endif
     syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
   }
 
