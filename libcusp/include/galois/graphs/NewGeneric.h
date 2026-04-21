@@ -338,8 +338,6 @@ public:
       base_DistGraph::numNodesWithEdges = base_DistGraph::numNodes;
     }
 
-    base_DistGraph::graph.constructIncoming(GRNAME);
-
     galois::CondStatTimer<MORE_DIST_STATS> Tthread_ranges("ThreadRangesTime",
                                                           GRNAME);
 

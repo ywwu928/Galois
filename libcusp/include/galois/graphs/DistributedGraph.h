@@ -670,8 +670,6 @@ public:
   GraphNode getEdgeDst(edge_iterator ni) { return graph.getEdgeDst(ni); }
   
   GraphNode getOutEdgeDst(edge_iterator ni) { return graph.getEdgeDst(ni); }
-  
-  GraphNode getInEdgeSrc(edge_iterator ni) { return graph.getInEdgeSrc(ni); }
 
   /**
    * Gets the first edge of some node.
@@ -685,10 +683,6 @@ public:
   
   edge_iterator out_edge_begin(GraphNode N) {
     return graph.edge_begin(N, galois::MethodFlag::UNPROTECTED);
-  }
-  
-  edge_iterator in_edge_begin(GraphNode N) {
-    return graph.in_edge_begin(N, galois::MethodFlag::UNPROTECTED);
   }
 
   /**
@@ -704,10 +698,6 @@ public:
   
   edge_iterator out_edge_end(GraphNode N) {
     return graph.edge_end(N, galois::MethodFlag::UNPROTECTED);
-  }
-  
-  edge_iterator in_edge_end(GraphNode N) {
-    return graph.in_edge_end(N, galois::MethodFlag::UNPROTECTED);
   }
   
   /**
@@ -733,12 +723,6 @@ public:
   outEdges(GraphNode N) {
     return galois::graphs::internal::make_no_deref_range(out_edge_begin(N),
                                                          out_edge_end(N));
-  }
-
-  galois::runtime::iterable<galois::NoDerefIterator<edge_iterator>>
-  inEdges(GraphNode N) {
-    return galois::graphs::internal::make_no_deref_range(in_edge_begin(N),
-                                                         in_edge_end(N));
   }
 
   uint64_t getDegree(GraphNode N) const { return graph.getDegree(N); }

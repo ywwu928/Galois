@@ -161,8 +161,6 @@ protected:
   EdgeIndData edgeIndData;
   EdgeDst edgeDst;
   EdgeData edgeData;
-  EdgeIndData edgeIndDataIncoming;
-  EdgeDst edgeDstIncoming;
 
   uint64_t numNodes;
   uint64_t numActualNodes;
@@ -177,16 +175,8 @@ protected:
     return edge_iterator((N == 0) ? 0 : edgeIndData[N - 1]);
   }
 
-  edge_iterator in_raw_begin(GraphNode N) const {
-    return edge_iterator((N == 0) ? 0 : edgeIndDataIncoming[N - 1]);
-  }
-
   edge_iterator raw_end(GraphNode N) const {
     return edge_iterator(edgeIndData[N]);
-  }
-
-  edge_iterator in_raw_end(GraphNode N) const {
-    return edge_iterator(edgeIndDataIncoming[N]);
   }
 
   edge_sort_iterator edge_sort_begin(GraphNode N) {
@@ -413,8 +403,6 @@ public:
   }
 
   GraphNode getEdgeDst(edge_iterator ni) { return edgeDst[*ni]; }
-  
-  GraphNode getInEdgeSrc(edge_iterator ni) { return edgeDstIncoming[*ni]; }
 
   size_t size() const { return numNodes; }
   size_t actualSize() const { return numActualNodes; }
@@ -449,24 +437,9 @@ public:
     return raw_begin(N);
   }
 
-  edge_iterator in_edge_begin(GraphNode N, MethodFlag mflag = MethodFlag::WRITE) {
-    acquireNode(N, mflag);
-    if (!HasNoLockable && galois::runtime::shouldLock(mflag)) {
-      for (edge_iterator ii = raw_begin(N), ee = raw_end(N); ii != ee; ++ii) {
-        acquireNode(edgeDst[*ii], mflag);
-      }
-    }
-    return in_raw_begin(N);
-  }
-
   edge_iterator edge_end(GraphNode N, MethodFlag mflag = MethodFlag::WRITE) {
     acquireNode(N, mflag);
     return raw_end(N);
-  }
-
-  edge_iterator in_edge_end(GraphNode N, MethodFlag mflag = MethodFlag::WRITE) {
-    acquireNode(N, mflag);
-    return in_raw_end(N);
   }
 
   uint64_t getDegree(GraphNode N) const { return (raw_end(N) - raw_begin(N)); }
@@ -554,16 +527,12 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -579,16 +548,12 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -604,16 +569,12 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -630,16 +591,12 @@ public:
       edgeIndData.allocateBlocked(numNodes);
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
-      edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
       edgeIndData.allocateInterleaved(numNodes);
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
-      edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -673,12 +630,6 @@ public:
 
     edgeData.deallocate();
     edgeData.destroy();
-
-    edgeIndDataIncoming.deallocate();
-    edgeIndDataIncoming.destroy();
-
-    edgeDstIncoming.deallocate();
-    edgeDstIncoming.destroy();
   }
 
   void constructEdge(uint64_t e, uint32_t dst,
@@ -690,86 +641,6 @@ public:
   void constructEdge(uint64_t e, uint32_t dst) { edgeDst[e] = dst; }
 
   void fixEndEdge(uint32_t n, uint64_t e) { edgeIndData[n] = e; }
-
-  /**
-   * Perform an in-memory transpose of the graph, replacing the original
-   * CSR to CSC
-   */
-  void constructIncoming(const char* regionName = nullptr) {
-    galois::StatTimer timer("TIMER_GRAPH_TRANSPOSE", regionName);
-    timer.start();
-
-    EdgeIndData edgeIndData_temp;
-
-    if (UseNumaAlloc) {
-      edgeIndData_temp.allocateBlocked(numNodes);
-    } else {
-      edgeIndData_temp.allocateInterleaved(numNodes);
-    }
-
-    // Copy old node->index location + initialize the temp array
-    galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
-        [&](uint64_t n) {
-          edgeIndData_temp[n] = 0;
-        },
-        galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_COPY"));
-
-    // get destination of edge, copy to array, and
-    galois::do_all(
-        galois::iterate(UINT64_C(0), numEdges),
-        [&](uint64_t e) {
-          auto dst       = edgeDst[e];
-          // counting outgoing edges in the tranpose graph by
-          // counting incoming edges in the original graph
-          __sync_add_and_fetch(&edgeIndData_temp[dst], 1);
-        },
-        galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_INC"));
-
-    // TODO is it worth doing parallel prefix sum?
-    // prefix sum calculation of the edge index array
-    for (uint32_t n = 1; n < numNodes; ++n) {
-      edgeIndData_temp[n] += edgeIndData_temp[n - 1];
-    }
-
-    // copy over the new tranposed edge index data
-    galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
-        [&](uint64_t n) { edgeIndDataIncoming[n] = edgeIndData_temp[n]; },
-        galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_SET"));
-
-    // edgeIndData_temp[i] will now hold number of edges that all nodes
-    // before the ith node have
-    if (numNodes >= 1) {
-      edgeIndData_temp[0] = 0;
-      galois::do_all(
-          galois::iterate(UINT64_C(1), numNodes),
-          [&](uint64_t n) { edgeIndData_temp[n] = edgeIndDataIncoming[n - 1]; },
-          galois::no_stats(), galois::loopname("TRANSPOSE_EDGEINTDATA_TEMP"));
-    }
-
-    galois::do_all(
-        galois::iterate(UINT64_C(0), numNodes),
-        [&](uint64_t src) {
-          // e = start index into edge array for a particular node
-          uint64_t e = (src == 0) ? 0 : edgeIndData[src - 1];
-
-          // get all outgoing edges of a particular node in the
-          // non-transpose and convert to incoming
-          while (e < edgeIndData[src]) {
-            // destination nodde
-            auto dst = edgeDst[e];
-            // location to save edge
-            auto e_new = __sync_fetch_and_add(&(edgeIndData_temp[dst]), 1);
-            // save src as destination
-            edgeDstIncoming[e_new] = src;
-            e++;
-          }
-        },
-        galois::no_stats(), galois::loopname("TRANSPOSE_EDGEDST"));
-
-    timer.stop();
-  }
 
   template <bool is_non_void = EdgeData::has_value>
   void edgeDataCopy(EdgeData& edgeData_new, EdgeData& edgeData, uint64_t e_new,
