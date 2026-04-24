@@ -658,6 +658,13 @@ public:
     auto& r = graph.getEdgeData(ni, mflag);
     return r;
   }
+  
+  inline typename GraphTy::edge_data_reference
+  getEdgeDataDirect(uint64_t edge_index,
+                    galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
+    auto& r = graph.getEdgeDataDirect(edge_index, mflag);
+    return r;
+  }
 
   /**
    * Gets edge destination of edge ni.

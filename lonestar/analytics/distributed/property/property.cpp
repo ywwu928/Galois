@@ -24,11 +24,9 @@
 #include "galois/DReducible.h"
 #include "galois/runtime/Tracer.h"
 
-#include <iostream>
-#include <sstream>
-#include <limits>
 #include <random>
 #include <vector>
+#include <algorithm>
 
 #include "snb_data_structure.h"
 
@@ -54,7 +52,7 @@ struct NodeData {
 
 struct EdgeData {
     uint32_t type;
-    uint32_t index;
+    uint64_t index;
 };
 
 typedef galois::graphs::DistGraph<NodeData, EdgeData> Graph;
@@ -80,68 +78,168 @@ std::vector<double> edge_weights = {
 };
 std::discrete_distribution<> edge_distribution(edge_weights.begin(), edge_weights.end());
 
-std::vector<Organization> organization_memory;
-std::vector<Place> place_memory;
-std::vector<Tag> tag_memory;
-std::vector<TagClass> tagclass_memory;
-std::vector<Comment> comment_memory;
-std::vector<Forum> forum_memory;
-std::vector<Person> person_memory;
-std::vector<Post> post_memory;
+std::unique_ptr<Organization[]> organization_memory;
+std::unique_ptr<Place[]> place_memory;
+std::unique_ptr<Tag[]> tag_memory;
+std::unique_ptr<TagClass[]> tagclass_memory;
+std::unique_ptr<Comment[]> comment_memory;
+std::unique_ptr<Forum[]> forum_memory;
+std::unique_ptr<Person[]> person_memory;
+std::unique_ptr<Post[]> post_memory;
 
-std::vector<Forum_hasMemberOrModerator_Person> forum_person_memory;
-std::vector<Person_knows_Person> person_person_memory;
-std::vector<Person_likes_Comment> person_comment_memory;
-std::vector<Person_likes_Post> person_post_memory;
-std::vector<Person_workOrStudyAt_Organization> person_organization_memory;
+std::unique_ptr<Forum_hasMemberOrModerator_Person[]> forum_person_memory;
+std::unique_ptr<Person_knows_Person[]> person_person_memory;
+std::unique_ptr<Person_likes_Comment[]> person_comment_memory;
+std::unique_ptr<Person_likes_Post[]> person_post_memory;
+std::unique_ptr<Person_workOrStudyAt_Organization[]> person_organization_memory;
 
-uint32_t vertex_index[8];
-uint32_t edge_index[21];
+uint32_t vertex_counter[8];
+uint64_t edge_counter[21];
 
 /******************************************************************************/
 /* Algorithm structures */
 /******************************************************************************/
 
-void AssignProperty(Graph& graph) {
-    uint32_t type;
+void TypeAssignment(Graph& graph) {
+    std::unique_ptr<uint32_t[]> types;
+    uint64_t max_size = std::max({graph.numMasters(), graph.numMirrors(), graph.sizeEdges()});
+    types = std::make_unique<uint32_t[]>(max_size);
 
-    for (int i=0; i<8; i++) {
-        vertex_index[i] = 0;
+    // master
+    for (uint32_t i=0; i<graph.numMasters(); i++) {
+        types[i] = master_distribution(generator);
     }
-
-    for (int i=0; i<21; i++) {
-        edge_index[i] = 0;
-    }
-
-    // masters and edges
-    for (uint32_t lid=0; lid<graph.numMasters(); lid++) {
-        NodeData& node_data = graph.getData(lid);
-
-        type = master_distribution(generator);
-        node_data.type = type;
-        node_data.index = vertex_index[type];
-        vertex_index[type]++;
     
-        for (auto edge : graph.outEdges(lid)) {
-            EdgeData& edge_data = graph.getEdgeData(edge);
-            
-            type = edge_distribution(generator);
-            edge_data.type = type;
-            edge_data.index = edge_index[type];
-            edge_index[type]++;
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint32_t total = graph.numMasters();
+        uint32_t quotient = total / nthreads;
+        uint32_t start = tid * quotient;
+        uint32_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
         }
+
+        std::vector<uint32_t> type_index;
+        for (uint32_t i=0; i<8; i++) {
+            type_index.emplace_back(
+                std::count(types.get(), types.get() + start, i)
+            );
+        }
+        
+        for (uint32_t lid=start; lid<end; lid++) {
+            NodeData& master_data = graph.getData(lid);
+            master_data.type = types[lid];
+            master_data.index = type_index[master_data.type];
+            type_index[master_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<8; i++) {
+        vertex_counter[i] = std::count(types.get(), types.get() + graph.numMasters(), i);
     }
     
-    // mirrors
-    for (uint32_t offset=0; offset<graph.numMirrors(); offset++) {
-        uint32_t lid = graph.numMasters() + offset;
-        NodeData& node_data = graph.getData(lid);
-
-        type = mirror_distribution(generator);
-        node_data.type = type;
-        node_data.index = vertex_index[type];
-        vertex_index[type]++;
+    // mirror
+    for (uint32_t i=0; i<graph.numMirrors(); i++) {
+        types[i] = mirror_distribution(generator);
     }
+    
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint32_t total = graph.numMirrors();
+        uint32_t quotient = total / nthreads;
+        uint32_t start = tid * quotient;
+        uint32_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
+        }
+
+        std::vector<uint32_t> type_index;
+        for (uint32_t i=0; i<8; i++) {
+            type_index.emplace_back(
+                vertex_counter[i] + std::count(types.get(), types.get() + start, i)
+            );
+        }
+        
+        for (uint32_t index=start; index<end; index++) {
+            uint32_t lid = graph.numMasters() + index;
+            NodeData& mirror_data = graph.getData(lid);
+            mirror_data.type = types[index];
+            mirror_data.index = type_index[mirror_data.type];
+            type_index[mirror_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<8; i++) {
+        vertex_counter[i] += std::count(types.get(), types.get() + graph.numMirrors(), i);
+    }
+    
+    // edge
+    for (uint32_t i=0; i<graph.sizeEdges(); i++) {
+        types[i] = edge_distribution(generator);
+    }
+    
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint64_t total = graph.sizeEdges();
+        uint64_t quotient = total / nthreads;
+        uint64_t start = tid * quotient;
+        uint64_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
+        }
+
+        std::vector<uint64_t> type_index;
+        for (uint32_t i=0; i<21; i++) {
+            type_index.emplace_back(
+                std::count(types.get(), types.get() + start, i)
+            );
+        }
+        
+        for (uint64_t index=start; index<end; index++) {
+            EdgeData& edge_data = graph.getEdgeDataDirect(index);
+            edge_data.type = types[index];
+            edge_data.index = type_index[edge_data.type];
+            type_index[edge_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<21; i++) {
+        edge_counter[i] = std::count(types.get(), types.get() + graph.sizeEdges(), i);
+    }
+}
+
+void PropertyConstruction (Graph& graph) {
+    // sanity check
+    uint64_t sum = 0;
+    for (uint32_t i=0; i<8; i++) {
+        sum += vertex_counter[i];
+    }
+    if (sum != (graph.numMasters() + graph.numMirrors())) {
+        galois::gPrint("Vertex counts do not match!\n");
+        abort();
+    }
+    
+    sum = 0;
+    for (uint32_t i=0; i<21; i++) {
+        sum += edge_counter[i];
+    }
+    if (sum != graph.sizeEdges()) {
+        galois::gPrint("Edge counts do not match!\n");
+        abort();
+    }
+
+    organization_memory = std::make_unique<Organization[]>(vertex_counter[0]);
+    place_memory = std::make_unique<Place[]>(vertex_counter[1]);
+    tag_memory = std::make_unique<Tag[]>(vertex_counter[2]);
+    tagclass_memory = std::make_unique<TagClass[]>(vertex_counter[3]);
+    comment_memory = std::make_unique<Comment[]>(vertex_counter[4]);
+    forum_memory = std::make_unique<Forum[]>(vertex_counter[5]);
+    person_memory = std::make_unique<Person[]>(vertex_counter[6]);
+    post_memory = std::make_unique<Post[]>(vertex_counter[7]);
+    
+    forum_person_memory = std::make_unique<Forum_hasMemberOrModerator_Person[]>(edge_counter[10]);
+    person_person_memory = std::make_unique<Person_knows_Person[]>(edge_counter[14]);
+    person_comment_memory = std::make_unique<Person_likes_Comment[]>(edge_counter[15]);
+    person_post_memory = std::make_unique<Person_likes_Post[]>(edge_counter[16]);
+    person_organization_memory = std::make_unique<Person_workOrStudyAt_Organization[]>(edge_counter[17]);
 }
 
 /******************************************************************************/
@@ -171,26 +269,13 @@ int main(int argc, char** argv) {
     galois::runtime::getHostBarrier().wait();
     net.partitionDone();
     
-    galois::gPrint("[", net.ID, "] AssignProperty begin\n");
-    AssignProperty(*hg);
-    galois::gPrint("[", net.ID, "] AssignProperty end\n");
+    galois::gPrint("[", net.ID, "] TypeAssignment begin\n");
+    TypeAssignment(*hg);
+    galois::gPrint("[", net.ID, "] TypeAssignment end\n");
   
-    galois::gPrint("[", net.ID, "] ConstructProperty begin\n");
-    organization_memory.resize(vertex_index[0]);
-    place_memory.resize(vertex_index[1]);
-    tag_memory.resize(vertex_index[2]);
-    tagclass_memory.resize(vertex_index[3]);
-    comment_memory.resize(vertex_index[4]);
-    forum_memory.resize(vertex_index[5]);
-    person_memory.resize(vertex_index[6]);
-    post_memory.resize(vertex_index[7]);
-    
-    forum_person_memory.resize(edge_index[10]);
-    person_person_memory.resize(edge_index[14]);
-    person_comment_memory.resize(edge_index[15]);
-    person_post_memory.resize(edge_index[16]);
-    person_organization_memory.resize(edge_index[17]);
-    galois::gPrint("[", net.ID, "] ConstructProperty end\n");
+    galois::gPrint("[", net.ID, "] PropertyConstruction begin\n");
+    PropertyConstruction(*hg);
+    galois::gPrint("[", net.ID, "] PropertyConstruction end\n");
 
     galois::runtime::getHostBarrier().wait();
 
