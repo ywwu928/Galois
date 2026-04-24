@@ -88,8 +88,6 @@ private:
   //! Vector of ranges that stores the different range objects that a user is
   //! able to access
   std::vector<NodeRangeType> specificRanges;
-  //! Like specificRanges, but for in edges
-  std::vector<NodeRangeType> specificRangesIn;
 
 protected:
   //! The internal graph used by DistGraph to represent the graph
