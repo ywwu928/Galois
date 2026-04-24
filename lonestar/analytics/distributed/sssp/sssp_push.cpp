@@ -24,12 +24,10 @@
 #include "galois/DReducible.h"
 #include "galois/runtime/Tracer.h"
 
-#include <iostream>
-#include <sstream>
-#include <limits>
 #include <random>
+#include <limits>
 #include <vector>
-#include <unordered_set>
+#include <algorithm>
 
 #include "snb_data_structure.h"
 
@@ -42,18 +40,21 @@ static std::string REGION_NAME_RUN;
 
 namespace cll = llvm::cl;
 
-static cll::opt<unsigned int> maxIterations("maxIterations",
-                                            cll::desc("Maximum iterations: "
-                                                      "Default 1000"),
-                                            cll::init(1000));
+static cll::opt<unsigned int> maxIterations(
+    "maxIterations",
+    cll::desc("Maximum iterations: Default 1000"),
+    cll::init(1000)
+);
 
-enum selectionMode { randomValue, explicitValue };
+enum selectionMode {randomValue, explicitValue};
 
 static cll::opt<selectionMode> srcSelection(
-    "srcSelection", cll::desc("Start Node Selection Mode"),
+    "srcSelection",
+    cll::desc("Start Node Selection Mode"),
     cll::values(clEnumVal(randomValue, "Selected by random number generator with seed"),
                 clEnumVal(explicitValue, "User explicitly specify the starting node ID")),
-    cll::init(explicitValue));
+    cll::init(explicitValue)
+);
 
 static uint64_t src_node;
 static cll::opt<unsigned> rseed("rseed", cll::desc("The random seed for choosing the hosts (default value 0)"), cll::init(0));
@@ -75,8 +76,6 @@ struct NodeData {
 struct EdgeData {
     uint32_t type;
     uint32_t index;
-    bool flag;
-    uint32_t weight;
 };
 
 galois::DynamicBitSet bitset_dist_current_odd;
@@ -107,68 +106,149 @@ std::vector<double> edge_weights = {
 };
 std::discrete_distribution<> edge_distribution(edge_weights.begin(), edge_weights.end());
 
-std::vector<Organization> organization_memory;
-std::vector<Place> place_memory;
-std::vector<Tag> tag_memory;
-std::vector<TagClass> tagclass_memory;
-std::vector<Comment> comment_memory;
-std::vector<Forum> forum_memory;
-std::vector<Person> person_memory;
-std::vector<Post> post_memory;
+std::unique_ptr<Organization[]> organization_memory;
+std::unique_ptr<Place[]> place_memory;
+std::unique_ptr<Tag[]> tag_memory;
+std::unique_ptr<TagClass[]> tagclass_memory;
+std::unique_ptr<Comment[]> comment_memory;
+std::unique_ptr<Forum[]> forum_memory;
+std::unique_ptr<Person[]> person_memory;
+std::unique_ptr<Post[]> post_memory;
 
-std::vector<Forum_hasMemberOrModerator_Person> forum_person_memory;
-std::vector<Person_knows_Person> person_person_memory;
-std::vector<Person_likes_Comment> person_comment_memory;
-std::vector<Person_likes_Post> person_post_memory;
-std::vector<Person_workOrStudyAt_Organization> person_organization_memory;
+std::unique_ptr<Forum_hasMemberOrModerator_Person[]> forum_person_memory;
+std::unique_ptr<Person_knows_Person[]> person_person_memory;
+std::unique_ptr<Person_likes_Comment[]> person_comment_memory;
+std::unique_ptr<Person_likes_Post[]> person_post_memory;
+std::unique_ptr<Person_workOrStudyAt_Organization[]> person_organization_memory;
 
-uint32_t vertex_index[8];
-uint32_t edge_index[21];
+uint32_t vertex_counter[8];
+uint64_t edge_counter[21];
 
 /******************************************************************************/
 /* Algorithm structures */
 /******************************************************************************/
 
-void AssignProperty(Graph& graph) {
-    uint32_t type;
+void TypeAssignment(Graph& graph) {
+    std::unique_ptr<uint32_t[]> types;
+    uint64_t max_size = std::max({graph.numMasters(), graph.numMirrors(), graph.sizeEdges()});
+    types = std::make_unique<uint32_t[]>(max_size);
 
-    for (int i=0; i<8; i++) {
-        vertex_index[i] = 0;
+    // master
+    for (uint32_t i=0; i<graph.numMasters(); i++) {
+        types[i] = master_distribution(generator);
     }
 
-    for (int i=0; i<21; i++) {
-        edge_index[i] = 0;
-    }
-
-    // masters and edges
-    for (uint32_t lid=0; lid<graph.numMasters(); lid++) {
-        NodeData& node_data = graph.getData(lid);
-
-        type = master_distribution(generator);
-        node_data.type = type;
-        node_data.index = vertex_index[type];
-        vertex_index[type]++;
-    
-        for (auto edge : graph.outEdges(lid)) {
-            EdgeData& edge_data = graph.getEdgeData(edge);
-            
-            type = edge_distribution(generator);
-            edge_data.type = type;
-            edge_data.index = edge_index[type];
-            edge_index[type]++;
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint32_t total = graph.numMasters();
+        uint32_t quotient = total / nthreads;
+        uint32_t start = tid * quotient;
+        uint32_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
         }
-    }
-    
-    // mirrors
-    for (uint32_t offset=0; offset<graph.numMirrors(); offset++) {
-        uint32_t lid = graph.numMasters() + offset;
-        NodeData& node_data = graph.getData(lid);
 
-        type = mirror_distribution(generator);
-        node_data.type = type;
-        node_data.index = vertex_index[type];
-        vertex_index[type]++;
+        std::vector<uint32_t> type_index;
+        for (uint32_t i=0; i<8; i++) {
+            type_index.emplace_back(
+                std::count(types.get(), types.get() + start, i)
+            );
+        }
+
+        for (uint32_t lid=start; lid<end; lid++) {
+            NodeData& master_data = graph.getData(lid);
+            master_data.type = types[lid];
+            master_data.index = type_index[master_data.type];
+            type_index[master_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<8; i++) {
+        vertex_counter[i] = std::count(types.get(), types.get() + graph.numMasters(), i);
     }
+
+    // mirror
+    for (uint32_t i=0; i<graph.numMirrors(); i++) {
+        types[i] = mirror_distribution(generator);
+    }
+
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint32_t total = graph.numMirrors();
+        uint32_t quotient = total / nthreads;
+        uint32_t start = tid * quotient;
+        uint32_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
+        }
+
+        std::vector<uint32_t> type_index;
+        for (uint32_t i=0; i<8; i++) {
+            type_index.emplace_back(
+                vertex_counter[i] + std::count(types.get(), types.get() + start, i)
+            );
+        }
+
+        for (uint32_t index=start; index<end; index++) {
+            uint32_t lid = graph.numMasters() + index;
+            NodeData& mirror_data = graph.getData(lid);
+            mirror_data.type = types[index];
+            mirror_data.index = type_index[mirror_data.type];
+            type_index[mirror_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<8; i++) {
+        vertex_counter[i] += std::count(types.get(), types.get() + graph.numMirrors(), i);
+    }
+
+    // edge
+    for (uint32_t i=0; i<graph.sizeEdges(); i++) {
+        types[i] = edge_distribution(generator);
+    }
+
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        uint64_t total = graph.sizeEdges();
+        uint64_t quotient = total / nthreads;
+        uint64_t start = tid * quotient;
+        uint64_t end = (tid + 1) * quotient;
+        if (tid == nthreads - 1) {
+            end = total;
+        }
+
+        std::vector<uint64_t> type_index;
+        for (uint32_t i=0; i<21; i++) {
+            type_index.emplace_back(
+                std::count(types.get(), types.get() + start, i)
+            );
+        }
+
+        for (uint64_t index=start; index<end; index++) {
+            EdgeData& edge_data = graph.getEdgeDataDirect(index);
+            edge_data.type = types[index];
+            edge_data.index = type_index[edge_data.type];
+            type_index[edge_data.type]++;
+        }
+    });
+
+    for (uint32_t i=0; i<21; i++) {
+        edge_counter[i] = std::count(types.get(), types.get() + graph.sizeEdges(), i);
+    }
+}
+
+void PropertyConstruction () {
+    organization_memory = std::make_unique<Organization[]>(vertex_counter[0]);
+    place_memory = std::make_unique<Place[]>(vertex_counter[1]);
+    tag_memory = std::make_unique<Tag[]>(vertex_counter[2]);
+    tagclass_memory = std::make_unique<TagClass[]>(vertex_counter[3]);
+    comment_memory = std::make_unique<Comment[]>(vertex_counter[4]);
+    forum_memory = std::make_unique<Forum[]>(vertex_counter[5]);
+    person_memory = std::make_unique<Person[]>(vertex_counter[6]);
+    post_memory = std::make_unique<Post[]>(vertex_counter[7]);
+
+    forum_person_memory = std::make_unique<Forum_hasMemberOrModerator_Person[]>(edge_counter[10]);
+    person_person_memory = std::make_unique<Person_knows_Person[]>(edge_counter[14]);
+    person_comment_memory = std::make_unique<Person_likes_Comment[]>(edge_counter[15]);
+    person_post_memory = std::make_unique<Person_likes_Post[]>(edge_counter[16]);
+    person_organization_memory = std::make_unique<Person_workOrStudyAt_Organization[]>(edge_counter[17]);
 }
 
 struct InitializeGraph {
@@ -194,62 +274,6 @@ struct InitializeGraph {
             sdata.dist_current = infinity;
         }
         
-        for (auto edge : graph->outEdges(src)) {
-            EdgeData& edata = graph->getEdgeData(edge);
-            edata.flag = true;
-            edata.weight = 1;
-        }
-    }
-};
-
-struct GraphProjection {
-    Graph* graph;
-
-    GraphProjection(Graph* _graph) : graph(_graph) {}
-
-    void static go(Graph& _graph) {
-        const auto& masterNodes = _graph.masterNodesRange();
-    
-        galois::do_all(
-            galois::iterate(masterNodes),
-            GraphProjection(&_graph), galois::no_stats());
-    }
-
-    void operator()(GNode src) const {
-        NodeData& sdata = graph->getData(src);
-        if (sdata.type == 0) { // organization
-            std::unordered_set<GNode> destinations;
-            
-            for (auto edge : graph->outEdges(src)) {
-                GNode dst = graph->getOutEdgeDst(edge);
-                destinations.insert(dst);
-                
-                // dummy edge property read
-                EdgeData& edata = graph->getEdgeData(edge);
-                if (edata.type == 10) {
-                    volatile char temp = forum_person_memory[edata.index].creationDate[0];
-                } else if (edata.type == 14) {
-                    volatile char temp = person_person_memory[edata.index].creationDate[0];
-                } else if (edata.type == 15) {
-                    volatile char temp = person_comment_memory[edata.index].creationDate[0];
-                } else if (edata.type == 16) {
-                    volatile char temp = person_post_memory[edata.index].creationDate[0];
-                } else if (edata.type == 17) {
-                    volatile int32_t temp = person_organization_memory[edata.index].classYear;
-                }
-            }
-
-            for (auto vertex : destinations) {
-                for (auto edge : graph->outEdges(vertex)) {
-                    GNode dst = graph->getOutEdgeDst(edge);
-                    if (destinations.find(dst) != destinations.end()) {
-                        EdgeData& edata = graph->getEdgeData(edge);
-                        edata.flag = true;
-                        edata.weight = 1;
-                    }
-                }
-            }
-        }
     }
 };
 
@@ -366,27 +390,23 @@ struct SSSP {
             NodeData& snode = graph->getData(src);
     
             for (auto edge : graph->outEdges(src)) {
-                EdgeData& edata = graph->getEdgeData(edge);
-
-                if (edata.flag == true) {
-                    uint32_t new_dist = snode.dist_current + edata.weight;
-                    GNode dst = graph->getOutEdgeDst(edge);
+                uint32_t new_dist = snode.dist_current + 1;
+                GNode dst = graph->getOutEdgeDst(edge);
 #ifndef GALOIS_FULL_MIRRORING
-                    if (graph->isPhantom(dst)) {
-                        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_dist);
-                    }
-                    else {
-#endif
-                        auto& dnode = graph->getData(dst);     
-                        bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
-          
-                        if (dirty) {
-                            dirty_bitset_ptr->set(dst);
-                        }
-#ifndef GALOIS_FULL_MIRRORING
-                    }
-#endif
+                if (graph->isPhantom(dst)) {
+                    net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_dist);
                 }
+                else {
+#endif
+                    auto& dnode = graph->getData(dst);     
+                    bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
+      
+                    if (dirty) {
+                        dirty_bitset_ptr->set(dst);
+                    }
+#ifndef GALOIS_FULL_MIRRORING
+                }
+#endif
             }
         }
     }
@@ -396,7 +416,6 @@ struct SSSP {
 /* Sanity check operators */
 /******************************************************************************/
 
-/* Prints total number of nodes visited + max distance */
 struct SSSPSanityCheck {
     Graph* graph;
 
@@ -421,7 +440,6 @@ struct SSSPSanityCheck {
         uint64_t num_visited  = dgas.reduce();
         uint32_t max_distance = dgm.reduce();
 
-        // Only host 0 will print the info
         if (galois::runtime::getSystemNetworkInterface().ID == 0) {
             galois::gPrint("Number of nodes visited from source ", src_node, " is ", num_visited, "\n");
             galois::gPrint("Max distance from source ", src_node, " is ", max_distance, "\n");
@@ -510,26 +528,14 @@ int main(int argc, char** argv) {
   
     DGAccumulator_sum.reset();
     
-    galois::gPrint("[", net.ID, "] AssignProperty begin\n");
-    AssignProperty(*hg);
-    galois::gPrint("[", net.ID, "] AssignProperty end\n");
-  
-    galois::gPrint("[", net.ID, "] ConstructProperty begin\n");
-    organization_memory.resize(vertex_index[0]);
-    place_memory.resize(vertex_index[1]);
-    tag_memory.resize(vertex_index[2]);
-    tagclass_memory.resize(vertex_index[3]);
-    comment_memory.resize(vertex_index[4]);
-    forum_memory.resize(vertex_index[5]);
-    person_memory.resize(vertex_index[6]);
-    post_memory.resize(vertex_index[7]);
-    
-    forum_person_memory.resize(edge_index[10]);
-    person_person_memory.resize(edge_index[14]);
-    person_comment_memory.resize(edge_index[15]);
-    person_post_memory.resize(edge_index[16]);
-    person_organization_memory.resize(edge_index[17]);
-    galois::gPrint("[", net.ID, "] ConstructProperty end\n");
+    galois::gPrint("[", net.ID, "] TypeAssignment begin\n");
+    TypeAssignment(*hg);
+    galois::gPrint("[", net.ID, "] TypeAssignment end\n");
+
+    galois::gPrint("[", net.ID, "] PropertyConstruction begin\n");
+    PropertyConstruction();
+    galois::gPrint("[", net.ID, "] PropertyConstruction end\n");
+    galois::runtime::getHostBarrier().wait();
 
     galois::gPrint("[", net.ID, "] InitializeGraph::go called\n");
     InitializeGraph::go((*hg));
@@ -546,7 +552,6 @@ int main(int argc, char** argv) {
         galois::runtime::getHostBarrier().wait();
 
         StatTimer_main.start();
-        GraphProjection::go(*hg);
         SSSP::go(*hg); 
         StatTimer_main.stop();
         galois::gPrint("Host ", net.ID, " SSSP run ", run, " time: ", StatTimer_main.get(), " ms\n");
