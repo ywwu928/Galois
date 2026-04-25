@@ -30,7 +30,6 @@
 #include <algorithm>
 
 #include "snb_data_structure.h"
-#include "sssp_sync.hh"
 
 static std::string REGION_NAME = "SSSP";
 static std::string REGION_NAME_RUN;
@@ -82,10 +81,12 @@ struct EdgeData {
 galois::DynamicBitSet bitset_dist_current_odd;
 galois::DynamicBitSet bitset_dist_current_even;
 
+#include "sssp_sync.hh"
+
 typedef galois::graphs::DistGraph<NodeData, EdgeData> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph, uint32_t>> syncSubstrate;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, CommData>> syncSubstrate;
 
 // Setup Seeding Information
 std::mt19937 generator(rseed);
@@ -316,7 +317,12 @@ struct SSSP {
                 StatTimer_compute.stop();
           
                 StatTimer_comm.start();
-                syncSubstrate->reduce<Reduce_min_dist_current, Bitset_dist_current_even>();
+                syncSubstrate->reduce<Reduce_min_dist, Bitset_dist_current_even>();
+#ifndef GALOIS_FULL_MIRRORING
+                _net.flushCommunication();
+                //syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
+                syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
+#endif
                 StatTimer_comm.stop();
 
                 local_active_vertices = bitset_dist_current_even.count();
@@ -332,7 +338,12 @@ struct SSSP {
                 StatTimer_compute.stop();
           
                 StatTimer_comm.start();
-                syncSubstrate->reduce<Reduce_min_dist_current, Bitset_dist_current_odd>();
+                syncSubstrate->reduce<Reduce_min_dist, Bitset_dist_current_odd>();
+#ifndef GALOIS_FULL_MIRRORING
+                _net.flushCommunication();
+                //syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
+                syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_odd);
+#endif
                 StatTimer_comm.stop();
 
                 local_active_vertices = bitset_dist_current_odd.count();
@@ -454,7 +465,7 @@ int main(int argc, char** argv) {
     StatTimer_preprocess.start();
 
     std::unique_ptr<Graph> hg;
-    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, EdgeData, uint32_t>();
+    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, EdgeData, CommData>();
 
     net.allocateBufferPool();
   
