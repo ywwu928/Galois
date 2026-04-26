@@ -318,11 +318,6 @@ struct SSSP {
           
                 StatTimer_comm.start();
                 syncSubstrate->reduce<Reduce_min_dist, Bitset_dist_current_even>();
-#ifndef GALOIS_FULL_MIRRORING
-                _net.flushCommunication();
-                //syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
-                syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
-#endif
                 StatTimer_comm.stop();
 
                 local_active_vertices = bitset_dist_current_even.count();
@@ -339,11 +334,6 @@ struct SSSP {
           
                 StatTimer_comm.start();
                 syncSubstrate->reduce<Reduce_min_dist, Bitset_dist_current_odd>();
-#ifndef GALOIS_FULL_MIRRORING
-                _net.flushCommunication();
-                //syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_even);
-                syncSubstrate->poll_for_remote_work_bitset<Reduce_min_dist_current>(bitset_dist_current_odd);
-#endif
                 StatTimer_comm.stop();
 
                 local_active_vertices = bitset_dist_current_odd.count();
@@ -374,7 +364,7 @@ struct SSSP {
                 GNode dst = graph->getOutEdgeDst(edge);
 #ifndef GALOIS_FULL_MIRRORING
                 if (graph->isPhantom(dst)) {
-                    net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_dist);
+                    net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), 0, 0, new_dist);
                 }
                 else {
 #endif

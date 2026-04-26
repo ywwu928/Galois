@@ -1012,11 +1012,11 @@ public:
   template <typename ReduceFnTy, typename BitsetFnTy>
   void reduce() {
     syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
-//#ifndef GALOIS_FULL_MIRRORING
-//    net.flushCommunication();
-//    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
-//    poll_for_remote_work_bitset<ReduceFnTy>(bitset_compute);
-//#endif
+#ifndef GALOIS_FULL_MIRRORING
+    net.flushCommunication();
+    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
+    poll_for_remote_work_bitset<ReduceFnTy>(bitset_compute);
+#endif
     syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
   }
 
@@ -1128,7 +1128,9 @@ public:
                 uint32_t msgCount;
                 
                 uint32_t lid;
-                ValTy val;
+                int32_t val1;
+                int32_t val2;
+                uint32_t val3;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
@@ -1143,8 +1145,10 @@ public:
                         
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
-                            val = *((ValTy*)buf + (i << 1) + 1);
-                            FnTy::reduce_atomic_void(userGraph.getData(lid), val);
+                            val1 = *((int32_t*)buf + (i << 2) + 1);
+                            val2 = *((int32_t*)buf + (i << 2) + 2);
+                            val3 = *((uint32_t*)buf + (i << 2) + 3);
+                            FnTy::reduce_atomic_void(userGraph.getData(lid), val1, val2, val3);
                         }
                         
                         net.deallocateRecvBuffer(buf);
@@ -1169,7 +1173,9 @@ public:
                 uint32_t msgCount;
 
                 uint32_t lid;
-                ValTy val;
+                int32_t val1;
+                int32_t val2;
+                uint32_t val3;
                 bool update;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
@@ -1185,8 +1191,10 @@ public:
 
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
-                            val = *((ValTy*)buf + (i << 1) + 1);
-                            update = FnTy::reduce_atomic(userGraph.getData(lid), val);
+                            val1 = *((int32_t*)buf + (i << 2) + 1);
+                            val2 = *((int32_t*)buf + (i << 2) + 2);
+                            val3 = *((uint32_t*)buf + (i << 2) + 3);
+                            update = FnTy::reduce_atomic(userGraph.getData(lid), val1, val2, val3);
 
                             if (update) {
                                 active_vertices += 1;
@@ -1215,8 +1223,9 @@ public:
                 uint32_t msgCount;
 
                 uint32_t lid;
-                //ValTy val;
-                uint32_t val;
+                int32_t val1;
+                int32_t val2;
+                uint32_t val3;
                 bool update;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
@@ -1231,10 +1240,11 @@ public:
                         }
 
                         for (uint32_t i=0; i<msgCount; i++) {
-                            lid = *((uint32_t*)buf + (i << 1));
-                            //val = *((ValTy*)buf + (i << 1) + 1);
-                            val = *((uint32_t*)buf + (i << 1) + 1);
-                            update = FnTy::reduce_atomic(userGraph.getData(lid), val);
+                            lid = *((uint32_t*)buf + (i << 2));
+                            val1 = *((int32_t*)buf + (i << 2) + 1);
+                            val2 = *((int32_t*)buf + (i << 2) + 2);
+                            val3 = *((uint32_t*)buf + (i << 2) + 3);
+                            update = FnTy::reduce_atomic(userGraph.getData(lid), val1, val2, val3);
 
                             if (update) {
                                 bitset.set(lid);

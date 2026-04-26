@@ -19,7 +19,7 @@
 
 #include "galois/runtime/SyncStructures.h"
 
-GALOIS_SYNC_STRUCTURE_REDUCE_MIN(dist_current, unsigned int);
+//GALOIS_SYNC_STRUCTURE_REDUCE_MIN(dist_current, unsigned int);
 GALOIS_SYNC_STRUCTURE_BITSET(dist_current_odd);
 GALOIS_SYNC_STRUCTURE_BITSET(dist_current_even);
 
@@ -51,15 +51,15 @@ struct Reduce_min_dist {
         }
     }
 
-    static bool reduce_atomic(struct NodeData& node, CommData y) {
+    static bool reduce_atomic(struct NodeData& node, int32_t, int32_t, uint32_t dist) {
         uint32_t old_dist = node.dist_current.load(std::memory_order_relaxed);
-        while (old_dist > y.dist && !node.dist_current.compare_exchange_weak(old_dist, y.dist, std::memory_order_relaxed)) ;
-        return y.dist < old_dist;
+        while (old_dist > dist && !node.dist_current.compare_exchange_weak(old_dist, dist, std::memory_order_relaxed)) ;
+        return dist < old_dist;
     }
 
-    static void reduce_atomic_void(struct NodeData& node, CommData y) {
+    static void reduce_atomic_void(struct NodeData& node, int32_t, int32_t, uint32_t dist) {
         uint32_t old_dist = node.dist_current.load(std::memory_order_relaxed);
-        while (old_dist > y.dist && !node.dist_current.compare_exchange_weak(old_dist, y.dist, std::memory_order_relaxed)) ;
+        while (old_dist > dist && !node.dist_current.compare_exchange_weak(old_dist, dist, std::memory_order_relaxed)) ;
     }
 
     static void reset(uint32_t, struct NodeData&) {}

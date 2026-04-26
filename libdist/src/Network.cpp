@@ -34,7 +34,7 @@
 #include <cstring>
 
 namespace cll = llvm::cl;
-constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
+constexpr uint32_t workSize = 16; // lid (uint32_t) + val (int32_t +int32_t + uint32_t)
 cll::opt<uint32_t> workCountExp("workCountExp",
                                 cll::desc("The number of remote work in an aggregated message (exponent with base 2)"),
                                 cll::init(12));
@@ -192,8 +192,10 @@ template <typename ValTy>
 void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
     // aggregate message
     //auto start = std::chrono::high_resolution_clock::now();
-    *((uint32_t*)buf + (msgCount << 1)) = lid;
-    *((ValTy*)buf + (msgCount << 1) + 1) = val;
+    *((uint32_t*)buf + (msgCount << 2)) = lid;
+    *((int32_t*)buf + (msgCount << 2) + 1) = (int32_t)0;
+    *((int32_t*)buf + (msgCount << 2) + 2) = (int32_t)0;
+    *((ValTy*)buf + (msgCount << 2) + 3) = val;
     //auto end = std::chrono::high_resolution_clock::now();
     //auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     //if (msgCount == 0)
@@ -848,6 +850,14 @@ void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy
 template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, uint32_t val);
 template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
 
+template <typename ValTy>
+void NetworkInterface::sendWork(unsigned tid, uint32_t dest, uint32_t lid, int64_t, int32_t, ValTy val) {
+    sendRemoteWork[dest][tid].add<ValTy>(lid, val);
+}
+
+// explicit instantiation
+template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, uint32_t lid, int64_t, int32_t, uint32_t val);
+
 void NetworkInterface::sendComm(uint32_t dest, uint8_t* bufPtr, size_t len) {
     sendCommData.push(dest, bufPtr, len);
 }
@@ -978,11 +988,11 @@ void NetworkInterface::flushRemoteWork() {
             uint32_t msgCount = srw.getMsgCount();
 
             if (msgCount != 0) {
-                size_t aggBufLen = aggMsgCount << 3; // 2 * sizeof(uint32_t) * aggMsgCount
+                size_t aggBufLen = aggMsgCount << 4; // 4 * sizeof(uint32_t) * aggMsgCount
                 uint8_t* buf = srw.getBuf();
 
                 if (msgCount < remainWorkCount) {
-                    size_t bufLen = msgCount << 3;
+                    size_t bufLen = msgCount << 4;
 
                     std::memcpy((aggBuf + aggBufLen), buf, bufLen);
 
@@ -991,7 +1001,7 @@ void NetworkInterface::flushRemoteWork() {
                     srw.resetMsgCount();
                 }
                 else if (msgCount == remainWorkCount) {
-                    size_t bufLen = msgCount << 3;
+                    size_t bufLen = msgCount << 4;
 
                     std::memcpy((aggBuf + aggBufLen), buf, bufLen);
 
@@ -1005,7 +1015,7 @@ void NetworkInterface::flushRemoteWork() {
                     srw.resetMsgCount();
                 }
                 else { // msgCount > remainWorkCount
-                    size_t remainLen = remainWorkCount << 3;
+                    size_t remainLen = remainWorkCount << 4;
 
                     std::memcpy((aggBuf + aggBufLen), buf, remainLen);
 
@@ -1017,7 +1027,7 @@ void NetworkInterface::flushRemoteWork() {
                     aggMsgCount = msgCount - remainWorkCount;
                     remainWorkCount = workCount - aggMsgCount;
 
-                    aggBufLen = aggMsgCount << 3;
+                    aggBufLen = aggMsgCount << 4;
 
                     std::memcpy(aggBuf, (buf + remainLen), aggBufLen);
 
@@ -1028,7 +1038,7 @@ void NetworkInterface::flushRemoteWork() {
 
         partialBuf[h] = aggBuf;
         if (aggMsgCount != 0) {
-            size_t aggBufLen = aggMsgCount << 3;
+            size_t aggBufLen = aggMsgCount << 4;
             *((uint32_t*)(aggBuf + aggBufLen)) = aggMsgCount;
             aggBufLen += sizeof(uint32_t);
             partialBufLen[h] = aggBufLen;

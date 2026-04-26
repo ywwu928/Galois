@@ -385,6 +385,9 @@ public:
   template <typename ValTy>
   void sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val);
   
+  template <typename ValTy>
+  void sendWork(unsigned tid, uint32_t dest, uint32_t lid, int64_t, int32_t, ValTy val);
+  
   void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len);
 
   //! Receive and dispatch messages
