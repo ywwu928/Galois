@@ -24,12 +24,10 @@
 #include "galois/DReducible.h"
 #include "galois/runtime/Tracer.h"
 
-#include <random>
 #include <limits>
 #include <vector>
 #include <algorithm>
-
-#include "snb_data_structure.h"
+#include <cstdlib>
 
 static std::string REGION_NAME = "SSSP";
 static std::string REGION_NAME_RUN;
@@ -57,7 +55,6 @@ static cll::opt<selectionMode> srcSelection(
 );
 
 static uint64_t src_node;
-static cll::opt<unsigned> rseed("rseed", cll::desc("The random seed for choosing the hosts (default value 0)"), cll::init(0));
 static cll::opt<uint64_t> startNode("startNode", cll::desc("ID of the start node"), cll::init(0));
       
 
@@ -67,29 +64,12 @@ static cll::opt<uint64_t> startNode("startNode", cll::desc("ID of the start node
 
 const uint32_t infinity = std::numeric_limits<uint32_t>::max();
 
-struct NodeData {
-    uint32_t type;
-    uint32_t index;
-    std::atomic<uint32_t> dist_current;
-};
-
-struct EdgeData {
-    uint32_t type;
-    uint32_t index;
-};
-
 galois::DynamicBitSet bitset_dist_current_odd;
 galois::DynamicBitSet bitset_dist_current_even;
 
 #include "sssp_sync.hh"
 
-typedef galois::graphs::DistGraph<NodeData, EdgeData> Graph;
-typedef typename Graph::GraphNode GNode;
-
 std::unique_ptr<galois::graphs::GluonSubstrate<Graph, CommData>> syncSubstrate;
-
-// Setup Seeding Information
-std::mt19937 generator(rseed);
 
 uint32_t vertex_counter[8];
 uint64_t edge_counter[21];
@@ -357,26 +337,91 @@ struct SSSP {
 
     void operator()(GNode src) const {
         if (active_bitset_ptr->test(src)) {
-            NodeData& snode = graph->getData(src);
+            // find university
+            int64_t university_id = 0;
+            int32_t class_year = 0;
+            
+            auto edges = graph->outEdges(src);
+            for (auto it = edges.begin(); it != edges.end(); ++it) {
+                auto edge = *it;
+                volatile EdgeData& edge_data = graph->getEdgeData(edge);
+                uint32_t edge_type = edge_data.type;
+                (void) edge_type;
+
+                if (person_university_distribution(generator) == 0 || std::next(it) == edges.end()) {
+                    GNode dst = graph->getOutEdgeDst(edge);
+                    NodeData& dst_data = graph->getData(dst);
+                    uint32_t dst_index = dst_data.index;
+                    (void) dst_index;
+                    volatile Organization& dst_property = organization_memory[0];
+                    university_id = dst_property.id;
+
+                    uint32_t edge_index = edge_data.index;
+                    (void) edge_index;
+                    volatile Person_workOrStudyAt_Organization& edge_property = person_organization_memory[0];
+                    class_year = edge_property.classYear;
+                    break;
+                }
+            }
     
-            for (auto edge : graph->outEdges(src)) {
-                uint32_t new_dist = snode.dist_current + 1;
-                GNode dst = graph->getOutEdgeDst(edge);
+            for (auto src_edge : graph->outEdges(src)) {
+                volatile EdgeData& src_edge_data = graph->getEdgeData(src_edge);
+                uint32_t src_edge_type = src_edge_data.type;
+                (void) src_edge_type;
+
+                if (person_person_distribution(generator) == 0) {
+                    NodeData& src_data = graph->getData(src);
+                    uint32_t new_dist = src_data.dist_current + 1;
+                        
+                    GNode dst = graph->getOutEdgeDst(src_edge);
+
 #ifndef GALOIS_FULL_MIRRORING
-                if (graph->isPhantom(dst)) {
-                    net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), 0, 0, new_dist);
-                }
-                else {
-#endif
-                    auto& dnode = graph->getData(dst);     
-                    bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
-      
-                    if (dirty) {
-                        dirty_bitset_ptr->set(dst);
+                    if (graph->isPhantom(dst)) {
+                        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), university_id, class_year, new_dist);
                     }
-#ifndef GALOIS_FULL_MIRRORING
-                }
+                    else {
 #endif
+                        if (!graph->isMaster(dst)) { // mirror
+                            for (auto dst_edge : graph->outEdges(dst)) {
+                                volatile EdgeData& dst_edge_data = graph->getEdgeData(dst_edge);
+                                uint32_t dst_edge_type = dst_edge_data.type;
+                                (void) dst_edge_type;
+
+                                if (person_university_distribution(generator) == 0) {
+                                    GNode dst_dst = graph->getOutEdgeDst(dst_edge);
+                                    NodeData& dst_dst_data = graph->getData(dst_dst);
+                                    uint32_t dst_dst_index = dst_dst_data.index;
+                                    (void) dst_dst_index;
+                                    volatile Organization& dst_dst_property = organization_memory[1];
+                                    int64_t dst_dst_university_id = dst_dst_property.id;
+
+                                    if (dst_dst_university_id == university_id) {
+                                        if (same_university_distribution(generator) == 0) {
+                                            uint32_t dst_edge_index = dst_edge_data.index;
+                                            (void) dst_edge_index;
+                                            volatile Person_workOrStudyAt_Organization& dst_edge_property = person_organization_memory[1];
+                                            int32_t dst_class_year = dst_edge_property.classYear;
+                                            
+                                            int64_t class_year_diff = static_cast<int64_t>(class_year) - static_cast<int64_t>(dst_class_year);
+                                            uint32_t abs_class_year_diff = static_cast<uint32_t>(std::abs(class_year_diff));
+                                            new_dist += abs_class_year_diff;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        auto& dnode = graph->getData(dst);     
+                        bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
+      
+                        if (dirty) {
+                            dirty_bitset_ptr->set(dst);
+                        }
+#ifndef GALOIS_FULL_MIRRORING
+                    }
+#endif
+                }
             }
         }
     }

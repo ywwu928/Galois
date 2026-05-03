@@ -109,3 +109,16 @@ std::unique_ptr<Person_knows_Person[]> person_person_memory;
 std::unique_ptr<Person_likes_Comment[]> person_comment_memory;
 std::unique_ptr<Person_likes_Post[]> person_post_memory;
 std::unique_ptr<Person_workOrStudyAt_Organization[]> person_organization_memory;
+
+// Setup Seeding Information
+thread_local std::mt19937 generator(0);
+
+//std::vector<double> person_person_weights = {0.068434, 0.931566};
+std::vector<double> person_person_weights = {1, 0};
+thread_local std::discrete_distribution<> person_person_distribution(person_person_weights.begin(), person_person_weights.end());
+
+std::vector<double> person_university_weights = {0.003012, 0.996988};
+thread_local std::discrete_distribution<> person_university_distribution(person_university_weights.begin(), person_university_weights.end());
+
+std::vector<double> same_university_weights = {0.041445, 0.958555};
+thread_local std::discrete_distribution<> same_university_distribution(same_university_weights.begin(), same_university_weights.end());

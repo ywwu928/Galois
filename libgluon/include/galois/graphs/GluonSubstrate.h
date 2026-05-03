@@ -630,7 +630,7 @@ private:
   template <typename FnTy, SyncType syncType>
   void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet& bit_set_compute) {
     if (syncType == syncReduce) {
-      if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
+      if (FnTy::reduce(userGraph, lid, val)) {
           if (bit_set_compute.size() != 0)
               bit_set_compute.set(lid);
       }
@@ -1128,9 +1128,9 @@ public:
                 uint32_t msgCount;
                 
                 uint32_t lid;
-                int32_t val1;
-                int32_t val2;
-                uint32_t val3;
+                int64_t work_id;
+                int32_t work_class_year;
+                uint32_t new_dist;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
                     success = net.receiveRemoteWork(terminateFlag, fullFlag, buf, bufLen);
@@ -1145,10 +1145,10 @@ public:
                         
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
-                            val1 = *((int32_t*)buf + (i << 2) + 1);
-                            val2 = *((int32_t*)buf + (i << 2) + 2);
-                            val3 = *((uint32_t*)buf + (i << 2) + 3);
-                            FnTy::reduce_atomic_void(userGraph.getData(lid), val1, val2, val3);
+                            work_id = static_cast<int64_t>(*((int32_t*)buf + (i << 2) + 1));
+                            work_class_year = *((int32_t*)buf + (i << 2) + 2);
+                            new_dist = *((uint32_t*)buf + (i << 2) + 3);
+                            FnTy::reduce_atomic_void(userGraph, lid, work_id, work_class_year, new_dist);
                         }
                         
                         net.deallocateRecvBuffer(buf);
@@ -1173,9 +1173,9 @@ public:
                 uint32_t msgCount;
 
                 uint32_t lid;
-                int32_t val1;
-                int32_t val2;
-                uint32_t val3;
+                int64_t work_id;
+                int32_t work_class_year;
+                uint32_t new_dist;
                 bool update;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
@@ -1191,10 +1191,10 @@ public:
 
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 1));
-                            val1 = *((int32_t*)buf + (i << 2) + 1);
-                            val2 = *((int32_t*)buf + (i << 2) + 2);
-                            val3 = *((uint32_t*)buf + (i << 2) + 3);
-                            update = FnTy::reduce_atomic(userGraph.getData(lid), val1, val2, val3);
+                            work_id = static_cast<int64_t>(*((int32_t*)buf + (i << 2) + 1));
+                            work_class_year = *((int32_t*)buf + (i << 2) + 2);
+                            new_dist = *((uint32_t*)buf + (i << 2) + 3);
+                            update = FnTy::reduce_atomic(userGraph, lid, work_id, work_class_year, new_dist);
 
                             if (update) {
                                 active_vertices += 1;
@@ -1223,9 +1223,9 @@ public:
                 uint32_t msgCount;
 
                 uint32_t lid;
-                int32_t val1;
-                int32_t val2;
-                uint32_t val3;
+                int64_t work_id;
+                int32_t work_class_year;
+                uint32_t new_dist;
                 bool update;
 
                 while(!terminateFlag.load(std::memory_order_acquire)) {
@@ -1241,10 +1241,10 @@ public:
 
                         for (uint32_t i=0; i<msgCount; i++) {
                             lid = *((uint32_t*)buf + (i << 2));
-                            val1 = *((int32_t*)buf + (i << 2) + 1);
-                            val2 = *((int32_t*)buf + (i << 2) + 2);
-                            val3 = *((uint32_t*)buf + (i << 2) + 3);
-                            update = FnTy::reduce_atomic(userGraph.getData(lid), val1, val2, val3);
+                            work_id = static_cast<int64_t>(*((int32_t*)buf + (i << 2) + 1));
+                            work_class_year = *((int32_t*)buf + (i << 2) + 2);
+                            new_dist = *((uint32_t*)buf + (i << 2) + 3);
+                            update = FnTy::reduce_atomic(userGraph, lid, work_id, work_class_year, new_dist);
 
                             if (update) {
                                 bitset.set(lid);
