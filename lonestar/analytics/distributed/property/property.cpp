@@ -24,7 +24,6 @@
 #include "galois/DReducible.h"
 #include "galois/runtime/Tracer.h"
 
-#include <random>
 #include <vector>
 #include <algorithm>
 
@@ -32,13 +31,6 @@
 
 static std::string REGION_NAME = "Property";
 static std::string REGION_NAME_RUN;
-
-/******************************************************************************/
-/* Declaration of command line arguments */
-/******************************************************************************/
-
-namespace cll = llvm::cl;
-static cll::opt<unsigned> rseed("rseed", cll::desc("The random seed for choosing the hosts (default value 0)"), cll::init(0));
 
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
@@ -55,43 +47,19 @@ struct EdgeData {
     uint64_t index;
 };
 
+struct CommData {
+    int64_t id;
+    int32_t classYear;
+    uint32_t dist;
+};
+
+galois::DynamicBitSet bitset_dist_current_odd;
+galois::DynamicBitSet bitset_dist_current_even;
+
 typedef galois::graphs::DistGraph<NodeData, EdgeData> Graph;
 typedef typename Graph::GraphNode GNode;
 
-std::unique_ptr<galois::graphs::GluonSubstrate<Graph, uint32_t>> syncSubstrate;
-
-// Setup Seeding Information
-std::mt19937 generator(rseed);
-
-std::vector<double> master_weights = {0.0025, 0.0005, 0.0051, 0.0, 0.645, 0.0284, 0.0031, 0.3154};
-std::discrete_distribution<> master_distribution(master_weights.begin(), master_weights.end());
-
-std::vector<double> mirror_weights = {0.00417, 0.00353, 0.0681, 0.00022, 0.33865, 0.0, 0.05803, 0.5273};
-std::discrete_distribution<> mirror_distribution(mirror_weights.begin(), mirror_weights.end());
-
-std::vector<double> edge_weights = {
-    0.0005, 0.0001, 0.0009, 0.0, 0.1189,
-    0.1564, 0.1189, 0.0603, 0.0586, 0.0582,
-    0.0987, 0.0180, 0.0133, 0.0006, 0.0105,
-    0.0834, 0.0436, 0.0017, 0.0582, 0.0413,
-    0.0582
-};
-std::discrete_distribution<> edge_distribution(edge_weights.begin(), edge_weights.end());
-
-std::unique_ptr<Organization[]> organization_memory;
-std::unique_ptr<Place[]> place_memory;
-std::unique_ptr<Tag[]> tag_memory;
-std::unique_ptr<TagClass[]> tagclass_memory;
-std::unique_ptr<Comment[]> comment_memory;
-std::unique_ptr<Forum[]> forum_memory;
-std::unique_ptr<Person[]> person_memory;
-std::unique_ptr<Post[]> post_memory;
-
-std::unique_ptr<Forum_hasMemberOrModerator_Person[]> forum_person_memory;
-std::unique_ptr<Person_knows_Person[]> person_person_memory;
-std::unique_ptr<Person_likes_Comment[]> person_comment_memory;
-std::unique_ptr<Person_likes_Post[]> person_post_memory;
-std::unique_ptr<Person_workOrStudyAt_Organization[]> person_organization_memory;
+std::unique_ptr<galois::graphs::GluonSubstrate<Graph, CommData>> syncSubstrate;
 
 uint32_t vertex_counter[8];
 uint64_t edge_counter[21];
@@ -262,12 +230,15 @@ int main(int argc, char** argv) {
     }
 
     std::unique_ptr<Graph> hg;
-    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, EdgeData, uint32_t>();
+    std::tie(hg, syncSubstrate) = distGraphInitialization<NodeData, EdgeData, CommData>();
 
     net.allocateBufferPool();
 
     galois::runtime::getHostBarrier().wait();
     net.partitionDone();
+
+    bitset_dist_current_odd.resize(hg->actualSize());
+    bitset_dist_current_even.resize(hg->actualSize());
     
     galois::gPrint("[", net.ID, "] TypeAssignment begin\n");
     TypeAssignment(*hg);
