@@ -113,8 +113,8 @@ std::unique_ptr<Person_workOrStudyAt_Organization[]> person_organization_memory;
 // Setup Seeding Information
 thread_local std::mt19937 generator(0);
 
-//std::vector<double> person_person_weights = {0.068434, 0.931566};
-std::vector<double> person_person_weights = {1, 0};
+std::vector<double> person_person_weights = {0.068434, 0.931566};
+//std::vector<double> person_person_weights = {1, 0};
 thread_local std::discrete_distribution<> person_person_distribution(person_person_weights.begin(), person_person_weights.end());
 
 std::vector<double> person_university_weights = {0.003012, 0.996988};
