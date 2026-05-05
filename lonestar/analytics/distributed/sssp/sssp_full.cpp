@@ -375,52 +375,43 @@ struct SSSP {
                         
                     GNode dst = graph->getOutEdgeDst(src_edge);
 
-#ifndef GALOIS_FULL_MIRRORING
-                    if (graph->isPhantom(dst)) {
-                        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), university_id, class_year, new_dist);
-                    }
-                    else {
-#endif
-                        if (!graph->isMaster(dst)) { // mirror
-                            for (auto dst_edge : graph->outEdges(dst)) {
-                                volatile EdgeData& dst_edge_data = graph->getEdgeData(dst_edge);
-                                uint32_t dst_edge_type = dst_edge_data.type;
-                                (void) dst_edge_type;
+                    if (graph->isMaster(dst)) {
+                        for (auto dst_edge : graph->outEdges(dst)) {
+                            volatile EdgeData& dst_edge_data = graph->getEdgeData(dst_edge);
+                            uint32_t dst_edge_type = dst_edge_data.type;
+                            (void) dst_edge_type;
 
-                                if (person_university_distribution(generator) == 0) {
-                                    GNode dst_dst = graph->getOutEdgeDst(dst_edge);
-                                    NodeData& dst_dst_data = graph->getData(dst_dst);
-                                    uint32_t dst_dst_index = dst_dst_data.index;
-                                    (void) dst_dst_index;
-                                    volatile Organization& dst_dst_property = organization_memory[1];
-                                    int64_t dst_dst_university_id = dst_dst_property.id;
+                            if (person_university_distribution(generator) == 0) {
+                                GNode dst_dst = graph->getOutEdgeDst(dst_edge);
+                                NodeData& dst_dst_data = graph->getData(dst_dst);
+                                uint32_t dst_dst_index = dst_dst_data.index;
+                                (void) dst_dst_index;
+                                volatile Organization& dst_dst_property = organization_memory[1];
+                                int64_t dst_dst_university_id = dst_dst_property.id;
 
-                                    if (dst_dst_university_id == university_id) {
-                                        if (same_university_distribution(generator) == 0) {
-                                            uint32_t dst_edge_index = dst_edge_data.index;
-                                            (void) dst_edge_index;
-                                            volatile Person_workOrStudyAt_Organization& dst_edge_property = person_organization_memory[1];
-                                            int32_t dst_class_year = dst_edge_property.classYear;
-                                            
-                                            int64_t class_year_diff = static_cast<int64_t>(class_year) - static_cast<int64_t>(dst_class_year);
-                                            uint32_t abs_class_year_diff = static_cast<uint32_t>(std::abs(class_year_diff));
-                                            new_dist += abs_class_year_diff;
-                                            break;
-                                        }
+                                if (dst_dst_university_id == university_id) {
+                                    if (same_university_distribution(generator) == 0) {
+                                        uint32_t dst_edge_index = dst_edge_data.index;
+                                        (void) dst_edge_index;
+                                        volatile Person_workOrStudyAt_Organization& dst_edge_property = person_organization_memory[1];
+                                        int32_t dst_class_year = dst_edge_property.classYear;
+                                        
+                                        int64_t class_year_diff = static_cast<int64_t>(class_year) - static_cast<int64_t>(dst_class_year);
+                                        uint32_t abs_class_year_diff = static_cast<uint32_t>(std::abs(class_year_diff));
+                                        new_dist += abs_class_year_diff;
+                                        break;
                                     }
                                 }
                             }
                         }
-
-                        auto& dnode = graph->getData(dst);     
-                        bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
-      
-                        if (dirty) {
-                            dirty_bitset_ptr->set(dst);
-                        }
-#ifndef GALOIS_FULL_MIRRORING
                     }
-#endif
+
+                    auto& dnode = graph->getData(dst);     
+                    bool dirty = galois::atomicMinBool(dnode.dist_current, new_dist);
+  
+                    if (dirty) {
+                        dirty_bitset_ptr->set(dst);
+                    }
                 }
             }
         }

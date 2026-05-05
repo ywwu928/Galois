@@ -1,1 +1,6 @@
-app_dist(sssp_push sssp-push)
+if(GALOIS_FULL_MIRRORING)
+    app_dist(sssp_full sssp-full)
+else()
+    app_dist(sssp_partial sssp-partial)
+    app_dist(sssp_free sssp-free)
+endif()
