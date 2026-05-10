@@ -1757,65 +1757,11 @@ private:
    * @param [in,out] graph Graph to construct edges in
    * @param bGraph Buffered graph that has edges to write into graph in memory
    */
-  template <typename GraphTy,
-            typename std::enable_if<!std::is_void<
-                typename GraphTy::edge_data_type>::value>::type* = nullptr>
+  template <typename GraphTy>
   void edgeCutLoad(GraphTy& graph,
                    galois::graphs::BufferedGraph<EdgeTy>& bGraph) {
     if (base_DistGraph::id == 0) {
-      galois::gPrint("Loading edge-data while creating edges\n");
-    }
-
-    uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;
-    bGraph.resetReadCounters();
-    galois::StatTimer timer("EdgeLoading", GRNAME);
-    timer.start();
-
-    galois::do_all(
-        galois::iterate(base_DistGraph::gid2host[base_DistGraph::id].first,
-                        base_DistGraph::gid2host[base_DistGraph::id].second),
-        [&](size_t n) {
-          auto ii       = bGraph.edgeBegin(n);
-          auto ee       = bGraph.edgeEnd(n);
-          uint32_t lsrc = this->G2LEdgeCut(n, globalOffset);
-          uint64_t cur =
-              *graph.edge_begin(lsrc, galois::MethodFlag::UNPROTECTED);
-          for (; ii < ee; ++ii) {
-            auto gdst           = bGraph.edgeDestination(*ii);
-            decltype(gdst) ldst = this->G2LEdgeCut(gdst, globalOffset);
-            auto gdata          = bGraph.edgeData(*ii);
-            graph.constructEdge(cur++, ldst, gdata);
-          }
-          assert(cur == (*graph.edge_end(lsrc)));
-        },
-#if MORE_DIST_STATS
-        galois::loopname("EdgeLoadingLoop"),
-#endif
-        galois::steal(), galois::no_stats());
-
-    timer.stop();
-    galois::gPrint("[", base_DistGraph::id,
-                   "] Edge loading time: ", timer.get_usec() / 1000000.0f,
-                   " seconds to read ", bGraph.getBytesRead(), " bytes (",
-                   bGraph.getBytesRead() / (float)timer.get_usec(), " MBPS)\n");
-  }
-
-  /**
-   * Given a loaded graph, construct the edges in the DistGraph graph.
-   * No edge data.
-   *
-   * @tparam GraphTy type of graph to construct
-   *
-   * @param [in,out] graph Graph to construct edges in
-   * @param bGraph Buffered graph that has edges to write into graph in memory
-   */
-  template <typename GraphTy,
-            typename std::enable_if<std::is_void<
-                typename GraphTy::edge_data_type>::value>::type* = nullptr>
-  void edgeCutLoad(GraphTy& graph,
-                   galois::graphs::BufferedGraph<EdgeTy>& bGraph) {
-    if (base_DistGraph::id == 0) {
-      galois::gPrint("Loading edge-data while creating edges\n");
+      galois::gPrint("Creating edges\n");
     }
 
     uint64_t globalOffset = base_DistGraph::gid2host[base_DistGraph::id].first;

@@ -88,8 +88,6 @@ private:
   //! Vector of ranges that stores the different range objects that a user is
   //! able to access
   std::vector<NodeRangeType> specificRanges;
-  //! Like specificRanges, but for in edges
-  std::vector<NodeRangeType> specificRangesIn;
 
 protected:
   //! The internal graph used by DistGraph to represent the graph
@@ -658,6 +656,13 @@ public:
   getEdgeData(edge_iterator ni,
               galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
     auto& r = graph.getEdgeData(ni, mflag);
+    return r;
+  }
+
+  inline typename GraphTy::edge_data_reference
+  getEdgeDataDirect(uint64_t edge_index,
+                    galois::MethodFlag mflag = galois::MethodFlag::UNPROTECTED) {
+    auto& r = graph.getEdgeDataDirect(edge_index, mflag);
     return r;
   }
 

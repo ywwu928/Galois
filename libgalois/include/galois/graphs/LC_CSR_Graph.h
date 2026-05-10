@@ -412,6 +412,12 @@ public:
     return edgeData[*ni];
   }
 
+  edge_data_reference
+  getEdgeDataDirect(uint64_t edge_index,
+                    MethodFlag GALOIS_UNUSED(mflag) = MethodFlag::UNPROTECTED) {
+    return edgeData[edge_index];
+  }
+
   GraphNode getEdgeDst(edge_iterator ni) { return edgeDst[*ni]; }
   
   GraphNode getInEdgeSrc(edge_iterator ni) { return edgeDstIncoming[*ni]; }
