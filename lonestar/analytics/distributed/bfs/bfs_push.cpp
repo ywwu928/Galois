@@ -163,7 +163,8 @@ struct BFS {
     galois::GAccumulator<unsigned int> active_edges;
     uint64_t local_active_edges;
     if (_graph.isOwned(src_node)) {
-        local_active_edges = std::distance(_graph.out_edge_begin(src_node), _graph.out_edge_end(src_node));
+        uint32_t src_lid = _graph.getLID(src_node);
+        local_active_edges = std::distance(_graph.out_edge_begin(src_lid), _graph.out_edge_end(src_lid));
     }
     else {
         local_active_edges = 0;
