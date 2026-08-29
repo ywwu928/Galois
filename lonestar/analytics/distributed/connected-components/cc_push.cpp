@@ -81,34 +81,37 @@ struct InitializeGraph {
   }
 };
 
-struct CountActiveEdges {
-  Graph* graph;
-  
-  galois::DynamicBitSet* active_bitset_ptr;
+void CountActiveEdges(Graph& _graph, galois::DynamicBitSet& _active_bitset, galois::GAccumulator<unsigned int>& _active_edges) {
+    galois::on_each([&](unsigned tid, unsigned nthreads) {
+        auto& bitset_vec = _active_bitset.get_vec();
+        unsigned int bitset_vec_size = bitset_vec.size();
+        unsigned int quotient = bitset_vec_size / nthreads;
+        unsigned int remainder = bitset_vec_size % nthreads;
 
-  galois::GAccumulator<unsigned int>& active_edges;
+        unsigned int start, end;
+        if (tid < remainder) {
+            start = tid * (quotient + 1);
+            end = (tid + 1) * (quotient + 1);
+        }
+        else {
+            start = tid * quotient + remainder;
+            end = (tid + 1) * quotient + remainder;
+        }
 
-  CountActiveEdges(Graph* _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::GAccumulator<unsigned int>& _active_edges)
-      : graph(_graph),
-        active_bitset_ptr(_active_bitset_ptr),
-        active_edges (_active_edges) {}
-
-  void static go(Graph& _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::GAccumulator<unsigned int>& _active_edges) {
-      const auto& masterNodes = _graph.masterNodesRange();
-      
-      galois::do_all(
-          galois::iterate(masterNodes),
-          CountActiveEdges{&_graph, _active_bitset_ptr, _active_edges},
-          galois::no_stats());
-  }
-
-  void operator()(GNode src) const {
-    if (active_bitset_ptr->test(src)) {
-        unsigned int nout = std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
-        active_edges += nout;
-    }
-  }
-};
+        for (unsigned int i = start; i < end; ++i) {
+            uint64_t value = bitset_vec[i].load(std::memory_order_relaxed);
+            if (std::popcount(value) != 0) {
+                while (value != 0) {
+                    unsigned index = std::countr_zero(value);
+                    uint32_t lid = 64 * i + index;
+                    unsigned int nout = std::distance(_graph.out_edge_begin(lid), _graph.out_edge_end(lid));
+                    _active_edges += nout;
+                    value &= value - 1;
+                }
+            }
+        }
+    });
+}
 
 struct ConnectedComp {
   Graph* graph;
@@ -183,7 +186,7 @@ struct ConnectedComp {
           syncSubstrate->reduce<Reduce_min_comp_current, Bitset_comp_current_even>();
           StatTimer_comm.stop();
 
-          CountActiveEdges::go(_graph, &bitset_comp_current_even, active_edges);
+          CountActiveEdges(_graph, bitset_comp_current_even, active_edges);
       }
       else {
           bitset_comp_current_odd.reset();
@@ -199,7 +202,7 @@ struct ConnectedComp {
           syncSubstrate->reduce<Reduce_min_comp_current, Bitset_comp_current_odd>();
           StatTimer_comm.stop();
 
-          CountActiveEdges::go(_graph, &bitset_comp_current_odd, active_edges);
+          CountActiveEdges(_graph, bitset_comp_current_odd, active_edges);
       }
       
       local_active_edges = active_edges.reduce();
