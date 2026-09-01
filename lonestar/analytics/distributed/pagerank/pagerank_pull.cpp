@@ -32,6 +32,7 @@
 
 static std::string REGION_NAME = "PageRank";
 static std::string REGION_NAME_RUN;
+static std::string WORKLIST_TYPE;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -114,12 +115,12 @@ struct InitializeGraph {
 #endif
 };
 
-struct PageRank_delta {
+struct PageRank_delta_edge {
   Graph* graph;
 
   galois::GAccumulator<unsigned int>& active_edges;
 
-  PageRank_delta(Graph* _graph, galois::GAccumulator<unsigned int>& _active_edges)
+  PageRank_delta_edge(Graph* _graph, galois::GAccumulator<unsigned int>& _active_edges)
       : graph(_graph),
         active_edges (_active_edges) {}
 
@@ -128,7 +129,7 @@ struct PageRank_delta {
 
     galois::do_all(
         galois::iterate(masterNodes),
-        PageRank_delta{&_graph, _active_edges}, galois::no_stats());
+        PageRank_delta_edge{&_graph, _active_edges}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -142,6 +143,36 @@ struct PageRank_delta {
           sdata.delta = sdata.residual * (1 - alpha) / nout;
           bitset_delta.set(src);
           active_edges += nout;
+        }
+      }
+      sdata.residual = 0;
+    }
+  }
+};
+
+struct PageRank_delta_vertex {
+  Graph* graph;
+
+  PageRank_delta_vertex(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes),
+        PageRank_delta_vertex{&_graph}, galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    if (bitset_residual.test(src)) {
+      auto& sdata = graph->getData(src);
+
+      sdata.value += sdata.residual;
+      if (sdata.residual > tolerance) {
+        uint32_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+        if (nout > 0) {
+          sdata.delta = sdata.residual * (1 - alpha) / nout;
+          bitset_delta.set(src);
         }
       }
       sdata.residual = 0;
@@ -239,7 +270,7 @@ struct PageRank {
 
   PageRank(Graph* _graph) : graph(_graph) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, bool edge_worklist) {
 #ifdef GALOIS_USER_STATS
     constexpr bool USER_STATS = true;
 #else
@@ -250,22 +281,21 @@ struct PageRank {
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
-    galois::GAccumulator<unsigned int> active_edges;
-    uint64_t local_active_edges = _graph.sizeEdges();
-    uint64_t global_active_edges;
+    galois::GAccumulator<unsigned int> active_count;
+    uint64_t local_active_count, global_active_count;
 
     bitset_residual.set_all();
 
     do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      std::string total_str(WORKLIST_TYPE + "_Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
+      std::string delta_str(WORKLIST_TYPE + "_Delta_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      std::string compute_str(WORKLIST_TYPE + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      std::string comm_str(WORKLIST_TYPE + "_Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      std::string active_str(WORKLIST_TYPE + "_Active_Reduce_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
@@ -275,16 +305,21 @@ struct PageRank {
       syncSubstrate->set_num_round(_num_iterations);
 
       StatTimer_total.start();
-      active_edges.reset();
       bitset_delta.reset();
 
       StatTimer_delta.start();
-      PageRank_delta::go(_graph, active_edges);
+      if (edge_worklist) {
+          active_count.reset();
+          PageRank_delta_edge::go(_graph, active_count);
+          local_active_count = active_count.reduce();
+      }
+      else {
+          PageRank_delta_vertex::go(_graph);
+          local_active_count = bitset_delta.count();
+      }
       StatTimer_delta.stop();
 
-      local_active_edges = active_edges.reduce();
-
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_edges);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), WORKLIST_TYPE + "_NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_count);
 
       bitset_residual.reset();
 
@@ -312,13 +347,13 @@ struct PageRank {
       ++_num_iterations;
       
       StatTimer_active.start();
-      global_active_edges = 0;
-      MPI_Allreduce(&local_active_edges, &global_active_edges, 1,
+      global_active_count = 0;
+      MPI_Allreduce(&local_active_count, &global_active_count, 1,
                     MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
       StatTimer_active.stop();
 
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && global_active_edges);
+    } while ((_num_iterations < maxIterations) && global_active_count);
   }
 };
 
@@ -493,16 +528,41 @@ int main(int argc, char** argv) {
   for (auto run = 0; run < numRuns; ++run) {
     REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] PageRank::go run ", run, " called\n");
-    std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    // edge worklist
+    WORKLIST_TYPE = "Edge";
+    std::string edge_timer_str("Edge_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_edge_main(edge_timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     net.touchBufferPool();
     galois::runtime::getHostBarrier().wait();
 
-    StatTimer_main.start();
-    PageRank::go(*hg);
-    StatTimer_main.stop();
-    galois::gPrint("Host ", net.ID, " PageRank run ", run, " time: ", StatTimer_main.get(), " ms\n");
+    StatTimer_edge_main.start();
+    PageRank::go(*hg, true);
+    StatTimer_edge_main.stop();
+    galois::gPrint("Host ", net.ID, " PageRank run ", run, " (edge) time: ", StatTimer_edge_main.get(), " ms\n");
+
+    PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,
+                       DGA_residual_over_tolerance, max_value, min_value,
+                       max_residual, min_residual);
+    
+    bitset_residual.reset();
+    bitset_delta.reset();
+
+    InitializeGraph::go(*hg);
+
+    // vertex worklist
+    WORKLIST_TYPE = "Vertex";
+    std::string vertex_timer_str("Vertex_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_vertex_main(vertex_timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    net.touchBufferPool();
+    galois::runtime::getHostBarrier().wait();
+
+    StatTimer_vertex_main.start();
+    PageRank::go(*hg, false);
+    StatTimer_vertex_main.stop();
+    galois::gPrint("Host ", net.ID, " PageRank run ", run, " (vertex) time: ", StatTimer_vertex_main.get(), " ms\n");
 
     PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,
                        DGA_residual_over_tolerance, max_value, min_value,

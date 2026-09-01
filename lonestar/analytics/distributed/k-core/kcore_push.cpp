@@ -33,6 +33,7 @@
 
 static std::string REGION_NAME = "KCore";
 static std::string REGION_NAME_RUN;
+static std::string WORKLIST_TYPE;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -90,12 +91,12 @@ struct InitializeGraph {
   }
 };
 
-struct KCore_trim {
+struct KCore_trim_edge {
   Graph* graph;
 
   galois::GAccumulator<unsigned int>& active_edges;
 
-  KCore_trim(Graph* _graph, galois::GAccumulator<unsigned int>& _active_edges)
+  KCore_trim_edge(Graph* _graph, galois::GAccumulator<unsigned int>& _active_edges)
       : graph(_graph),
         active_edges (_active_edges) {}
 
@@ -104,7 +105,7 @@ struct KCore_trim {
     
     galois::do_all(
         galois::iterate(masterNodes),
-        KCore_trim{&_graph, _active_edges}, galois::no_stats());
+        KCore_trim_edge{&_graph, _active_edges}, galois::no_stats());
   }
 
   void operator()(GNode src) const {
@@ -127,6 +128,36 @@ struct KCore_trim {
   }
 };
 
+struct KCore_trim_vertex {
+  Graph* graph;
+
+  KCore_trim_vertex(Graph* _graph) : graph(_graph) {}
+
+  void static go(Graph& _graph) {
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes),
+        KCore_trim_vertex{&_graph}, galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    if (!bitset_exclude.test(src)) {
+        NodeData& sdata = graph->getData(src);
+
+        if (bitset_trim.test(src)) {
+            sdata.current_degree = sdata.current_degree - sdata.trim;
+            sdata.trim = 0;
+        }
+
+        if (sdata.current_degree < k_core_num) {
+            bitset_exclude.set(src);
+            bitset_active.set(src);
+        }
+    }
+  }
+};
+
 struct KCore {
   Graph* graph;
 
@@ -135,7 +166,7 @@ struct KCore {
   KCore(Graph* _graph)
       : graph(_graph), net(galois::runtime::getSystemNetworkInterface()) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, bool edge_worklist) {
 #ifdef GALOIS_USER_STATS
     constexpr bool USER_STATS = true;
 #else
@@ -148,25 +179,30 @@ struct KCore {
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
-    galois::GAccumulator<unsigned int> active_edges;
-    uint64_t local_active_edges;
-    uint64_t global_active_edges;
-    
-    KCore_trim::go(_graph, active_edges);
-    local_active_edges = active_edges.reduce();
+    galois::GAccumulator<unsigned int> active_count;
+    uint64_t local_active_count, global_active_count;
+
+    if (edge_worklist) {
+        KCore_trim_edge::go(_graph, active_count);
+        local_active_count = active_count.reduce();
+    }
+    else {
+        KCore_trim_vertex::go(_graph);
+        local_active_count = bitset_active.count();
+    }
 
     do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      std::string total_str(WORKLIST_TYPE + "_Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      std::string compute_str(WORKLIST_TYPE + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      std::string comm_str(WORKLIST_TYPE + "_Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));
+      std::string reset_str(WORKLIST_TYPE + "_Reset_Mirror_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string trim_str("Trim_Round_" + std::to_string(_num_iterations));
+      std::string trim_str(WORKLIST_TYPE + "_Trim_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_trim(trim_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      std::string active_str(WORKLIST_TYPE + "_Active_Reduce_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
@@ -175,7 +211,7 @@ struct KCore {
 
       syncSubstrate->set_num_round(_num_iterations);
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_edges);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), WORKLIST_TYPE + "_NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_count);
 
       StatTimer_total.start();
       bitset_trim.reset();
@@ -200,24 +236,29 @@ struct KCore {
       StatTimer_reset.stop();
       
       bitset_active.reset();
-      active_edges.reset();
 
       StatTimer_trim.start();
-      KCore_trim::go(_graph, active_edges);
+      if (edge_worklist) {
+          active_count.reset();
+          KCore_trim_edge::go(_graph, active_count);
+          local_active_count = active_count.reduce();
+      }
+      else {
+          KCore_trim_vertex::go(_graph);
+          local_active_count = bitset_active.count();
+      }
       StatTimer_trim.stop();
-      
-      local_active_edges = active_edges.reduce();
 
       _num_iterations++;
       
       StatTimer_active.start();
-      global_active_edges = 0;
-      MPI_Allreduce(&local_active_edges, &global_active_edges, 1,
+      global_active_count = 0;
+      MPI_Allreduce(&local_active_count, &global_active_count, 1,
                     MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
       StatTimer_active.stop();
       
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && global_active_edges);
+    } while ((_num_iterations < maxIterations) && global_active_count);
   }
 
   void operator()(GNode src) const {
@@ -337,16 +378,40 @@ int main(int argc, char** argv) {
   for (auto run = 0; run < numRuns; ++run) {
     REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] KCore::go run ", run, " called\n");
-    std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    // edge worklist
+    WORKLIST_TYPE = "Edge";
+    std::string edge_timer_str("Edge_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_edge_main(edge_timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     net.touchBufferPool();
-
     galois::runtime::getHostBarrier().wait();
-    StatTimer_main.start();
-    KCore::go(*hg);
-    StatTimer_main.stop();
-    galois::gPrint("Host ", net.ID, " KCore run ", run, " time: ", StatTimer_main.get(), " ms\n");
+
+    StatTimer_edge_main.start();
+    KCore::go(*hg, true);
+    StatTimer_edge_main.stop();
+    galois::gPrint("Host ", net.ID, " KCore run ", run, " (edge) time: ", StatTimer_edge_main.get(), " ms\n");
+
+    KCoreSanityCheck::go(*hg, dga);
+      
+    bitset_exclude.reset();
+    bitset_active.reset();
+    bitset_trim.reset();
+      
+    InitializeGraph::go(*hg);
+
+    // vertex worklist
+    WORKLIST_TYPE = "Vertex";
+    std::string vertex_timer_str("Vertex_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_vertex_main(vertex_timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    net.touchBufferPool();
+    galois::runtime::getHostBarrier().wait();
+
+    StatTimer_vertex_main.start();
+    KCore::go(*hg, false);
+    StatTimer_vertex_main.stop();
+    galois::gPrint("Host ", net.ID, " KCore run ", run, " (vertex) time: ", StatTimer_vertex_main.get(), " ms\n");
 
     KCoreSanityCheck::go(*hg, dga);
 

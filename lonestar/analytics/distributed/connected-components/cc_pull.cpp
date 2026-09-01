@@ -30,6 +30,7 @@
 
 static std::string REGION_NAME = "ConnectedComp";
 static std::string REGION_NAME_RUN;
+static std::string WORKLIST_TYPE;
 
 /******************************************************************************/
 /* Declaration of command line arguments */
@@ -229,7 +230,7 @@ struct ConnectedComp {
 
   ConnectedComp(Graph* _graph) : graph(_graph) {}
 
-  void static go(Graph& _graph) {
+  void static go(Graph& _graph, bool edge_worklist) {
 #ifdef GALOIS_USER_STATS
     constexpr bool USER_STATS = true;
 #else
@@ -240,20 +241,25 @@ struct ConnectedComp {
   
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
-    galois::GAccumulator<unsigned int> active_edges;
-    uint64_t local_active_edges = _graph.sizeEdges();
-    uint64_t global_active_edges;
+    galois::GAccumulator<unsigned int> active_count;
+    uint64_t local_active_count, global_active_count;
+    if (edge_worklist) {
+        local_active_count = _graph.sizeEdges();
+    }
+    else {
+        local_active_count = _graph.numMasters();
+    }
 
     bitset_comp_current_odd.set_all();
 
     do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      std::string total_str(WORKLIST_TYPE + "_Total_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      std::string compute_str(WORKLIST_TYPE + "_Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      std::string comm_str(WORKLIST_TYPE + "_Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      std::string active_str(WORKLIST_TYPE + "_Active_Reduce_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
 #ifdef GALOIS_PRINT_PROCESS
@@ -262,7 +268,7 @@ struct ConnectedComp {
 
       syncSubstrate->set_num_round(_num_iterations);
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_edges);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), WORKLIST_TYPE + "_NumWorkItems_Round_" + std::to_string(_num_iterations), local_active_count);
 
       StatTimer_total.start();
       _net.prefetchBuffers();
@@ -292,22 +298,27 @@ struct ConnectedComp {
       StatTimer_comm.stop();
 #endif
       
-      active_edges.reset();
-      CountActiveEdges(_graph, bitset_comp_current_odd, active_edges);
-      local_active_edges = active_edges.reduce();
+      if (edge_worklist) {
+          active_count.reset();
+          CountActiveEdges(_graph, bitset_comp_current_odd, active_count);
+          local_active_count = active_count.reduce();
+      }
+      else {
+          local_active_count = bitset_comp_current_odd.count();
+      }
       
       _net.resetWorkTermination();
 
       ++_num_iterations;
       
       StatTimer_active.start();
-      global_active_edges = 0;
-      MPI_Allreduce(&local_active_edges, &global_active_edges, 1,
+      global_active_count = 0;
+      MPI_Allreduce(&local_active_count, &global_active_count, 1,
                     MPI_UNSIGNED_LONG, MPI_SUM, MPI_COMM_WORLD);
       StatTimer_active.stop();
 
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && global_active_edges);
+    } while ((_num_iterations < maxIterations) && global_active_count);
   }
 };
 
@@ -419,16 +430,37 @@ int main(int argc, char** argv) {
   for (auto run = 0; run < numRuns; ++run) {
     REGION_NAME_RUN = REGION_NAME + "_" + std::to_string(run);
     galois::gPrint("[", net.ID, "] ConnectedComp::go run ", run, " called\n");
-    std::string timer_str("Timer_" + std::to_string(run));
-    galois::StatTimer StatTimer_main(timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    // edge worklist
+    WORKLIST_TYPE = "Edge";
+    std::string edge_timer_str("Edge_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_edge_main(edge_timer_str.c_str(), REGION_NAME_RUN.c_str());
 
     net.touchBufferPool();
     galois::runtime::getHostBarrier().wait();
 
-    StatTimer_main.start();
-    ConnectedComp::go(*hg);
-    StatTimer_main.stop();
-    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " time: ", StatTimer_main.get(), " ms\n");
+    StatTimer_edge_main.start();
+    ConnectedComp::go(*hg, true);
+    StatTimer_edge_main.stop();
+    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " (edge) time: ", StatTimer_edge_main.get(), " ms\n");
+
+    ConnectedCompSanityCheck::go(*hg, active_vertices64);
+
+    bitset_comp_current_odd.reset();
+    InitializeGraph::go((*hg));
+
+    // vertex worklist
+    WORKLIST_TYPE = "Vertex";
+    std::string vertex_timer_str("Vertex_Timer_" + std::to_string(run));
+    galois::StatTimer StatTimer_vertex_main(vertex_timer_str.c_str(), REGION_NAME_RUN.c_str());
+
+    net.touchBufferPool();
+    galois::runtime::getHostBarrier().wait();
+
+    StatTimer_vertex_main.start();
+    ConnectedComp::go(*hg, false);
+    StatTimer_vertex_main.stop();
+    galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " (vertex) time: ", StatTimer_vertex_main.get(), " ms\n");
 
     ConnectedCompSanityCheck::go(*hg, active_vertices64);
 
