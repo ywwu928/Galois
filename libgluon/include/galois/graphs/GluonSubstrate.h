@@ -128,25 +128,25 @@ private:
    * @param syncType Type of synchronization to consider when doing reset
    * @param bitset_reset_range Function to reset range with
    */
-  void reset_bitset(SyncType syncType, void (*bitset_reset_range)(size_t, size_t)) {
+  void reset_bitset(SyncType syncType, galois::DynamicBitSet* bitset_ptr) {
     size_t numMasters = userGraph.numMasters();
     if (numMasters > 0) {
       // note this assumes masters are from 0 -> a number; CuSP should
       // do this automatically
       if (syncType == syncBroadcast) { // reset masters
-        bitset_reset_range(0, numMasters - 1);
+        bitset_ptr->reset(0, numMasters - 1);
       } else {
         assert(syncType == syncReduce);
         // mirrors occur after masters
         if (numMasters < userGraph.actualSize()) {
-          bitset_reset_range(numMasters, userGraph.actualSize() - 1);
+          bitset_ptr->reset(numMasters, userGraph.actualSize() - 1);
         }
       }
     } else { // all things are mirrors
       // only need to reset if reduce
       if (syncType == syncReduce) {
         if (userGraph.actualSize() > 0) {
-          bitset_reset_range(0, userGraph.actualSize() - 1);
+          bitset_ptr->reset(0, userGraph.actualSize() - 1);
         }
       }
     }
@@ -628,11 +628,11 @@ private:
    * if reduction causes a change
    */
   template <typename FnTy, SyncType syncType>
-  void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet& bit_set_compute) {
+  void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet* bit_set_compute_ptr) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
-          if (bit_set_compute.size() != 0)
-              bit_set_compute.set(lid);
+          if (bit_set_compute_ptr->size() != 0)
+              bit_set_compute_ptr->set(lid);
       }
     } else {
         FnTy::setVal(lid, userGraph.getData(lid), val);
@@ -658,13 +658,11 @@ private:
    * @param b OUTPUT: buffer that will be sent over the network; contains data
    * based on set bits in bitset
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
-  void syncExtract(unsigned to_id) {
+  template <SyncType syncType, typename SyncFnTy>
+  void syncExtract(unsigned to_id, galois::DynamicBitSet* bitset_compute_ptr) {
     auto& indices = (syncType == syncReduce) ? mirrorNodes[to_id] : masterNodes[to_id];
     uint32_t num = indices.size();
     auto& threadRange = (syncType == syncReduce) ? threadRangeMirror[to_id] : threadRangeMaster[to_id];
-
-    const galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
     
     // total num of set bits
     auto activeThreads = galois::getActiveThreads();
@@ -681,7 +679,7 @@ private:
         unsigned int count = 0;
         for (unsigned int i = start; i < end; ++i) {
             size_t lid = indices[i];
-            if (bitset_compute.test(lid)) {
+            if (bitset_compute_ptr->test(lid)) {
                 ++count;
             }
         }
@@ -730,7 +728,7 @@ private:
 
             for (unsigned int i=start; i<end; i++) {
                 size_t lid = indices[i];
-                if (bitset_compute.test(lid)) {
+                if (bitset_compute_ptr->test(lid)) {
                     size_t index = i >> 6;
                     uint64_t bit_offset = 1;
                     bit_offset = bit_offset << (i & 63u);
@@ -766,7 +764,7 @@ private:
 
                 for (unsigned int i = start; i < end; ++i) {
                     size_t lid = indices[i];
-                    if (bitset_compute.test(lid)) {
+                    if (bitset_compute_ptr->test(lid)) {
                         *((uint32_t*)threadPtr) = (uint32_t)i;
                         threadPtr += sizeof(uint32_t);
                         ValTy val = extractWrapper<SyncFnTy, syncType>(lid);
@@ -809,8 +807,8 @@ private:
    * @tparam SyncFnTy synchronization structure with info needed to synchronize
    * @tparam BitsetFnTy struct that has information needed to access bitset
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
-  void syncSend() {
+  template <SyncType syncType, typename SyncFnTy>
+  void syncSend(galois::DynamicBitSet* bitset_ptr) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
     std::string statSendBytes_str(syncTypeStr + "SendBytes_" + get_run_identifier());
     
@@ -822,13 +820,13 @@ private:
       if (sharedNodes[x].size() == 0)
         continue;
 
-      syncExtract<syncType, SyncFnTy, BitsetFnTy>(x);
+      syncExtract<syncType, SyncFnTy>(x, bitset_ptr);
       galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, statSendBytes_str, sendCommBufferLen[x]);
 
       net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
     }
 
-    reset_bitset(syncType, &BitsetFnTy::reset_range);
+    reset_bitset(syncType, bitset_ptr);
   }
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -847,8 +845,8 @@ private:
    * from
    * @param buf Buffer that contains received message from other host
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
-  void syncRecvApply(uint32_t from_id, uint8_t* bufPtr) {
+  template <SyncType syncType, typename SyncFnTy>
+  void syncRecvApply(uint32_t from_id, uint8_t* bufPtr, galois::DynamicBitSet* bitset_compute_ptr) {
     auto& indices = (syncType == syncReduce) ? masterNodes[from_id] : mirrorNodes[from_id];
     uint32_t num = indices.size();
     auto& threadRange = (syncType == syncReduce) ? threadRangeMaster[from_id] : threadRangeMirror[from_id];
@@ -856,8 +854,6 @@ private:
     // 1st deserialize gets data mode
     data_mode = *((DataCommMode*)bufPtr);
     bufPtr += sizeof(DataCommMode);
-
-    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
 
     syncBitsetLen = num;
   
@@ -920,7 +916,7 @@ private:
                         size_t lid = indices[i];
                         ValTy val = *valPtr;
                         valPtr++;
-                        setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
+                        setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute_ptr);
                     }
                 }
             });
@@ -949,7 +945,7 @@ private:
                 size_t lid = indices[indexOffset];
                 ValTy val = *((ValTy*)threadPtr);
                 threadPtr += sizeof(ValTy);
-                setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
+                setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute_ptr);
             }
         });
     } else if (data_mode == onlyData) {
@@ -965,7 +961,7 @@ private:
                 size_t lid = indices[i];
                 ValTy val = *valPtr;
                 valPtr++;
-                setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute);
+                setWrapper<SyncFnTy, syncType>(lid, val, bitset_compute_ptr);
             }
         });
     }
@@ -979,8 +975,8 @@ private:
    * @tparam SyncFnTy synchronization structure with info needed to synchronize
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <SyncType syncType, typename SyncFnTy, typename BitsetFnTy>
-  void syncRecv() {
+  template <SyncType syncType, typename SyncFnTy>
+  void syncRecv(galois::DynamicBitSet* bitset_ptr) {
       auto& sharedNodes = (syncType == syncReduce) ? masterNodes : mirrorNodes;
       
       uint32_t host;
@@ -993,7 +989,7 @@ private:
 
           net.receiveComm(host, work);
 
-          syncRecvApply<syncType, SyncFnTy, BitsetFnTy>(host, work);
+          syncRecvApply<syncType, SyncFnTy>(host, work, bitset_ptr);
       }
       incrementEvilPhase();
   }
@@ -1009,15 +1005,12 @@ public:
    * @tparam ReduceFnTy reduce sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename ReduceFnTy, typename BitsetFnTy>
-  void reduce() {
-    syncSend<syncReduce, ReduceFnTy, BitsetFnTy>();
-#ifndef GALOIS_FULL_MIRRORING
+  template <typename ReduceFnTy>
+  void reduce(galois::DynamicBitSet* bitset_ptr) {
+    syncSend<syncReduce, ReduceFnTy>(bitset_ptr);
     net.flushCommunication();
-    galois::DynamicBitSet& bitset_compute = BitsetFnTy::get();
-    poll_for_remote_work_bitset<ReduceFnTy>(bitset_compute);
-#endif
-    syncRecv<syncReduce, ReduceFnTy, BitsetFnTy>();
+    poll_for_remote_work_bitset<ReduceFnTy>(bitset_ptr);
+    syncRecv<syncReduce, ReduceFnTy>(bitset_ptr);
   }
 
   /**
@@ -1026,10 +1019,10 @@ public:
    * @tparam BroadcastFnTy broadcast sync structure for the field
    * @tparam BitsetFnTy struct that has info on how to access the bitset
    */
-  template <typename BroadcastFnTy, typename BitsetFnTy>
-  void broadcast() {
-      syncSend<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
-      syncRecv<syncBroadcast, BroadcastFnTy, BitsetFnTy>();
+  template <typename BroadcastFnTy>
+  void broadcast(galois::DynamicBitSet* bitset_ptr) {
+      syncSend<syncBroadcast, BroadcastFnTy>(bitset_ptr);
+      syncRecv<syncBroadcast, BroadcastFnTy>(bitset_ptr);
   }
 
 public:
@@ -1201,7 +1194,7 @@ public:
     }
 
     template<typename FnTy>
-    void poll_for_remote_work_bitset(galois::DynamicBitSet& bitset) {
+    void poll_for_remote_work_bitset(galois::DynamicBitSet* bitset_ptr) {
         std::atomic<bool> terminateFlag;
         terminateFlag.store(false, std::memory_order_release);
 
@@ -1235,7 +1228,7 @@ public:
                             update = FnTy::reduce_atomic(userGraph.getData(lid), val);
 
                             if (update) {
-                                bitset.set(lid);
+                                bitset_ptr->set(lid);
                             }
                         }
 
