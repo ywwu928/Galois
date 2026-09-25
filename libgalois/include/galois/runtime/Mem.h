@@ -1113,7 +1113,7 @@ public:
         // allocate new regions
         void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE | MAP_HUGETLB, -1, 0);
         if (region == MAP_FAILED) {
-            galois::gWarn("Huge page allocation failed : falling back to normal page...\n");
+            //galois::gWarn("Huge page allocation failed : falling back to normal page...\n");
             region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE, -1, 0);
             if (region == MAP_FAILED) {
                 GALOIS_SYS_DIE("Out of Memory");
