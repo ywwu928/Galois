@@ -821,9 +821,9 @@ NetworkInterface::~NetworkInterface() {
 void NetworkInterface::allocateBufferPool() {
 #ifndef GALOIS_FULL_MIRRORING
     for (unsigned t=0; t<numT; t++) {
-        sendAllocators[t].allocateRegions();
+        sendAllocators[t].allocateRegions(false);
     }
-    recvAllocator.allocateRegions();
+    recvAllocator.allocateRegions(false);
 
     for (unsigned i=0; i<Num; i++) {
         for (unsigned t=0; t<numT; t++) {

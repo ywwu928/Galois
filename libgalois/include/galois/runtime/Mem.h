@@ -1052,12 +1052,10 @@ class FixedSizeBufferAllocator {
     size_t bufferSize;
     size_t bufferCount;
 
-    const size_t pageSize = 4 * 1024;
+    const size_t hugePageSize = 2 * 1024 * 1024;
     size_t regionSize;
-    std::vector<void*> regions;
+    std::vector<std::pair<void*, size_t>> regions;
     boost::lockfree::stack<uint8_t*> bufferPool;
-    uint32_t factor;
-    bool alloc;
 
 public:
     FixedSizeBufferAllocator() {}
@@ -1069,13 +1067,11 @@ public:
     void setup(size_t _bufferSize, size_t _bufferCount) {
         bufferSize = _bufferSize;
         bufferCount = _bufferCount;
-        // closest multiple of 4k pages
-        regionSize = (bufferCount * bufferSize + pageSize - 1) & ~(pageSize - 1);
+        // closest multiple of huge pages
+        regionSize = (bufferCount * bufferSize + hugePageSize - 1) & ~(hugePageSize - 1);
 
         bufferPool.reserve(bufferCount);
-        factor = 1;
         //allocateRegions();
-        alloc = true;
     }
 
     uint8_t* allocate() {
@@ -1083,10 +1079,8 @@ public:
         bool success = bufferPool.pop(buffer);
         
         if (!success) { // buffer pool is empty
-            if (alloc) {
-                galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
-                allocateRegions();
-            }
+            galois::gWarn("No buffers available in FixedSizeBufferPool : allocating more buffers!\n");
+            allocateRegions(true);
             
             do {
                 success = bufferPool.pop(buffer);
@@ -1115,30 +1109,33 @@ public:
         }
     }
 
-    void allocateRegions() {
+    void allocateRegions(bool double_size) {
         // allocate new regions
-        for (uint32_t i=0; i<factor; i++) {
-            void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED | MAP_POPULATE, -1, 0);
+        void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE | MAP_HUGETLB, -1, 0);
+        if (region == MAP_FAILED) {
+            galois::gWarn("Huge page allocation failed : falling back to normal page...\n");
+            region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE, -1, 0);
             if (region == MAP_FAILED) {
-                alloc = false;
-                break;
-            }
-            regions.push_back(region);
-
-            // add all buffers in the new page to the free buffer stack
-            for (size_t j=0; j<regionSize; j+=bufferSize) {
-                bufferPool.push(static_cast<uint8_t*>(region) + j);
+                GALOIS_SYS_DIE("Out of Memory");
             }
         }
+        regions.push_back({region, regionSize});
+
+        // add all buffers in the new page to the free buffer stack
+        for (size_t j=0; j<regionSize; j+=bufferSize) {
+            bufferPool.push(static_cast<uint8_t*>(region) + j);
+        }
         
-        factor = factor << 1;
+        if (double_size) {
+            regionSize = regionSize << 1;
+        }
     }
     
 private:
     void freeRegions() {
         // free the regions
         for (auto region : regions) {
-            if (munmap(region, regionSize) == -1) {
+            if (munmap(region.first, region.second) == -1) {
                 GALOIS_SYS_DIE("Error unmapping region and freeing memory");
             }
         }
