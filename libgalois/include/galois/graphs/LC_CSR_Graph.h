@@ -162,7 +162,7 @@ protected:
   EdgeDst edgeDst;
   EdgeData edgeData;
   EdgeIndData edgeIndDataIncoming;
-  EdgeDst edgeDstIncoming;
+  EdgeDst edgeSrc;
 
   uint64_t numNodes;
   uint64_t numActualNodes;
@@ -193,8 +193,16 @@ protected:
     return edge_sort_iterator(*raw_begin(N), &edgeDst, &edgeData);
   }
 
+  edge_sort_iterator in_edge_sort_begin(GraphNode N) {
+    return edge_sort_iterator(*in_raw_begin(N), &edgeSrc, &edgeData);
+  }
+
   edge_sort_iterator edge_sort_end(GraphNode N) {
     return edge_sort_iterator(*raw_end(N), &edgeDst, &edgeData);
+  }
+
+  edge_sort_iterator in_edge_sort_end(GraphNode N) {
+    return edge_sort_iterator(*in_raw_end(N), &edgeSrc, &edgeData);
   }
 
   template <bool _A1 = HasNoLockable, bool _A2 = HasOutOfLineLockable>
@@ -414,7 +422,7 @@ public:
 
   GraphNode getEdgeDst(edge_iterator ni) { return edgeDst[*ni]; }
   
-  GraphNode getInEdgeSrc(edge_iterator ni) { return edgeDstIncoming[*ni]; }
+  GraphNode getInEdgeSrc(edge_iterator ni) { return edgeSrc[*ni]; }
 
   size_t size() const { return numNodes; }
   size_t actualSize() const { return numActualNodes; }
@@ -520,6 +528,13 @@ public:
     acquireNode(N, mflag);
     std::sort(edge_sort_begin(N), edge_sort_end(N), comp);
   }
+  
+  template <typename CompTy>
+  void sortInEdges(GraphNode N, const CompTy& comp,
+                 MethodFlag mflag = MethodFlag::WRITE) {
+    acquireNode(N, mflag);
+    std::sort(in_edge_sort_begin(N), in_edge_sort_end(N), comp);
+  }
 
   /**
    * Sorts outgoing edges of a node. Comparison is over getEdgeDst(e).
@@ -555,7 +570,7 @@ public:
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
+      edgeSrc.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
@@ -563,7 +578,7 @@ public:
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
+      edgeSrc.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -580,7 +595,7 @@ public:
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
+      edgeSrc.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
@@ -588,7 +603,7 @@ public:
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
+      edgeSrc.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -605,7 +620,7 @@ public:
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
+      edgeSrc.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
@@ -613,7 +628,7 @@ public:
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
+      edgeSrc.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -631,7 +646,7 @@ public:
       edgeDst.allocateBlocked(numEdges);
       edgeData.allocateBlocked(numEdges);
       edgeIndDataIncoming.allocateBlocked(numNodes);
-      edgeDstIncoming.allocateBlocked(numEdges);
+      edgeSrc.allocateBlocked(numEdges);
       this->outOfLineAllocateBlocked(numNodes);
     } else {
       nodeData.allocateInterleaved(numActualNodes);
@@ -639,7 +654,7 @@ public:
       edgeDst.allocateInterleaved(numEdges);
       edgeData.allocateInterleaved(numEdges);
       edgeIndDataIncoming.allocateInterleaved(numNodes);
-      edgeDstIncoming.allocateInterleaved(numEdges);
+      edgeSrc.allocateInterleaved(numEdges);
       this->outOfLineAllocateInterleaved(numNodes);
     }
   }
@@ -677,8 +692,8 @@ public:
     edgeIndDataIncoming.deallocate();
     edgeIndDataIncoming.destroy();
 
-    edgeDstIncoming.deallocate();
-    edgeDstIncoming.destroy();
+    edgeSrc.deallocate();
+    edgeSrc.destroy();
   }
 
   void constructEdge(uint64_t e, uint32_t dst,
@@ -762,7 +777,7 @@ public:
             // location to save edge
             auto e_new = __sync_fetch_and_add(&(edgeIndData_temp[dst]), 1);
             // save src as destination
-            edgeDstIncoming[e_new] = src;
+            edgeSrc[e_new] = src;
             e++;
           }
         },
@@ -855,6 +870,8 @@ public:
    * @returns reference to LargeArray edgeIndData
    */
   const EdgeIndData& getEdgePrefixSum() const { return edgeIndData; }
+  
+  const EdgeIndData& getIncomingEdgePrefixSum() const { return edgeIndDataIncoming; }
 
   auto divideByNode(size_t nodeSize, size_t edgeSize, size_t id, size_t total) {
     return galois::graphs::divideNodesBinarySearch(

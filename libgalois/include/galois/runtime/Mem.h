@@ -32,6 +32,7 @@
 
 #include <boost/utility.hpp>
 #include <boost/lockfree/stack.hpp>
+#include <numaif.h>
 
 #include "galois/config.h"
 #include "galois/gIO.h"
@@ -1057,6 +1058,8 @@ class FixedSizeBufferAllocator {
     std::vector<std::pair<void*, size_t>> regions;
     boost::lockfree::stack<uint8_t*> bufferPool;
 
+    int numaNode = -1;
+
 public:
     FixedSizeBufferAllocator() {}
 
@@ -1094,31 +1097,38 @@ public:
         bufferPool.push(buffer);
     }
 
-    void touch() {
-        std::stack<uint8_t*> temp;
-
-        bufferPool.consume_all([&temp](uint8_t* ptr) {
-            temp.push(ptr);
-        });
-
-        while (!temp.empty()) {
-            bufferPool.push(temp.top());
-            // touch the memory location of the pointer
-            *(temp.top()) = (uint8_t)0;
-            temp.pop();
-        }
+    void setNumaNode(int node) {
+        numaNode = node;
     }
 
     void allocateRegions(bool double_size) {
         // allocate new regions
-        void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE | MAP_HUGETLB, -1, 0);
+        //void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE | MAP_HUGETLB, -1, 0);
+        void* region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_HUGETLB, -1, 0);
         if (region == MAP_FAILED) {
             //galois::gWarn("Huge page allocation failed : falling back to normal page...\n");
-            region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+            //region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE | MAP_POPULATE, -1, 0);
+            region = mmap(nullptr, regionSize, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
             if (region == MAP_FAILED) {
                 GALOIS_SYS_DIE("Out of Memory");
             }
         }
+
+        if (numaNode >= 0) {
+            unsigned long nodemask = 1UL << numaNode;
+
+            if (mbind(region, regionSize,
+                      MPOL_BIND,
+                      &nodemask,
+                      sizeof(nodemask) * 8,
+                      0) == -1) {
+                GALOIS_SYS_DIE("mbind failed for NUMA node ", numaNode);
+            }
+        }
+
+        // Prefault and zero the entire region on numaNode.
+        std::memset(region, 0, regionSize);
+
         regions.push_back({region, regionSize});
 
         // add all buffers in the new page to the free buffer stack

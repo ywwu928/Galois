@@ -258,14 +258,6 @@ private:
 
       template <typename ValTy>
       void add(uint32_t lid, ValTy val);
-
-      inline void touchBuf() {
-          *buf = (uint8_t)0;
-      }
-
-      inline void prefetchBuf() {
-          __builtin_prefetch(buf, 1, 3);
-      }
   };
   
   std::vector<std::vector<sendBufferRemoteWork>> sendRemoteWork;
@@ -419,10 +411,6 @@ public:
   void resetDataTermination();
   
   void signalDataTermination(uint32_t dest);
-
-  void touchBufferPool();
-  
-  void prefetchBuffers();
 };
 
 //! Variable that keeps track of which network send/recv phase a program is

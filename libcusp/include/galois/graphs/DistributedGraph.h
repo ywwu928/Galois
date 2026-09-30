@@ -71,16 +71,22 @@ private:
   // with edges (which includes masters)
   //! represents split of all nodes among threads to balance edges
   std::vector<uint32_t> allRanges;
+  std::vector<uint32_t> allRangesIn;
   //! represents split of present nodes (master + mirror) among threads
   std::vector<uint32_t> presentRanges;
+  std::vector<uint32_t> presentRangesIn;
   //! represents split of master nodes among threads
   std::vector<uint32_t> masterRanges;
+  std::vector<uint32_t> masterRangesIn;
   //! represents split of mirror nodes among threads
   std::vector<uint32_t> mirrorRanges;
+  std::vector<uint32_t> mirrorRangesIn;
   //! represents split of phantom nodes among threads
   std::vector<uint32_t> phantomRanges;
+  std::vector<uint32_t> phantomRangesIn;
   //! represents split of remote nodes (mirror + phantom) among threads
   std::vector<uint32_t> remoteRanges;
+  std::vector<uint32_t> remoteRangesIn;
   
   using NodeRangeType =
       galois::runtime::SpecificRange<boost::counting_iterator<size_t>>;
@@ -800,6 +806,10 @@ public:
   inline const NodeRangeType& allNodesRange() const {
     return specificRanges[0];
   }
+  
+  inline const NodeRangeType& allNodesRangeIn() const {
+    return specificRangesIn[0];
+  }
 
   /**
    * Returns a range object that encapsulates both master and mirror nodes in this
@@ -809,6 +819,10 @@ public:
    */
   inline const NodeRangeType& presentNodesRange() const {
     return specificRanges[1];
+  }
+  
+  inline const NodeRangeType& presentNodesRangeIn() const {
+    return specificRangesIn[1];
   }
   
   /**
@@ -821,6 +835,10 @@ public:
     return specificRanges[2];
   }
   
+  inline const NodeRangeType& masterNodesRangeIn() const {
+    return specificRangesIn[2];
+  }
+  
   /**
    * Returns a range object that encapsulates only mirror nodes in this
    * graph.
@@ -829,6 +847,10 @@ public:
    */
   inline const NodeRangeType& mirrorNodesRange() const {
     return specificRanges[3];
+  }
+  
+  inline const NodeRangeType& mirrorNodesRangeIn() const {
+    return specificRangesIn[3];
   }
   
   /**
@@ -840,6 +862,10 @@ public:
   inline const NodeRangeType& phantomNodesRange() const {
     return specificRanges[4];
   }
+  
+  inline const NodeRangeType& phantomNodesRangeIn() const {
+    return specificRangesIn[4];
+  }
 
   /**
    * Returns a range object that encapsulates both mirror and phantom nodes in this
@@ -848,6 +874,10 @@ public:
    * @returns A range object that contains both the mirror and phantom nodes in this graph
    */
   inline const NodeRangeType& remoteNodesRange() const {
+    return specificRanges[5];
+  }
+  
+  inline const NodeRangeType& remoteNodesRangeIn() const {
     return specificRanges[5];
   }
   
@@ -879,6 +909,8 @@ protected:
   void determineThreadRanges() {
     assert(allRanges.size() != 0);
     allRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum());
+    assert(allRangesIn.size() != 0);
+    allRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum());
   }
 
   /**
@@ -891,6 +923,8 @@ protected:
     // make sure this hasn't been called before
     assert(presentRanges.size() == 0);
     presentRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, numActualNodes, 0);
+    assert(presentRangesIn.size() == 0);
+    presentRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), beginMaster, numActualNodes, 0);
   }
 
   /**
@@ -903,6 +937,8 @@ protected:
     // make sure this hasn't been called before
     assert(masterRanges.size() == 0);
     masterRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
+    assert(masterRangesIn.size() == 0);
+    masterRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
   }
   
   /**
@@ -915,6 +951,8 @@ protected:
     // make sure this hasn't been called before
     assert(mirrorRanges.size() == 0);
     mirrorRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numActualNodes, 0);
+    assert(mirrorRangesIn.size() == 0);
+    mirrorRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), numOwned, numActualNodes, 0);
   }
   
   /**
@@ -927,6 +965,8 @@ protected:
     // make sure this hasn't been called before
     assert(phantomRanges.size() == 0);
     phantomRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numActualNodes, numNodes, 0);
+    assert(phantomRangesIn.size() == 0);
+    phantomRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), numActualNodes, numNodes, 0);
   }
 
   /**
@@ -939,6 +979,8 @@ protected:
     // make sure this hasn't been called before
     assert(remoteRanges.size() == 0);
     remoteRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numNodes, 0);
+    assert(remoteRangesIn.size() == 0);
+    remoteRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), numOwned, numNodes, 0);
   }
 
   /**
@@ -993,6 +1035,52 @@ protected:
         remoteRanges.data()));
     
     assert(specificRanges.size() == 6);
+    
+    assert(specificRangesIn.size() == 0);
+
+    assert(allRangesIn.size() != 0);
+    assert(presentRangesIn.size() != 0);
+    assert(masterRangesIn.size() != 0);
+    assert(mirrorRangesIn.size() != 0);
+    assert(phantomRangesIn.size() != 0);
+    assert(remoteRangesIn.size() != 0);
+
+    // 0 is all nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(0),
+        boost::counting_iterator<size_t>(size()), allRangesIn.data()));
+
+    // 1 is present nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(beginMaster),
+        boost::counting_iterator<size_t>(beginMaster + numActualNodes),
+        presentRangesIn.data()));
+
+    // 2 is master nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(beginMaster),
+        boost::counting_iterator<size_t>(beginMaster + numOwned),
+        masterRangesIn.data()));
+
+	// 3 is mirror nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numOwned),
+        boost::counting_iterator<size_t>(numActualNodes),
+        mirrorRangesIn.data()));
+	
+    // 4 is phantom nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numActualNodes),
+        boost::counting_iterator<size_t>(numNodes),
+        phantomRangesIn.data()));
+	
+    // 5 is remote nodes
+    specificRangesIn.push_back(galois::runtime::makeSpecificRange(
+        boost::counting_iterator<size_t>(numOwned),
+        boost::counting_iterator<size_t>(numNodes),
+        remoteRangesIn.data()));
+    
+    assert(specificRangesIn.size() == 6);
   }
 
 public:
@@ -1029,6 +1117,14 @@ public:
     galois::do_all(
         galois::iterate(graph),
         [&](GN n) { graph.sortEdges(n, IdLess<GN, EdgeTy>()); },
+        galois::no_stats(), galois::loopname("CSREdgeSort"), galois::steal());
+  }
+  
+  void sortInEdgesBySource() {
+    using GN = typename GraphTy::GraphNode;
+    galois::do_all(
+        galois::iterate(graph),
+        [&](GN n) { graph.sortInEdges(n, IdLess<GN, EdgeTy>()); },
         galois::no_stats(), galois::loopname("CSREdgeSort"), galois::steal());
   }
 };

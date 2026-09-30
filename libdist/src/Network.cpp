@@ -26,12 +26,14 @@
 
 #include "galois/runtime/Tracer.h"
 #include "galois/runtime/Network.h"
+#include "galois/substrate/HWTopo.h"
 
 #include <iostream>
 #include <mutex>
 #include <chrono>
 #include <xmmintrin.h>
 #include <cstring>
+#include <numa.h>
 
 namespace cll = llvm::cl;
 constexpr uint32_t workSize = 8; // lid (uint32_t) + val (uint32_t or float)
@@ -119,7 +121,6 @@ void NetworkInterface::recvBufferCommunication::add(uint32_t host) {
 
 bool NetworkInterface::recvBufferRemoteWork::tryPopFullMsg(uint8_t*& work) {
     bool success = fullMessages.try_dequeue_from_producer(ptokFull, work);
-    __builtin_prefetch(work, 0, 3);
     return success;
 }
 
@@ -128,7 +129,6 @@ bool NetworkInterface::recvBufferRemoteWork::tryPopPartialMsg(uint8_t*& work, si
     bool success = partialMessages.try_dequeue_from_producer(ptokPartial, message);
     work = message.first;
     workLen = message.second;
-    __builtin_prefetch(work, 0, 3);
 
     return success;
 }
@@ -176,7 +176,6 @@ void NetworkInterface::sendBufferRemoteWork::setNet(NetworkInterface* _net) {
 void NetworkInterface::sendBufferRemoteWork::setBuf() {
     // allocate new buffer
     buf = net->sendAllocators[tid].allocate();
-    __builtin_prefetch(buf, 1, 3);
 }
 
 void NetworkInterface::sendBufferRemoteWork::enqueue(uint8_t* msg) {
@@ -205,7 +204,6 @@ void NetworkInterface::sendBufferRemoteWork::add(uint32_t lid, ValTy val) {
 
         // allocate new buffer
         buf = net->sendAllocators[tid].allocate();
-        __builtin_prefetch(buf, 1, 3);
         msgCount = 0;
     }
 }
@@ -311,28 +309,24 @@ void NetworkInterface::sendCommComplete() {
 }
 
 void NetworkInterface::sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
-    __builtin_prefetch(buf, 0, 3);
     sendInflightData.emplace_back(buf);
     auto& f = sendInflightData.back();
     MPI_Isend(buf, bufLen, MPI_BYTE, dest, tag, comm_comm, &f.req);
 }
 
 void NetworkInterface::sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf) {
-    __builtin_prefetch(buf, 0, 3);
     sendInflightWork[tid].emplace_back(buf);
     auto& f = sendInflightWork[tid].back();
     MPI_Isend(buf, aggMsgSize, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
 void NetworkInterface::sendPartialWork(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen) {
-    __builtin_prefetch(buf, 0, 3);
     sendInflightWork[tid].emplace_back(buf);
     auto& f = sendInflightWork[tid].back();
     MPI_Isend(buf, bufLen, MPI_BYTE, dest, remoteWorkTag, comm_comm, &f.req);
 }
 
 void NetworkInterface::sendCommunication(uint32_t dest, uint8_t* buf, size_t bufLen) {
-    __builtin_prefetch(buf, 0, 3);
     sendInflightComm.emplace_back(buf);
     auto& f = sendInflightComm.back();
     MPI_Isend(buf, bufLen, MPI_BYTE, dest, communicationTag, comm_comm, &f.req);
@@ -381,15 +375,12 @@ void NetworkInterface::recvProbeWorkComm() {
             // allocate new buffer
             uint8_t* buf;
             buf = recvAllocator.allocate();
-            __builtin_prefetch(buf, 1, 3);
 
             recvInflightWork.emplace_back(buf, nbytes);
             auto& m = recvInflightWork.back();
             MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
-            __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
-
             MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
             recvInflightComm.push_back(req);
             MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, req);
@@ -452,8 +443,6 @@ void NetworkInterface::recvProbeComm() {
     if (flag) {
         int nbytes;
         MPI_Get_count(&status, MPI_BYTE, &nbytes);
-
-        __builtin_prefetch(recvCommBuffer[status.MPI_SOURCE], 1, 3);
 
         MPI_Request* req = (MPI_Request*)malloc(sizeof(MPI_Request));
         recvInflightComm.push_back(req);
@@ -582,10 +571,6 @@ void NetworkInterface::commThread() {
 
         *(recvCommBuffer[i]) = (uint8_t)0;
     }
-    
-#ifndef GALOIS_FULL_MIRRORING
-    recvAllocator.touch();
-#endif
     
     while (ready.load(std::memory_order_acquire) == 3) {
 #ifndef GALOIS_FULL_MIRRORING
@@ -820,9 +805,16 @@ NetworkInterface::~NetworkInterface() {
 
 void NetworkInterface::allocateBufferPool() {
 #ifndef GALOIS_FULL_MIRRORING
+    const auto topology = galois::substrate::getHWTopo();
+
     for (unsigned t=0; t<numT; t++) {
+        const auto& threadTopo = topology.threadTopoInfo.at(t);
+        sendAllocators[t].setNumaNode(threadTopo.osNumaNode);
         sendAllocators[t].allocateRegions(false);
     }
+
+    const int commNumaNode = numa_node_of_cpu(commCoreID);
+    recvAllocator.setNumaNode(commNumaNode);
     recvAllocator.allocateRegions(false);
 
     for (unsigned i=0; i<Num; i++) {
@@ -970,7 +962,6 @@ void NetworkInterface::flushRemoteWork() {
         }
 
         uint8_t* aggBuf = sendAllocators[0].allocate();
-        __builtin_prefetch(aggBuf, 1, 3);
         uint32_t aggMsgCount = 0;
         uint32_t remainWorkCount = workCount;
         for (unsigned t=0; t<numT; t++) {
@@ -998,7 +989,6 @@ void NetworkInterface::flushRemoteWork() {
                     sendRemoteWork[h][0].enqueue(aggBuf);
 
                     aggBuf = sendAllocators[0].allocate();
-                    __builtin_prefetch(aggBuf, 1, 3);
 
                     aggMsgCount = 0;
                     remainWorkCount = workCount;
@@ -1012,7 +1002,6 @@ void NetworkInterface::flushRemoteWork() {
                     sendRemoteWork[h][0].enqueue(aggBuf);
 
                     aggBuf = sendAllocators[0].allocate();
-                    __builtin_prefetch(aggBuf, 1, 3);
 
                     aggMsgCount = msgCount - remainWorkCount;
                     remainWorkCount = workCount - aggMsgCount;
@@ -1072,26 +1061,6 @@ void NetworkInterface::resetDataTermination() {
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {
     sendDataTermination[dest].store(true, std::memory_order_release);
-}
-
-void NetworkInterface::touchBufferPool() {
-#ifndef GALOIS_FULL_MIRRORING
-    galois::on_each([&](unsigned tid, unsigned) {
-        sendAllocators[tid].touch();
-
-        for (unsigned i=0; i<Num; i++) {
-            sendRemoteWork[i][tid].touchBuf();
-        }
-    });
-#endif
-}
-
-void NetworkInterface::prefetchBuffers() {
-    galois::on_each([&](unsigned tid, unsigned) {
-        for (unsigned i=0; i<Num; i++) {
-            sendRemoteWork[i][tid].prefetchBuf();
-        }
-    });
 }
 
 NetworkInterface& getSystemNetworkInterface() {

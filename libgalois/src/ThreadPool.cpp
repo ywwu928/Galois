@@ -126,7 +126,14 @@ void ThreadPool::initThread(unsigned tid) {
 
   if (!EnvCheck("GALOIS_DO_NOT_BIND_THREADS")) {
     if (my_box.topo.tid != 0 || !EnvCheck("GALOIS_DO_NOT_BIND_MAIN_THREAD")) {
-      bindThreadSelf(my_box.topo.osContext);
+      const bool success = bindThreadSelf(my_box.topo.osContext);
+
+      if (success) {
+        galois::gDebug(
+            "Galois thread ", my_box.topo.tid,
+            " pinned to physical core/OS CPU ", my_box.topo.osContext,
+            ", NUMA node ", my_box.topo.osNumaNode, "\n");
+      }
     }
   }
   my_box.done = 1;
