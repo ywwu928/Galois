@@ -358,6 +358,8 @@ struct ConnectedComp {
         }
     }
 
+    bool forcePush = _graph.forcePush();
+
     uint64_t active_edges;
     uint64_t edge_threshold_low, edge_threshold_high;
     if (local) {
@@ -393,39 +395,28 @@ struct ConnectedComp {
       
       StatTimer_total.start();
       if (dual) {
-          if (hybrid) {
+          if (local && forcePush) {
+              pull = false;
+          }
+          else if (hybrid) {
               if (local_active_v >= vertex_threshold_high) {
                   pull = true;
               }
               else if (local_active_v <= vertex_threshold_low) {
                   pull = false;
               }
-              else {
-                  if (local_active_e >= edge_threshold_high) {
-                      pull = true;
-                  }
-                  else if (local_active_e <= edge_threshold_low) {
-                      pull = false;
-                  }
-                  else {
-                      if (degree) {
-                          if ((local_active_e/local_active_v) >= degree_threshold) {
-                              pull = true;
-                          }
-                          else {
-                              pull = false;
-                          }
-                      }
-                  }
+              else if (local_active_e >= edge_threshold_high) {
+                  pull = true;
+              }
+              else if (local_active_e <= edge_threshold_low) {
+                  pull = false;
+              }
+              else if (degree) {
+                  pull = (local_active_e / local_active_v) >= degree_threshold;
               }
           }
           else {
-              if (local) {
-                  active_edges = local_active_e;
-              }
-              else {
-                  active_edges = global_active_e;
-              }
+              active_edges = local ? local_active_e : global_active_e;
 
               if (hysteresis) {
                   if (active_edges >= edge_threshold_high) {
@@ -436,15 +427,12 @@ struct ConnectedComp {
                   }
               }
               else {
-                  if (active_edges > edge_threshold_low) {
-                      pull = true;
-                  }
-                  else {
-                      pull = false;
-                  }
+                  pull = active_edges > edge_threshold_low;
               }
           }
       }
+      
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
 
       if (odd) {
           active_bitset_ptr = &bitset_comp_current_odd;

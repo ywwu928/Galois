@@ -899,6 +899,49 @@ public:
     return IDs;
   }
 
+  bool forcePush() {
+      std::vector<uint64_t> threadEdges;
+      threadEdges.reserve(galois::getActiveThreads());
+
+      auto& edgePrefixSum = graph.getIncomingEdgePrefixSum();
+      for (uint64_t i=0; i<masterRangesIn.size()-1; i++) {
+          if (i == 0) {
+              threadEdges.push_back(edgePrefixSum[masterRangesIn[i+1]-1]);
+          }
+          else {
+              threadEdges.push_back(edgePrefixSum[masterRangesIn[i+1]-1]-edgePrefixSum[masterRangesIn[i]-1]);
+          }
+      }
+      
+      std::sort(threadEdges.begin(), threadEdges.end());
+
+      uint64_t median = threadEdges[threadEdges.size() / 2];
+
+      uint64_t min_val = threadEdges.front();
+
+      if (min_val < median / 8) {
+          return true;
+      }
+
+      threadEdges.clear();
+    
+      for (uint64_t i=0; i<remoteRangesIn.size()-1; i++) {
+          threadEdges.push_back(edgePrefixSum[remoteRangesIn[i+1]-1]-edgePrefixSum[remoteRangesIn[i]-1]);
+      }
+      
+      std::sort(threadEdges.begin(), threadEdges.end());
+
+      median = threadEdges[threadEdges.size() / 2];
+
+      min_val = threadEdges.front();
+
+      if (min_val < median / 8) {
+          return true;
+      }
+
+      return false;
+  }
+
 protected:
   /**
    * Uses a pre-computed prefix sum to determine division of nodes among
@@ -939,6 +982,26 @@ protected:
     masterRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
     assert(masterRangesIn.size() == 0);
     masterRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), beginMaster, beginMaster + numOwned, 0);
+
+    /*
+    galois::gPrint("Host ", id, " master # edges: ");
+    auto& edgePrefixSum = graph.getIncomingEdgePrefixSum();
+    for (uint64_t i=0; i<masterRangesIn.size()-1; i++) {
+        if (i == 0) {
+            galois::gPrint(edgePrefixSum[masterRangesIn[i+1]-1]);
+        }
+        else {
+            galois::gPrint(edgePrefixSum[masterRangesIn[i+1]-1]-edgePrefixSum[masterRangesIn[i]-1]);
+        }
+
+        if (i != masterRangesIn.size()-2) {
+            galois::gPrint(", ");
+        }
+        else {
+            galois::gPrint("\n");
+        }
+    }
+    */
   }
   
   /**
@@ -981,6 +1044,21 @@ protected:
     remoteRanges = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getEdgePrefixSum(), numOwned, numNodes, 0);
     assert(remoteRangesIn.size() == 0);
     remoteRangesIn = galois::graphs::determineUnitRangesFromPrefixSum(galois::getActiveThreads(), graph.getIncomingEdgePrefixSum(), numOwned, numNodes, 0);
+
+    /*
+    galois::gPrint("Host ", id, " remote # edges: ");
+    auto& edgePrefixSum = graph.getIncomingEdgePrefixSum();
+    for (uint64_t i=0; i<remoteRangesIn.size()-1; i++) {
+        galois::gPrint(edgePrefixSum[remoteRangesIn[i+1]-1]-edgePrefixSum[remoteRangesIn[i]-1]);
+
+        if (i != remoteRangesIn.size()-2) {
+            galois::gPrint(", ");
+        }
+        else {
+            galois::gPrint("\n");
+        }
+    }
+    */
   }
 
   /**
