@@ -20,5 +20,3 @@
 #include "galois/runtime/SyncStructures.h"
 
 GALOIS_SYNC_STRUCTURE_REDUCE_MIN(dist_current, unsigned int);
-GALOIS_SYNC_STRUCTURE_BITSET(dist_current_odd);
-GALOIS_SYNC_STRUCTURE_BITSET(dist_current_even);

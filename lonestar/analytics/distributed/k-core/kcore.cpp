@@ -112,7 +112,7 @@ struct InitializeGraph {
   InitializeGraph(Graph* _graph) : graph(_graph) {}
 
   void static go(Graph& _graph) {
-    const auto& presentNodes = _graph.presentNodesRangeIn();
+    const auto& presentNodes = _graph.presentNodesRange();
 
     galois::do_all(
         galois::iterate(presentNodes.begin(), presentNodes.end()),

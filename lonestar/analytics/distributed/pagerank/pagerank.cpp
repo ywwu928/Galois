@@ -296,8 +296,7 @@ struct PageRank {
     galois::GAccumulator<uint64_t> active_v, active_e;
     uint64_t local_active_v;
     uint64_t local_active_e;
-    // default to pull for global
-    uint64_t global_active_e = _graph.globalSizeEdges();
+    uint64_t global_active_e;
 
     bitset_residual.set_all();
 

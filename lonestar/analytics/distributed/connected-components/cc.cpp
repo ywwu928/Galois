@@ -83,10 +83,11 @@ static cll::opt<int> degree_density_bound("degree_density_bound",
 
 struct NodeData {
   std::atomic<uint32_t> comp_current;
+  uint32_t comp_old;
 };
 
-galois::DynamicBitSet bitset_comp_current_odd;
-galois::DynamicBitSet bitset_comp_current_even;
+galois::DynamicBitSet bitset_active;
+galois::DynamicBitSet bitset_dirty;
 
 typedef galois::graphs::DistGraph<NodeData, void> Graph;
 typedef typename Graph::GraphNode GNode;
@@ -115,26 +116,56 @@ struct InitializeGraph {
   void operator()(GNode src) const {
     NodeData& sdata    = graph->getData(src);
     sdata.comp_current = graph->getGID(src);
+    sdata.comp_old = graph->getGID(src);
+  }
+};
+
+struct ConnectedComp_sync {
+  Graph* graph;
+
+  galois::GAccumulator<uint64_t>& active_vertices;
+  galois::GAccumulator<uint64_t>& active_edges;
+
+  ConnectedComp_sync(Graph* _graph, galois::GAccumulator<uint64_t>& _active_vertices, galois::GAccumulator<uint64_t>& _active_edges)
+      : graph(_graph),
+        active_vertices (_active_vertices),
+        active_edges (_active_edges) {}
+
+  void static go(Graph& _graph, galois::GAccumulator<uint64_t>& _active_vertices, galois::GAccumulator<uint64_t>& _active_edges) {
+    const auto& masterNodes = _graph.masterNodesRange();
+
+    galois::do_all(
+        galois::iterate(masterNodes),
+        ConnectedComp_sync{&_graph, _active_vertices, _active_edges}, galois::no_stats());
+  }
+
+  void operator()(GNode src) const {
+    if (bitset_dirty.test(src)) {
+      bitset_active.set(src);
+      auto& sdata = graph->getData(src);
+      sdata.comp_old = sdata.comp_current;
+
+      active_vertices += 1;
+      uint64_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+      active_edges += nout;
+    }
   }
 };
 
 struct PullRemote {
   Graph* graph;
-  
-  galois::DynamicBitSet* active_bitset_ptr;
 
   galois::runtime::NetworkInterface& net;
 
-  PullRemote(Graph* _graph, galois::DynamicBitSet* _active_bitset_ptr)
+  PullRemote(Graph* _graph)
       : graph(_graph),
-        active_bitset_ptr(_active_bitset_ptr),
         net(galois::runtime::getSystemNetworkInterface()) {}
 
-  void static go(Graph& _graph, galois::DynamicBitSet* _active_bitset_ptr) {
+  void static go(Graph& _graph) {
       const auto& remoteNodes = _graph.remoteNodesRangeIn();
 
       galois::do_all(
-          galois::iterate(remoteNodes), PullRemote{&_graph, _active_bitset_ptr},
+          galois::iterate(remoteNodes), PullRemote{&_graph},
           galois::steal(), galois::no_stats());
   }
 
@@ -142,10 +173,10 @@ struct PullRemote {
     uint32_t dcomp = UINT32_MAX;
     for (auto jj : graph->inEdges(dst)) {
         GNode src         = graph->getInEdgeSrc(jj);
-        if (active_bitset_ptr->test(src)) {
+        if (bitset_active.test(src)) {
             auto& snode       = graph->getData(src);
-            if (snode.comp_current < dcomp) {
-                dcomp = snode.comp_current;
+            if (snode.comp_old < dcomp) {
+                dcomp = snode.comp_old;
             }
         }
     }
@@ -158,115 +189,71 @@ struct PullRemote {
 
 struct PullMaster {
   Graph* graph;
-  
-  galois::DynamicBitSet* dirty_bitset_ptr;
 
-  PullMaster(Graph* _graph, galois::DynamicBitSet* _dirty_bitset_ptr)
-      : graph(_graph),
-        dirty_bitset_ptr(_dirty_bitset_ptr) {}
+  PullMaster(Graph* _graph) : graph(_graph) {}
 
-  void static go(Graph& _graph, galois::DynamicBitSet* _dirty_bitset_ptr) {
+  void static go(Graph& _graph) {
       const auto& masterNodes = _graph.masterNodesRangeIn();
       
       galois::do_all(
-          galois::iterate(masterNodes), PullMaster{&_graph, _dirty_bitset_ptr},
+          galois::iterate(masterNodes), PullMaster{&_graph},
           galois::steal(), galois::no_stats());
   }
 
   void operator()(GNode dst) const {
     NodeData& dnode = graph->getData(dst);
 
-    uint32_t old_comp = dnode.comp_current;
     for (auto jj : graph->inEdges(dst)) {
         GNode src         = graph->getInEdgeSrc(jj);
-        auto& snode       = graph->getData(src);
-        uint32_t new_comp = snode.comp_current;
-        galois::minVoid(dnode.comp_current, new_comp);
+        if (bitset_active.test(src)) {
+            auto& snode       = graph->getData(src);
+            galois::minVoid(dnode.comp_current, snode.comp_old);
+        }
     }
     
-    if (old_comp > dnode.comp_current) {
-        dirty_bitset_ptr->set(dst);
+    if (dnode.comp_old > dnode.comp_current) {
+        bitset_dirty.set(dst);
     }
   }
 };
 
 struct Push {
   Graph* graph;
-  
-  galois::DynamicBitSet* active_bitset_ptr;
-  galois::DynamicBitSet* dirty_bitset_ptr;
 
   galois::runtime::NetworkInterface& net;
 
-  Push(Graph* _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::DynamicBitSet* _dirty_bitset_ptr)
+  Push(Graph* _graph)
       : graph(_graph),
-        active_bitset_ptr(_active_bitset_ptr),
-        dirty_bitset_ptr(_dirty_bitset_ptr),
         net(galois::runtime::getSystemNetworkInterface()) {}
 
-  void static go(Graph& _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::DynamicBitSet* _dirty_bitset_ptr) {
+  void static go(Graph& _graph) {
       const auto& masterNodes = _graph.masterNodesRange();
       
       galois::do_all(
-          galois::iterate(masterNodes), Push(&_graph, _active_bitset_ptr, _dirty_bitset_ptr),
+          galois::iterate(masterNodes), Push(&_graph),
           galois::no_stats(), galois::steal());
   }
 
   void operator()(GNode src) const {
-    if (active_bitset_ptr->test(src)) {
+    if (bitset_active.test(src)) {
       NodeData& snode = graph->getData(src);
-      uint32_t new_comp = snode.comp_current;
       
       for (auto jj : graph->outEdges(src)) {
         GNode dst         = graph->getOutEdgeDst(jj);
         if (graph->isPhantom(dst)) {
-            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), new_comp);
+            net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), snode.comp_old);
         }
         else {
             auto& dnode       = graph->getData(dst);
-            bool dirty = galois::atomicMinBool(dnode.comp_current, new_comp);
+            bool dirty = galois::atomicMinBool(dnode.comp_current, snode.comp_old);
             if (dirty) {
-                dirty_bitset_ptr->set(dst);
+                bitset_dirty.set(dst);
             }
         }
       }
     }
   }
 };
-
-void CountActive(Graph& _graph, galois::DynamicBitSet* _active_bitset_ptr, galois::GAccumulator<uint64_t>& _active_vertices, galois::GAccumulator<uint64_t>& _active_edges) {
-    galois::on_each([&](unsigned tid, unsigned nthreads) {
-        auto& bitset_vec = _active_bitset_ptr->get_vec();
-        uint64_t bitset_vec_size = bitset_vec.size();
-        uint64_t quotient = bitset_vec_size / nthreads;
-        uint64_t remainder = bitset_vec_size % nthreads;
-
-        uint64_t start, end;
-        if (tid < remainder) {
-            start = tid * (quotient + 1);
-            end = (tid + 1) * (quotient + 1);
-        }
-        else {
-            start = tid * quotient + remainder;
-            end = (tid + 1) * quotient + remainder;
-        }
-
-        for (uint64_t i = start; i < end; ++i) {
-            uint64_t value = bitset_vec[i].load(std::memory_order_relaxed);
-            uint64_t count = std::popcount(value);
-            if (count != 0) {
-                _active_vertices += count;
-                while (value != 0) {
-                    unsigned index = std::countr_zero(value);
-                    uint32_t lid = 64 * i + index;
-                    uint64_t nout = std::distance(_graph.out_edge_begin(lid), _graph.out_edge_end(lid));
-                    _active_edges += nout;
-                    value &= value - 1;
-                }
-            }
-        }
-    });
-}
 
 struct ConnectedComp {
   Graph* graph;
@@ -285,15 +272,11 @@ struct ConnectedComp {
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
     galois::GAccumulator<uint64_t> active_v, active_e;
-    uint64_t local_active_v = _graph.numMasters();
-    uint64_t local_active_e = _graph.sizeEdges();
-    uint64_t global_active_e = _graph.globalSizeEdges();
+    uint64_t local_active_v;
+    uint64_t local_active_e;
+    uint64_t global_active_e;
 
-    bool odd = false;
-    bitset_comp_current_even.set_all();
-  
-    galois::DynamicBitSet* active_bitset_ptr;
-    galois::DynamicBitSet* dirty_bitset_ptr;
+    bitset_dirty.set_all();
 
     bool pull = true;
     bool dual = false;
@@ -374,26 +357,54 @@ struct ConnectedComp {
     uint64_t vertex_threshold_high = _graph.numMasters() * upper_bound;
     float degree_threshold = (_graph.sizeEdges() / _graph.numMasters()) * degree_density_bound;
 
-    do {
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
+    while (true) {
+      if (_num_iterations >= maxIterations) {
+          break;
+      }
 
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
-
-      syncSubstrate->set_num_round(_num_iterations);
+      
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
+      
+      StatTimer_total.start();
+      bitset_active.reset();
+      active_v.reset();
+      active_e.reset();
+      
+      StatTimer_sync.start();
+      ConnectedComp_sync::go(_graph, active_v, active_e);
+      StatTimer_sync.stop();
+      local_active_v = active_v.reduce();
+      local_active_e = active_e.reduce();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
       
-      StatTimer_total.start();
+      StatTimer_active.start();
+      global_active_e = 0;
+      MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+      StatTimer_active.stop();
+
+      if (global_active_e == 0) {
+          StatTimer_total.stop();
+          break;
+      }
+      
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+
+      syncSubstrate->set_num_round(_num_iterations);
+      
       if (dual) {
           if (local && forcePush) {
               pull = false;
@@ -433,56 +444,32 @@ struct ConnectedComp {
       }
       
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
-
-      if (odd) {
-          active_bitset_ptr = &bitset_comp_current_odd;
-          dirty_bitset_ptr = &bitset_comp_current_even;
-      }
-      else {
-          active_bitset_ptr = &bitset_comp_current_even;
-          dirty_bitset_ptr = &bitset_comp_current_odd;
-      }
       
-      dirty_bitset_ptr->reset();
+      bitset_dirty.reset();
 
       if (pull) {
           StatTimer_compute.start();
-          PullRemote::go(_graph, active_bitset_ptr);
+          PullRemote::go(_graph);
           _net.flushRemoteWork();
-          PullMaster::go(_graph, dirty_bitset_ptr);
+          PullMaster::go(_graph);
           StatTimer_compute.stop();
       }
       else {
           StatTimer_compute.start();
-          Push::go(_graph, active_bitset_ptr, dirty_bitset_ptr);
+          Push::go(_graph);
           _net.flushRemoteWork();
           StatTimer_compute.stop();
       }
 
       StatTimer_comm.start();
-      syncSubstrate->reduce<Reduce_min_comp_current>(dirty_bitset_ptr);
+      syncSubstrate->reduce<Reduce_min_comp_current>(&bitset_dirty);
       StatTimer_comm.stop();
-      
-      active_v.reset();
-      active_e.reset();
-      CountActive(_graph, dirty_bitset_ptr, active_v, active_e);
-      local_active_v = active_v.reduce();
-      local_active_e = active_e.reduce();
-      
-      odd = !odd;
       
       _net.resetWorkTermination();
 
       ++_num_iterations;
-      
-      StatTimer_active.start();
-      global_active_e = 0;
-      MPI_Allreduce(&local_active_e, &global_active_e, 1,
-                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-      StatTimer_active.stop();
-
       StatTimer_total.stop();
-    } while ((_num_iterations < maxIterations) && global_active_e);
+    }
   }
 };
 
@@ -578,8 +565,8 @@ int main(int argc, char** argv) {
   galois::runtime::getHostBarrier().wait();
   net.partitionDone();
 
-  bitset_comp_current_odd.resize(hg->actualSize());
-  bitset_comp_current_even.resize(hg->actualSize());
+  bitset_active.resize(hg->numMasters());
+  bitset_dirty.resize(hg->actualSize());
 
   galois::runtime::getHostBarrier().wait();
   StatTimer_preprocess.stop();
@@ -619,8 +606,8 @@ int main(int argc, char** argv) {
     for (auto run = 0; run < numRuns; ++run) {
         galois::gPrint("[", net.ID, "] ConnectedComp (", TYPE_NAME, ") run ", run, " start\n");
 
-        bitset_comp_current_odd.reset();
-        bitset_comp_current_even.reset();
+        bitset_active.reset();
+        bitset_dirty.reset();
         InitializeGraph::go((*hg));
         galois::runtime::getHostBarrier().wait();
 

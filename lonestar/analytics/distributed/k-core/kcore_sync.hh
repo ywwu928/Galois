@@ -20,4 +20,3 @@
 #include "galois/runtime/SyncStructures.h"
 
 GALOIS_SYNC_STRUCTURE_REDUCE_ADD(trim, uint32_t);
-GALOIS_SYNC_STRUCTURE_BITSET(trim);
