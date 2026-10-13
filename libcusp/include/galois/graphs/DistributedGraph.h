@@ -899,49 +899,6 @@ public:
     return IDs;
   }
 
-  bool forcePush() {
-      std::vector<uint64_t> threadEdges;
-      threadEdges.reserve(galois::getActiveThreads());
-
-      auto& edgePrefixSum = graph.getIncomingEdgePrefixSum();
-      for (uint64_t i=0; i<masterRangesIn.size()-1; i++) {
-          if (i == 0) {
-              threadEdges.push_back(edgePrefixSum[masterRangesIn[i+1]-1]);
-          }
-          else {
-              threadEdges.push_back(edgePrefixSum[masterRangesIn[i+1]-1]-edgePrefixSum[masterRangesIn[i]-1]);
-          }
-      }
-      
-      std::sort(threadEdges.begin(), threadEdges.end());
-
-      uint64_t median = threadEdges[threadEdges.size() / 2];
-
-      uint64_t min_val = threadEdges.front();
-
-      if (min_val < median / 8) {
-          return true;
-      }
-
-      threadEdges.clear();
-    
-      for (uint64_t i=0; i<remoteRangesIn.size()-1; i++) {
-          threadEdges.push_back(edgePrefixSum[remoteRangesIn[i+1]-1]-edgePrefixSum[remoteRangesIn[i]-1]);
-      }
-      
-      std::sort(threadEdges.begin(), threadEdges.end());
-
-      median = threadEdges[threadEdges.size() / 2];
-
-      min_val = threadEdges.front();
-
-      if (min_val < median / 8) {
-          return true;
-      }
-
-      return false;
-  }
-
 protected:
   /**
    * Uses a pre-computed prefix sum to determine division of nodes among

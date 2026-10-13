@@ -39,8 +39,8 @@ enum Exp {
     Global_Hysteresis,
     Local_Heuristic,
     Local_Hysteresis,
-    Hybrid_Edge,
-    Hybrid_Degree,
+    Hybrid_Heuristic,
+    Hybrid_Hysteresis,
     Exp_Count
 };
 
@@ -51,8 +51,8 @@ std::string exp_names[] = {
     "Global_Hysteresis",
     "Local_Heuristic",
     "Local_Hysteresis",
-    "Hybrid_Edge",
-    "Hybrid_Degree"
+    "Hybrid_Heuristic",
+    "Hybrid_Hysteresis"
 };
 
 /******************************************************************************/
@@ -72,10 +72,6 @@ static cll::opt<float> lower_bound("lower_bound",
 static cll::opt<float> upper_bound("upper_bound",
                                    cll::desc("edge density upper bound for switching"),
                                    cll::init(0.8));
-
-static cll::opt<int> degree_density_bound("degree_density_bound",
-                                           cll::desc("degree density bound for switching"),
-                                           cll::init(50));
 
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
@@ -283,7 +279,6 @@ struct ConnectedComp {
     bool local = false;
     bool hysteresis = false;
     bool hybrid = false;
-    bool degree = false;
 
     switch (exp) {
         case Pull: {
@@ -318,21 +313,20 @@ struct ConnectedComp {
             hysteresis = true;
             break;
         }
-        case Hybrid_Edge: {
+        case Hybrid_Heuristic: {
             pull = true;
             dual = true;
             local = true;
-            hysteresis = true;
+            hysteresis = false;
             hybrid = true;
             break;
         }
-        case Hybrid_Degree: {
+        case Hybrid_Hysteresis: {
             pull = true;
             dual = true;
             local = true;
             hysteresis = true;
             hybrid = true;
-            degree = true;
             break;
         }
         case Exp_Count: {
@@ -340,8 +334,6 @@ struct ConnectedComp {
             return;
         }
     }
-
-    bool forcePush = _graph.forcePush();
 
     uint64_t active_edges;
     uint64_t edge_threshold_low, edge_threshold_high;
@@ -353,9 +345,7 @@ struct ConnectedComp {
         edge_threshold_low = _graph.globalSizeEdges() * lower_bound;
         edge_threshold_high = _graph.globalSizeEdges() * upper_bound;
     }
-    uint64_t vertex_threshold_low = _graph.numMasters() * lower_bound;
     uint64_t vertex_threshold_high = _graph.numMasters() * upper_bound;
-    float degree_threshold = (_graph.sizeEdges() / _graph.numMasters()) * degree_density_bound;
 
     while (true) {
       if (_num_iterations >= maxIterations) {
@@ -404,42 +394,24 @@ struct ConnectedComp {
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       syncSubstrate->set_num_round(_num_iterations);
-      
+
       if (dual) {
-          if (local && forcePush) {
-              pull = false;
-          }
-          else if (hybrid) {
-              if (local_active_v >= vertex_threshold_high) {
+          active_edges = local ? local_active_e : global_active_e;
+
+          if (hysteresis) {
+              if (active_edges >= edge_threshold_high) {
                   pull = true;
               }
-              else if (local_active_v <= vertex_threshold_low) {
+              else if (active_edges <= edge_threshold_low) {
                   pull = false;
-              }
-              else if (local_active_e >= edge_threshold_high) {
-                  pull = true;
-              }
-              else if (local_active_e <= edge_threshold_low) {
-                  pull = false;
-              }
-              else if (degree) {
-                  pull = (local_active_e / local_active_v) >= degree_threshold;
               }
           }
           else {
-              active_edges = local ? local_active_e : global_active_e;
+              pull = active_edges > edge_threshold_low;
+          }
 
-              if (hysteresis) {
-                  if (active_edges >= edge_threshold_high) {
-                      pull = true;
-                  }
-                  else if (active_edges <= edge_threshold_low) {
-                      pull = false;
-                  }
-              }
-              else {
-                  pull = active_edges > edge_threshold_low;
-              }
+          if (hybrid && local_active_v >= vertex_threshold_high) {
+              pull = true;
           }
       }
       
