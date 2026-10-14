@@ -83,8 +83,8 @@ void do_all(const RangeFunc& rangeMaker, FunctionTy&& fn, const Args&... args) {
  * @param args optional arguments to loop
  */
 template <typename FunctionTy, typename... Args>
-void on_each(FunctionTy&& fn, const Args&... args) {
-  runtime::on_each_gen(std::forward<FunctionTy>(fn), std::make_tuple(args...));
+void on_each(FunctionTy&& fn) {
+  runtime::on_each_gen(std::forward<FunctionTy>(fn));
 }
 
 /**

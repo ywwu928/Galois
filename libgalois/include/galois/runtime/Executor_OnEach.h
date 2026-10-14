@@ -35,44 +35,25 @@ namespace runtime {
 
 namespace internal {
 
-template <typename FunctionTy, typename ArgsTy>
-inline void on_each_impl(FunctionTy&& fn, const ArgsTy& argsTuple) {
-
-  static_assert(!has_trait<char*, ArgsTy>(), "old loopname");
-  static_assert(!has_trait<char const*, ArgsTy>(), "old loopname");
-
-  static constexpr bool NEEDS_STATS = has_trait<loopname_tag, ArgsTy>();
-  static constexpr bool MORE_STATS =
-      NEEDS_STATS && has_trait<more_stats_tag, ArgsTy>();
-
-  const char* const loopname = galois::internal::getLoopName(argsTuple);
-
-  CondStatTimer<NEEDS_STATS> timer(loopname);
-
-  PerThreadTimer<MORE_STATS> execTime(loopname, "Execute");
+template <typename FunctionTy>
+inline void on_each_impl(FunctionTy&& fn) {
 
   const auto numT = getActiveThreads();
 
   OperatorReferenceType<decltype(std::forward<FunctionTy>(fn))> fn_ref = fn;
 
   auto runFun = [&] {
-    execTime.start();
-
     fn_ref(substrate::ThreadPool::getTID(), numT);
-
-    execTime.stop();
   };
 
-  timer.start();
   substrate::getThreadPool().run(numT, runFun);
-  timer.stop();
 }
 
 } // namespace internal
 
-template <typename FunctionTy, typename TupleTy>
-inline void on_each_gen(FunctionTy&& fn, const TupleTy& tpl) {
-  internal::on_each_impl(std::forward<FunctionTy>(fn), tpl);
+template <typename FunctionTy>
+inline void on_each_gen(FunctionTy&& fn) {
+  internal::on_each_impl(std::forward<FunctionTy>(fn));
 }
 
 } // end namespace runtime

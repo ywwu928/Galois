@@ -26,6 +26,5 @@ void galois::runtime::ThreadTimers::reportTimes(const char* category,
 
         reportStat_Tmax(region, timeCat.c_str(), ns / 1000000);
         reportStat_Tmax(region, lagCat.c_str(), lag / 1000000);
-      },
-      std::make_tuple());
+      });
 }

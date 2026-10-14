@@ -155,19 +155,11 @@ public:
    *
    * @returns The reduced value
    */
-  Ty reduce(std::string runID = std::string()) {
-    std::string timer_str("ReduceDGAccum_" + runID);
-
-    galois::CondStatTimer<GALOIS_COMM_STATS> reduceTimer(timer_str.c_str(),
-                                                         "DGReducible");
-    reduceTimer.start();
-
+  Ty reduce() {
     if (local_mdata == 0)
       local_mdata = mdata.reduce();
 
     reduce_mpi();
-
-    reduceTimer.stop();
 
     return global_mdata;
   }
@@ -278,19 +270,11 @@ public:
    * @returns the max-reduced value after reducing from all hosts.
    */
   Ty reduce(std::string runID = std::string()) {
-    std::string timer_str("ReduceDGReduceMax_" + runID);
-
-    galois::CondStatTimer<GALOIS_COMM_STATS> reduceTimer(timer_str.c_str(),
-                                                         "DGReduceMax");
-
-    reduceTimer.start();
     if (local_mdata == 0)
       local_mdata = mdata.reduce();
 
     reduce_mpi();
     
-    reduceTimer.stop();
-
     return global_mdata;
   }
 };
@@ -401,19 +385,11 @@ public:
    * @returns the min-reduced value after reducing from all hosts.
    */
   Ty reduce(std::string runID = std::string()) {
-    std::string timer_str("ReduceDGReduceMin_" + runID);
-
-    galois::CondStatTimer<GALOIS_COMM_STATS> reduceTimer(timer_str.c_str(),
-                                                         "DGReduceMin");
-
-    reduceTimer.start();
     if (local_mdata == std::numeric_limits<Ty>::max())
       local_mdata = mdata.reduce();
 
     reduce_mpi();
     
-    reduceTimer.stop();
-
     return global_mdata;
   }
 };

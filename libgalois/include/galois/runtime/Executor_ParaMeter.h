@@ -152,8 +152,7 @@ public:
           std::random_device r;
           std::mt19937 rng(r());
           std::shuffle(lwl.begin(), lwl.end(), rng);
-        },
-        std::make_tuple());
+        });
 
     return galois::runtime::makeLocalRange(*Base::curr);
   }
@@ -171,8 +170,7 @@ public:
         [&](int, int) {
           auto& lwl = Base::curr->get();
           std::reverse(lwl.begin(), lwl.end());
-        },
-        std::make_tuple());
+        });
 
     return galois::runtime::makeLocalRange(*Base::curr);
   }
@@ -368,8 +366,7 @@ void execute(const R& range) {
           IterationContext* it = newIteration(*i);
           m_wl.pushNext(it);
         }
-      },
-      std::make_tuple());
+      });
 
   UnorderedStepStats stats;
 

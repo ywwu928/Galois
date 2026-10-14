@@ -169,12 +169,10 @@ protected:
     explicit ThreadLocalBasics(FunctionTy fn) : facing(), function(fn), ctx() {}
   };
 
-  using LoopStat = LoopStatistics<needStats>;
+  struct ThreadLocalData : public ThreadLocalBasics {
 
-  struct ThreadLocalData : public ThreadLocalBasics, public LoopStat {
-
-    ThreadLocalData(FunctionTy fn, const char* ln)
-        : ThreadLocalBasics(fn), LoopStat(ln) {}
+    ThreadLocalData(FunctionTy fn)
+        : ThreadLocalBasics(fn) {}
   };
 
   // RunQueueState factors out state within runQueue iterations to protect it
@@ -194,11 +192,7 @@ protected:
 
   WorkListTy wl;
   FunctionTy origFunction;
-  const char* loopname;
   bool broke;
-
-  PerThreadTimer<MORE_STATS> initTime;
-  PerThreadTimer<MORE_STATS> execTime;
 
   inline void commitIteration(ThreadLocalData& tld) {
     if (needsPush) {
@@ -207,7 +201,6 @@ protected:
       auto& pb = tld.facing.getPushBuffer();
       auto n   = pb.size();
       if (n) {
-        tld.inc_pushes(n);
         wl.push(pb.begin(), pb.end());
         pb.clear();
       }
@@ -224,7 +217,6 @@ protected:
                                                 ThreadLocalData& tld) {
     assert(needsAborts);
     tld.ctx.cancelIteration();
-    tld.inc_conflicts();
     aborted.push(item);
     // clear push buffer
     if (needsPush)
@@ -238,7 +230,6 @@ protected:
     if (needsAborts)
       tld.ctx.startIteration();
 
-    tld.inc_iterations();
     tld.function(val, tld.facing.data());
     commitIteration(tld);
   }
@@ -305,11 +296,8 @@ protected:
 
   template <bool couldAbort, bool isLeader>
   void go() {
-
-    execTime.start();
-
     // Thread-local data goes on the local stack to be NUMA friendly
-    ThreadLocalData tld(origFunction, loopname);
+    ThreadLocalData tld(origFunction);
     if (needsBreak)
       tld.facing.setBreakFlag(&broke);
     if (couldAbort)
@@ -343,12 +331,10 @@ protected:
       } while (!term.globalTermination() && (!needsBreak || !broke));
 
       if (checkEmpty(wl, tld, 0)) {
-        execTime.stop();
         break;
       }
 
       if (needsBreak && broke) {
-        execTime.stop();
         break;
       }
 
@@ -367,9 +353,7 @@ protected:
   ForEachExecutor(T2, FunctionTy f, const ArgsTy& args, WArgsTy... wargs)
       : term(substrate::getSystemTermination(getActiveThreads())),
         barrier(getBarrier(getActiveThreads())), wl(std::forward<WArgsTy>(wargs)...),
-        origFunction(f), loopname(galois::internal::getLoopName(args)),
-        broke(false), initTime(loopname, "Init"),
-        execTime(loopname, "Execute") {}
+        origFunction(f), broke(false) {}
 
   template <typename WArgsTy, size_t... Is>
   ForEachExecutor(T1, FunctionTy f, const ArgsTy& args, const WArgsTy& wlargs,
@@ -393,12 +377,8 @@ public:
   template <typename RangeTy>
   void initThread(const RangeTy& range) {
 
-    initTime.start();
-
     wl.push_initial(range);
     term.initializeThread();
-
-    initTime.stop();
   }
 
   void operator()() {
@@ -476,14 +456,7 @@ void for_each_gen(const RangeTy& r, FunctionTy&& fn, const TupleTy& tpl) {
       ftpl, get_default_trait_values(tpl, std::make_tuple(wl_tag{}),
                                      std::make_tuple(wl<defaultWL>())));
 
-  constexpr bool TIME_IT = has_trait<loopname_tag, decltype(xtpl)>();
-  CondStatTimer<TIME_IT> timer(galois::internal::getLoopName(xtpl));
-
-  timer.start();
-
   runtime::for_each_impl(r, std::forward<FunctionTy>(fn), xtpl);
-
-  timer.stop();
 }
 
 } // end namespace runtime

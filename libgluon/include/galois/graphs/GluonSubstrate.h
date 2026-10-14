@@ -95,8 +95,6 @@ private:
   bool isVertexCut;  //!< Marks if passed in graph's partitioning is vertex cut.
   DataCommMode substrateDataMode; //!< datamode to enforce
   const unsigned numHosts;     //!< Copy of net.Num, which is the total number of machines
-  uint32_t num_run; //!< Keep track of number of runs.
-  uint32_t num_round; //!< Keep track of number of rounds.
   unsigned numT;
 
   // memoization optimization
@@ -483,8 +481,7 @@ public:
       DataCommMode _enforcedDataMode               = DataCommMode::noData)
       : galois::runtime::GlobalObject(this), userGraph(_userGraph), net(galois::runtime::getSystemNetworkInterface()), id(host),
         transposed(_transposed), isVertexCut(userGraph.is_vertex_cut()),
-        substrateDataMode(_enforcedDataMode), numHosts(numHosts), num_run(0),
-        num_round(0),
+        substrateDataMode(_enforcedDataMode), numHosts(numHosts),
         mirrorNodes(userGraph.getMirrorNodes()),
         phantomNodes(userGraph.getPhantomNodes()) {
 
@@ -810,7 +807,6 @@ private:
   template <SyncType syncType, typename SyncFnTy>
   void syncSend(galois::DynamicBitSet* bitset_ptr) {
     std::string syncTypeStr = (syncType == syncReduce) ? "Reduce" : "Broadcast";
-    std::string statSendBytes_str(syncTypeStr + "SendBytes_" + get_run_identifier());
     
     auto& sharedNodes = (syncType == syncReduce) ? mirrorNodes : masterNodes;
     
@@ -821,7 +817,6 @@ private:
         continue;
 
       syncExtract<syncType, SyncFnTy>(x, bitset_ptr);
-      galois::runtime::reportStatCond_Tsum<MORE_DIST_STATS>(RNAME, statSendBytes_str, sendCommBufferLen[x]);
 
       net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
     }
@@ -1029,60 +1024,6 @@ public:
   ////////////////////////////////////////////////////////////////////////////////
   // Metadata settings/getters
   ////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Set the run number.
-   *
-   * @param runNum Number to set the run to
-   */
-  inline void set_num_run(const uint32_t runNum) { num_run = runNum; }
-
-  /**
-   * Get the set run number.
-   *
-   * @returns The set run number saved in the graph
-   */
-  inline uint32_t get_run_num() const { return num_run; }
-
-  /**
-   * Set the round number for use in the run identifier.
-   *
-   * @param round round number to set to
-   */
-  inline void set_num_round(const uint32_t round) { num_round = round; }
-
-  /**
-   * Get a run identifier using the set run and set round.
-   *
-   * @returns a string run identifier
-   * @deprecated We want to move away from calling this by itself; use ones
-   * that take an argument; will be removed once we eliminate all instances
-   * of its use from code
-   */
-  inline std::string get_run_identifier() const {
-#if GALOIS_PER_ROUND_STATS
-    return std::string(std::to_string(num_run) + "_" +
-                       std::to_string(num_round));
-#else
-    return std::string(std::to_string(num_run));
-#endif
-  }
-
-  /**
-   * Get a run identifier using the set run and set round and
-   * append to the passed in string.
-   *
-   * @param loop_name String to append the run identifier
-   * @returns String with run identifier appended to passed in loop name
-   */
-  inline std::string get_run_identifier(std::string loop_name) const {
-#if GALOIS_PER_ROUND_STATS
-    return std::string(std::string(loop_name) + "_" + std::to_string(num_run) +
-                       "_" + std::to_string(num_round));
-#else
-    return std::string(std::string(loop_name) + "_" + std::to_string(num_run));
-#endif
-  }
-
   /**
    * Given a sync structure, reset the field specified by the structure
    * to the 0 of the reduction on mirrors.

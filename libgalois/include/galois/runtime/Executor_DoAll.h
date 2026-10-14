@@ -45,10 +45,6 @@ class DoAllStealingExec {
 
   enum StealAmt { HALF, FULL };
 
-  constexpr static const bool NEED_STATS =
-      galois::internal::NeedStats<ArgsTuple>::value;
-  constexpr static const bool MORE_STATS =
-      NEED_STATS && has_trait<more_stats_tag, ArgsTuple>();
   constexpr static const bool USE_TERM = false;
 
   struct ThreadContext {
@@ -59,20 +55,19 @@ class DoAllStealingExec {
     Iter shared_beg;
     Iter shared_end;
     Diff_ty m_size;
-    size_t num_iter;
 
     // Stats
 
     ThreadContext()
         : work_mutex(), id(substrate::getThreadPool().getMaxThreads()),
-          shared_beg(), shared_end(), m_size(0), num_iter(0) {
+          shared_beg(), shared_end(), m_size(0) {
       // TODO: fix this initialization problem,
       // see initThread
     }
 
     ThreadContext(unsigned id, Iter beg, Iter end)
         : work_mutex(), id(id), shared_beg(beg), shared_end(end),
-          m_size(std::distance(beg, end)), num_iter(0) {}
+          m_size(std::distance(beg, end)) {}
 
     bool doWork(F func, const unsigned chunk_size) {
       Iter beg(shared_beg);
@@ -85,9 +80,6 @@ class DoAllStealingExec {
         didwork = true;
 
         for (; beg != end; ++beg) {
-          if (NEED_STATS) {
-            ++num_iter;
-          }
           func(*beg);
         }
       }
@@ -359,37 +351,23 @@ private:
 
   substrate::TerminationDetection& term;
 
-  // for stats
-  PerThreadTimer<MORE_STATS> totalTime;
-  PerThreadTimer<MORE_STATS> initTime;
-  PerThreadTimer<MORE_STATS> execTime;
-  PerThreadTimer<MORE_STATS> stealTime;
-  PerThreadTimer<MORE_STATS> termTime;
-
 public:
   DoAllStealingExec(const R& _range, F _func, const ArgsTuple& argsTuple)
       : range(_range), func(_func),
         loopname(galois::internal::getLoopName(argsTuple)),
         chunk_size(get_trait_value<chunk_size_tag>(argsTuple).value),
-        term(substrate::getSystemTermination(getActiveThreads())),
-        totalTime(loopname, "Total"), initTime(loopname, "Init"),
-        execTime(loopname, "Execute"), stealTime(loopname, "Steal"),
-        termTime(loopname, "Term") {
+        term(substrate::getSystemTermination(getActiveThreads())) {
     assert(chunk_size > 0);
   }
 
   // parallel call
   void initThread(void) {
-    initTime.start();
-
     term.initializeThread();
 
     unsigned id = substrate::ThreadPool::getTID();
 
     *workers.getLocal(id) =
         ThreadContext(id, range.local_begin(), range.local_end());
-
-    initTime.stop();
   }
 
   ~DoAllStealingExec() {
@@ -407,24 +385,16 @@ public:
   void operator()(void) {
 
     ThreadContext& ctx = *workers.getLocal();
-    totalTime.start();
-
     while (true) {
       bool workHappened = false;
-
-      execTime.start();
 
       if (ctx.doWork(func, chunk_size)) {
         workHappened = true;
       }
 
-      execTime.stop();
-
       assert(!ctx.hasWork());
 
-      stealTime.start();
       bool stole = trySteal(ctx);
-      stealTime.stop();
 
       if (stole) {
         continue;
@@ -433,11 +403,9 @@ public:
 
         assert(!ctx.hasWork());
         if (USE_TERM) {
-          termTime.start();
           term.localTermination(workHappened);
 
           bool quit = term.globalTermination();
-          termTime.stop();
 
           if (quit) {
             break;
@@ -448,12 +416,7 @@ public:
       }
     }
 
-    totalTime.stop();
     assert(!ctx.hasWork());
-
-    if (NEED_STATS) {
-      galois::runtime::reportStat_Tsum(loopname, "Iterations", ctx.num_iter);
-    }
   }
 };
 
@@ -481,47 +444,17 @@ struct ChooseDoAllImpl<false> {
 
   template <typename R, typename F, typename ArgsT>
   static void call(const R& range, F func, const ArgsT& argsTuple) {
+    (void)argsTuple;
 
     runtime::on_each_gen(
         [&](const unsigned int, const unsigned int) {
-          static constexpr bool NEED_STATS =
-              galois::internal::NeedStats<ArgsT>::value;
-          static constexpr bool MORE_STATS =
-              NEED_STATS && has_trait<more_stats_tag, ArgsT>();
-
-          const char* const loopname = galois::internal::getLoopName(argsTuple);
-
-          PerThreadTimer<MORE_STATS> totalTime(loopname, "Total");
-          PerThreadTimer<MORE_STATS> initTime(loopname, "Init");
-          PerThreadTimer<MORE_STATS> execTime(loopname, "Work");
-
-          totalTime.start();
-          initTime.start();
-
           auto begin     = range.local_begin();
           const auto end = range.local_end();
 
-          initTime.stop();
-
-          execTime.start();
-
-          size_t iter = 0;
-
           while (begin != end) {
             func(*begin++);
-            if (NEED_STATS) {
-              ++iter;
-            }
           }
-          execTime.stop();
-
-          totalTime.stop();
-
-          if (NEED_STATS) {
-            galois::runtime::reportStat_Tsum(loopname, "Iterations", iter);
-          }
-        },
-        std::make_tuple());
+        });
   }
 };
 
@@ -541,17 +474,10 @@ void do_all_gen(const R& range, F&& func, const ArgsTuple& argsTuple) {
 
   using ArgsT = decltype(argsT);
 
-  constexpr bool TIME_IT = has_trait<loopname_tag, ArgsT>();
-  CondStatTimer<TIME_IT> timer(galois::internal::getLoopName(argsT));
-
-  timer.start();
-
   constexpr bool STEAL = has_trait<steal_tag, ArgsT>();
 
   OperatorReferenceType<decltype(std::forward<F>(func))> func_ref = func;
   internal::ChooseDoAllImpl<STEAL>::call(range, func_ref, argsT);
-
-  timer.stop();
 }
 
 } // namespace galois::runtime

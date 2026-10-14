@@ -356,44 +356,42 @@ struct ConnectedComp {
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
       
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
+      //std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      //galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      //std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
+      //galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      //std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      //galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
       
-      StatTimer_total.start();
+      //StatTimer_total.start();
       bitset_active.reset();
       active_v.reset();
       active_e.reset();
       
-      StatTimer_sync.start();
+      //StatTimer_sync.start();
       ConnectedComp_sync::go(_graph, active_v, active_e);
-      StatTimer_sync.stop();
+      //StatTimer_sync.stop();
       local_active_v = active_v.reduce();
       local_active_e = active_e.reduce();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
       
-      StatTimer_active.start();
+      //StatTimer_active.start();
       global_active_e = 0;
       MPI_Allreduce(&local_active_e, &global_active_e, 1,
                     MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-      StatTimer_active.stop();
+      //StatTimer_active.stop();
 
       if (global_active_e == 0) {
-          StatTimer_total.stop();
+          //StatTimer_total.stop();
           break;
       }
       
-      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-
-      syncSubstrate->set_num_round(_num_iterations);
+      //std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      //galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      //std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      //galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
 
       if (dual) {
           active_edges = local ? local_active_e : global_active_e;
@@ -415,32 +413,32 @@ struct ConnectedComp {
           }
       }
       
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
+      //galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
       
       bitset_dirty.reset();
 
       if (pull) {
-          StatTimer_compute.start();
+          //StatTimer_compute.start();
           PullRemote::go(_graph);
           _net.flushRemoteWork();
           PullMaster::go(_graph);
-          StatTimer_compute.stop();
+          //StatTimer_compute.stop();
       }
       else {
-          StatTimer_compute.start();
+          //StatTimer_compute.start();
           Push::go(_graph);
           _net.flushRemoteWork();
-          StatTimer_compute.stop();
+          //StatTimer_compute.stop();
       }
 
-      StatTimer_comm.start();
+      //StatTimer_comm.start();
       syncSubstrate->reduce<Reduce_min_comp_current>(&bitset_dirty);
-      StatTimer_comm.stop();
+      //StatTimer_comm.stop();
       
       _net.resetWorkTermination();
 
       ++_num_iterations;
-      StatTimer_total.stop();
+      //StatTimer_total.stop();
     }
   }
 };
@@ -568,8 +566,6 @@ int main(int argc, char** argv) {
 
         ConnectedCompSanityCheck::go(*hg, active_vertices64);
     }
-
-    (*syncSubstrate).set_num_run(run + 1);
   }
 */
   for (int i=0; i<Exp_Count; i++) {
@@ -593,8 +589,6 @@ int main(int argc, char** argv) {
         galois::gPrint("Host ", net.ID, " ConnectedComp (", TYPE_NAME, ") run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
         ConnectedCompSanityCheck::go(*hg, active_vertices64);
-
-        (*syncSubstrate).set_num_run(run + 1);
     }
   }
 

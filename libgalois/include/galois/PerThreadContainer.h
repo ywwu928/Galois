@@ -420,8 +420,7 @@ public:
 
   void clear_all_parallel(void) {
     galois::runtime::on_each_gen(
-        [this](const unsigned, const unsigned) { get().clear(); },
-        std::make_tuple());
+        [this](const unsigned, const unsigned) { get().clear(); });
   }
 
   bool empty_all() const {
