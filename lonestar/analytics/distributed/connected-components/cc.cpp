@@ -35,24 +35,18 @@ static std::string TYPE_NAME;
 enum Exp {
     Pull,
     Push,
-    Global_Heuristic,
-    Global_Hysteresis,
-    Local_Heuristic,
-    Local_Hysteresis,
-    Hybrid_Heuristic,
-    Hybrid_Hysteresis,
+    Global_Threshold,
+    Local_Threshold,
+    Hybrid_Threshold,
     Exp_Count
 };
 
 std::string exp_names[] = {
     "Pull",
     "Push",
-    "Global_Heuristic",
-    "Global_Hysteresis",
-    "Local_Heuristic",
-    "Local_Hysteresis",
-    "Hybrid_Heuristic",
-    "Hybrid_Hysteresis"
+    "Global_Threshold",
+    "Local_Threshold",
+    "Hybrid_Threshold"
 };
 
 /******************************************************************************/
@@ -65,12 +59,12 @@ static cll::opt<unsigned int> maxIterations("maxIterations",
                                                       "Default 1000"),
                                             cll::init(1000));
 
-static cll::opt<float> lower_bound("lower_bound",
-                                   cll::desc("edge density lower bound for switching"),
+static cll::opt<float> edge_bound("edge_bound",
+                                   cll::desc("edge density bound for switching"),
                                    cll::init(0.05));
 
-static cll::opt<float> upper_bound("upper_bound",
-                                   cll::desc("edge density upper bound for switching"),
+static cll::opt<float> vertex_bound("vertex_bound",
+                                   cll::desc("vertex density bound for switching"),
                                    cll::init(0.8));
 
 /******************************************************************************/
@@ -106,7 +100,7 @@ struct InitializeGraph {
 
     galois::do_all(
         galois::iterate(presentNodes),
-        InitializeGraph{&_graph}, galois::no_stats());
+        InitializeGraph{&_graph});
   }
 
   void operator()(GNode src) const {
@@ -132,7 +126,7 @@ struct ConnectedComp_sync {
 
     galois::do_all(
         galois::iterate(masterNodes),
-        ConnectedComp_sync{&_graph, _active_vertices, _active_edges}, galois::no_stats());
+        ConnectedComp_sync{&_graph, _active_vertices, _active_edges});
   }
 
   void operator()(GNode src) const {
@@ -162,7 +156,7 @@ struct PullRemote {
 
       galois::do_all(
           galois::iterate(remoteNodes), PullRemote{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -193,7 +187,7 @@ struct PullMaster {
       
       galois::do_all(
           galois::iterate(masterNodes), PullMaster{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -227,7 +221,7 @@ struct Push {
       
       galois::do_all(
           galois::iterate(masterNodes), Push(&_graph),
-          galois::no_stats(), galois::steal());
+          galois::steal());
   }
 
   void operator()(GNode src) const {
@@ -268,16 +262,15 @@ struct ConnectedComp {
     auto& _net = galois::runtime::getSystemNetworkInterface();
 
     galois::GAccumulator<uint64_t> active_v, active_e;
-    uint64_t local_active_v;
-    uint64_t local_active_e;
-    uint64_t global_active_e;
+    uint64_t local_active_v = _graph.numMasters();
+    uint64_t local_active_e = _graph.sizeEdges();
+    uint64_t global_active_e = _graph.globalSizeEdges();
 
-    bitset_dirty.set_all();
+    bitset_active.set_all();
 
     bool pull = true;
     bool dual = false;
     bool local = false;
-    bool hysteresis = false;
     bool hybrid = false;
 
     switch (exp) {
@@ -289,43 +282,18 @@ struct ConnectedComp {
             pull = false;
             break;
         }
-        case Global_Heuristic: {
+        case Global_Threshold: {
             dual = true;
-            hysteresis = false;
             break;
         }
-        case Global_Hysteresis: {
-            pull = true;
-            dual = true;
-            hysteresis = true;
-            break;
-        }
-        case Local_Heuristic: {
+        case Local_Threshold: {
             dual = true;
             local = true;
-            hysteresis = false;
             break;
         }
-        case Local_Hysteresis: {
-            pull = true;
+        case Hybrid_Threshold: {
             dual = true;
             local = true;
-            hysteresis = true;
-            break;
-        }
-        case Hybrid_Heuristic: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = false;
-            hybrid = true;
-            break;
-        }
-        case Hybrid_Hysteresis: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = true;
             hybrid = true;
             break;
         }
@@ -336,110 +304,89 @@ struct ConnectedComp {
     }
 
     uint64_t active_edges;
-    uint64_t edge_threshold_low, edge_threshold_high;
+    uint64_t edge_threshold;
     if (local) {
-        edge_threshold_low = _graph.sizeEdges() * lower_bound;
-        edge_threshold_high = _graph.sizeEdges() * upper_bound;
+        edge_threshold = _graph.sizeEdges() * edge_bound;
     }
     else {
-        edge_threshold_low = _graph.globalSizeEdges() * lower_bound;
-        edge_threshold_high = _graph.globalSizeEdges() * upper_bound;
+        edge_threshold = _graph.globalSizeEdges() * edge_bound;
     }
-    uint64_t vertex_threshold_high = _graph.numMasters() * upper_bound;
+    uint64_t vertex_threshold = _graph.numMasters() * vertex_bound;
 
-    while (true) {
-      if (_num_iterations >= maxIterations) {
-          break;
-      }
-
+    do {
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
-      
-      //std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      //std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
-      //std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
-      
-      //StatTimer_total.start();
-      bitset_active.reset();
-      active_v.reset();
-      active_e.reset();
-      
-      //StatTimer_sync.start();
-      ConnectedComp_sync::go(_graph, active_v, active_e);
-      //StatTimer_sync.stop();
-      local_active_v = active_v.reduce();
-      local_active_e = active_e.reduce();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
       
-      //StatTimer_active.start();
-      global_active_e = 0;
-      MPI_Allreduce(&local_active_e, &global_active_e, 1,
-                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-      //StatTimer_active.stop();
-
-      if (global_active_e == 0) {
-          //StatTimer_total.stop();
-          break;
-      }
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
       
-      //std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
-      //std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
-      //galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-
+      StatTimer_total.start();
       if (dual) {
           active_edges = local ? local_active_e : global_active_e;
 
-          if (hysteresis) {
-              if (active_edges >= edge_threshold_high) {
-                  pull = true;
-              }
-              else if (active_edges <= edge_threshold_low) {
-                  pull = false;
-              }
-          }
-          else {
-              pull = active_edges > edge_threshold_low;
-          }
+          pull = active_edges > edge_threshold;
 
-          if (hybrid && local_active_v >= vertex_threshold_high) {
+          if (hybrid && local_active_v >= vertex_threshold) {
               pull = true;
           }
       }
       
-      //galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
       
       bitset_dirty.reset();
 
       if (pull) {
-          //StatTimer_compute.start();
+          StatTimer_compute.start();
           PullRemote::go(_graph);
           _net.flushRemoteWork();
           PullMaster::go(_graph);
-          //StatTimer_compute.stop();
+          StatTimer_compute.stop();
       }
       else {
-          //StatTimer_compute.start();
+          StatTimer_compute.start();
           Push::go(_graph);
           _net.flushRemoteWork();
-          //StatTimer_compute.stop();
+          StatTimer_compute.stop();
       }
 
-      //StatTimer_comm.start();
+      StatTimer_comm.start();
       syncSubstrate->reduce<Reduce_min_comp_current>(&bitset_dirty);
-      //StatTimer_comm.stop();
+      StatTimer_comm.stop();
       
       _net.resetWorkTermination();
+      
+      bitset_active.reset();
+      active_v.reset();
+      active_e.reset();
+      
+      StatTimer_sync.start();
+      ConnectedComp_sync::go(_graph, active_v, active_e);
+      StatTimer_sync.stop();
+      local_active_v = active_v.reduce();
+      local_active_e = active_e.reduce();
+      
+      StatTimer_active.start();
+      global_active_e = 0;
+      MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+      StatTimer_active.stop();
 
+      StatTimer_total.stop();
+      
       ++_num_iterations;
-      //StatTimer_total.stop();
-    }
+    } while (global_active_e && (_num_iterations < maxIterations));
   }
 };
 
@@ -460,7 +407,7 @@ struct ConnectedCompSanityCheck {
     dga.reset();
 
     galois::do_all(galois::iterate(_graph.masterNodesRange()),
-                     ConnectedCompSanityCheck(&_graph, dga), galois::no_stats());
+                     ConnectedCompSanityCheck(&_graph, dga));
 
     uint64_t num_components = dga.reduce();
 
@@ -542,32 +489,7 @@ int main(int argc, char** argv) {
   StatTimer_preprocess.stop();
 
   galois::DGAccumulator<uint64_t> active_vertices64;
-/*
-  for (auto run = 0; run < numRuns; ++run) {
-    galois::gPrint("[", net.ID, "] ConnectedComp::go run ", run, " called\n");
-
-    for (int i=0; i<Exp_Count; i++) {
-        bitset_comp_current_odd.reset();
-        bitset_comp_current_even.reset();
-        InitializeGraph::go((*hg));
-
-        TYPE_NAME = exp_names[i];
-        REGION_NAME_RUN = REGION_NAME + "_" + TYPE_NAME + "_" + std::to_string(run);
-        std::string main_timer_str("Timer_" + std::to_string(run));
-        galois::StatTimer StatTimer_main(main_timer_str.c_str(), REGION_NAME_RUN.c_str());
-
-        net.touchBufferPool();
-        galois::runtime::getHostBarrier().wait();
-
-        StatTimer_main.start();
-        ConnectedComp::go(*hg, static_cast<Exp>(i));
-        StatTimer_main.stop();
-        galois::gPrint("Host ", net.ID, " ConnectedComp run ", run, " (", TYPE_NAME, ") time: ", StatTimer_main.get(), " ms\n");
-
-        ConnectedCompSanityCheck::go(*hg, active_vertices64);
-    }
-  }
-*/
+  
   for (int i=0; i<Exp_Count; i++) {
     TYPE_NAME = exp_names[i];
 

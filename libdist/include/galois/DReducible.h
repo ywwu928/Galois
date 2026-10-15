@@ -269,7 +269,7 @@ public:
    *
    * @returns the max-reduced value after reducing from all hosts.
    */
-  Ty reduce(std::string runID = std::string()) {
+  Ty reduce() {
     if (local_mdata == 0)
       local_mdata = mdata.reduce();
 
@@ -384,7 +384,7 @@ public:
    *
    * @returns the min-reduced value after reducing from all hosts.
    */
-  Ty reduce(std::string runID = std::string()) {
+  Ty reduce() {
     if (local_mdata == std::numeric_limits<Ty>::max())
       local_mdata = mdata.reduce();
 

@@ -36,24 +36,18 @@ static std::string TYPE_NAME;
 enum Exp {
     Pull,
     Push,
-    Global_Heuristic,
-    Global_Hysteresis,
-    Local_Heuristic,
-    Local_Hysteresis,
-    Hybrid_Heuristic,
-    Hybrid_Hysteresis,
+    Global_Threshold,
+    Local_Threshold,
+    Hybrid_Threshold,
     Exp_Count
 };
 
 std::string exp_names[] = {
     "Pull",
     "Push",
-    "Global_Heuristic",
-    "Global_Hysteresis",
-    "Local_Heuristic",
-    "Local_Hysteresis",
-    "Hybrid_Heuristic",
-    "Hybrid_Hysteresis"
+    "Global_Threshold",
+    "Local_Threshold",
+    "Hybrid_Threshold"
 };
 
 /******************************************************************************/
@@ -79,12 +73,12 @@ static uint64_t src_node;
 static cll::opt<unsigned> rseed("rseed", cll::desc("The random seed for choosing the hosts (default value 0)"), cll::init(0));
 static cll::opt<uint64_t> startNode("startNode", cll::desc("ID of the start node"), cll::init(0));
 
-static cll::opt<float> lower_bound("lower_bound",
-                                   cll::desc("edge density lower bound for switching"),
+static cll::opt<float> edge_bound("edge_bound",
+                                   cll::desc("edge density bound for switching"),
                                    cll::init(0.05));
 
-static cll::opt<float> upper_bound("upper_bound",
-                                   cll::desc("edge density upper bound for switching"),
+static cll::opt<float> vertex_bound("vertex_bound",
+                                   cll::desc("vertex density bound for switching"),
                                    cll::init(0.8));
 
 /******************************************************************************/
@@ -122,7 +116,7 @@ struct InitializeGraph {
     
     galois::do_all(
         galois::iterate(presentNodes),
-        InitializeGraph(&_graph), galois::no_stats());
+        InitializeGraph(&_graph));
   }
 
   void operator()(GNode src) const {
@@ -130,7 +124,6 @@ struct InitializeGraph {
     if (graph->getGID(src) == src_node) {
         sdata.dist_current = 0;
         sdata.dist_old = 0;
-        bitset_dirty.set(src);
     }
     else {
         sdata.dist_current = infinity;
@@ -155,7 +148,7 @@ struct BFS_sync {
 
     galois::do_all(
         galois::iterate(masterNodes),
-        BFS_sync{&_graph, _active_vertices, _active_edges}, galois::no_stats());
+        BFS_sync{&_graph, _active_vertices, _active_edges});
   }
 
   void operator()(GNode src) const {
@@ -171,21 +164,21 @@ struct BFS_sync {
   }
 };
 
-struct PullRemote {
+struct PullPhantom {
   Graph* graph;
 
   galois::runtime::NetworkInterface& net;
 
-  PullRemote(Graph* _graph)
+  PullPhantom(Graph* _graph)
       : graph(_graph),
         net(galois::runtime::getSystemNetworkInterface()) {}
 
   void static go(Graph& _graph) {
-      const auto& remoteNodes = _graph.remoteNodesRangeIn();
+      const auto& phantomNodes = _graph.phantomNodesRangeIn();
 
       galois::do_all(
-          galois::iterate(remoteNodes), PullRemote{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::iterate(phantomNodes), PullPhantom{&_graph},
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -206,6 +199,41 @@ struct PullRemote {
   }
 };
 
+struct PullMirror {
+  Graph* graph;
+
+  galois::runtime::NetworkInterface& net;
+  
+  PullMirror(Graph* _graph)
+      : graph(_graph),
+        net(galois::runtime::getSystemNetworkInterface()) {}
+
+  void static go(Graph& _graph) {
+      const auto& mirrorNodes = _graph.mirrorNodesRangeIn();
+      
+      galois::do_all(
+          galois::iterate(mirrorNodes), PullMirror{&_graph},
+          galois::steal());
+  }
+
+  void operator()(GNode dst) const {
+    NodeData& dnode = graph->getData(dst);
+
+    for (auto jj : graph->inEdges(dst)) {
+        GNode src         = graph->getInEdgeSrc(jj);
+        if (bitset_active.test(src)) {
+            auto& snode       = graph->getData(src);
+            galois::minVoid(dnode.dist_current, snode.dist_old + 1);
+        }
+    }
+
+    if (dnode.dist_old > dnode.dist_current) {
+        uint32_t ddist = dnode.dist_current;
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), ddist);
+    }
+  }
+};
+
 struct PullMaster {
   Graph* graph;
   
@@ -216,7 +244,7 @@ struct PullMaster {
       
       galois::do_all(
           galois::iterate(masterNodes), PullMaster{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -250,7 +278,7 @@ struct Push {
     
       galois::do_all(
           galois::iterate(masterNodes), Push(&_graph),
-          galois::no_stats(), galois::steal());
+          galois::steal());
   }
 
   void operator()(GNode src) const {
@@ -299,7 +327,6 @@ struct BFS {
     bool pull = true;
     bool dual = false;
     bool local = false;
-    bool hysteresis = false;
     bool hybrid = false;
 
     switch (exp) {
@@ -311,43 +338,18 @@ struct BFS {
             pull = false;
             break;
         }
-        case Global_Heuristic: {
+        case Global_Threshold: {
             dual = true;
-            hysteresis = false;
             break;
         }
-        case Global_Hysteresis: {
-            pull = true;
-            dual = true;
-            hysteresis = true;
-            break;
-        }
-        case Local_Heuristic: {
+        case Local_Threshold: {
             dual = true;
             local = true;
-            hysteresis = false;
             break;
         }
-        case Local_Hysteresis: {
-            pull = true;
+        case Hybrid_Threshold: {
             dual = true;
             local = true;
-            hysteresis = true;
-            break;
-        }
-        case Hybrid_Heuristic: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = false;
-            hybrid = true;
-            break;
-        }
-        case Hybrid_Hysteresis: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = true;
             hybrid = true;
             break;
         }
@@ -358,81 +360,52 @@ struct BFS {
     }
 
     uint64_t active_edges;
-    uint64_t edge_threshold_low, edge_threshold_high;
+    uint64_t edge_threshold;
     if (local) {
-        edge_threshold_low = _graph.sizeEdges() * lower_bound;
-        edge_threshold_high = _graph.sizeEdges() * upper_bound;
+        edge_threshold = _graph.sizeEdges() * edge_bound;
     }
     else {
-        edge_threshold_low = _graph.globalSizeEdges() * lower_bound;
-        edge_threshold_high = _graph.globalSizeEdges() * upper_bound;
+        edge_threshold = _graph.globalSizeEdges() * edge_bound;
     }
-    uint64_t vertex_threshold_high = _graph.numMasters() * upper_bound;
+    uint64_t vertex_threshold = _graph.numMasters() * vertex_bound;
 
-    while (true) {
-      if (_num_iterations >= maxIterations) {
-          break;
-      }
+    if (_graph.isOwned(src_node)) {
+        local_active_v = 1;
+        uint32_t src_lid = _graph.getLID(src_node);
+        local_active_e = std::distance(_graph.out_edge_begin(src_lid), _graph.out_edge_end(src_lid));
+        bitset_active.set(src_lid);
+    }
+    else {
+        local_active_v = 0;
+        local_active_e = 0;
+    }
 
+    do {
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
-      
-      std::string total_str(TYPE_NAME + "_Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str(TYPE_NAME + "_Active_Reduce_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
-      
-      StatTimer_total.start();
-      bitset_active.reset();
-      active_v.reset();
-      active_e.reset();
-      
-      StatTimer_sync.start();
-      BFS_sync::go(_graph, active_v, active_e);
-      StatTimer_sync.stop();
-      local_active_v = active_v.reduce();
-      local_active_e = active_e.reduce();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
       
-      StatTimer_active.start();
-      global_active_e = 0;
-      MPI_Allreduce(&local_active_e, &global_active_e, 1,
-                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-      StatTimer_active.stop();
-
-      if (global_active_e == 0) {
-          StatTimer_total.stop();
-          break;
-      }
-      
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
-
-      syncSubstrate->set_num_round(_num_iterations);
-
+      std::string sync_str("Sync_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_sync(sync_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
+      
+      StatTimer_total.start();
       if (dual) {
           active_edges = local ? local_active_e : global_active_e;
 
-          if (hysteresis) {
-              if (active_edges >= edge_threshold_high) {
-                  pull = true;
-              }
-              else if (active_edges <= edge_threshold_low) {
-                  pull = false;
-              }
-          }
-          else {
-              pull = active_edges > edge_threshold_low;
-          }
+          pull = active_edges > edge_threshold;
 
-          if (hybrid && local_active_v >= vertex_threshold_high) {
+          if (hybrid && local_active_v >= vertex_threshold) {
               pull = true;
           }
       }
@@ -443,7 +416,8 @@ struct BFS {
 
       if (pull) {
           StatTimer_compute.start();
-          PullRemote::go(_graph);
+          PullPhantom::go(_graph);
+          PullMirror::go(_graph);
           _net.flushRemoteWork();
           PullMaster::go(_graph);
           StatTimer_compute.stop();
@@ -460,10 +434,27 @@ struct BFS {
       StatTimer_comm.stop();
       
       _net.resetWorkTermination();
+      
+      bitset_active.reset();
+      active_v.reset();
+      active_e.reset();
+      
+      StatTimer_sync.start();
+      BFS_sync::go(_graph, active_v, active_e);
+      StatTimer_sync.stop();
+      local_active_v = active_v.reduce();
+      local_active_e = active_e.reduce();
+      
+      StatTimer_active.start();
+      global_active_e = 0;
+      MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+      StatTimer_active.stop();
+      
+      StatTimer_total.stop();
 
       ++_num_iterations;
-      StatTimer_total.stop();
-    }
+    } while (global_active_e && (_num_iterations < maxIterations));
   }
 };
 
@@ -488,8 +479,7 @@ struct BFSSanityCheck {
     dgm.reset();
 
     galois::do_all(galois::iterate(_graph.masterNodesRange()),
-                     BFSSanityCheck(&_graph, dgas, dgm),
-                     galois::no_stats());
+                     BFSSanityCheck(&_graph, dgas, dgm));
 
     uint64_t num_visited  = dgas.reduce();
     uint32_t max_distance = dgm.reduce();
@@ -626,8 +616,6 @@ int main(int argc, char** argv) {
         galois::gPrint("Host ", net.ID, " BFS (", TYPE_NAME, ") run ", run, " time: ", StatTimer_main.get(), " ms\n");
 
         BFSSanityCheck::go(*hg, DGAccumulator_sum, m);
-
-        (*syncSubstrate).set_num_run(run + 1);
     }
   }
 

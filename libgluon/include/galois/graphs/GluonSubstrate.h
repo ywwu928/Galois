@@ -201,8 +201,7 @@ private:
           galois::iterate(size_t{0}, masterNodes[h].size()),
           [&](size_t n) {
             masterNodes[h][n] = userGraph.getLID(masterNodes[h][n]);
-          },
-          galois::no_stats());
+          });
     }
 
     for (uint32_t h = 0; h < mirrorNodes.size(); ++h) {
@@ -210,8 +209,7 @@ private:
           galois::iterate(size_t{0}, mirrorNodes[h].size()),
           [&](size_t n) {
             mirrorNodes[h][n] = userGraph.getLID(mirrorNodes[h][n]);
-          },
-          galois::no_stats());
+          });
     }
 
     // send off the mirror master nodes
@@ -278,8 +276,7 @@ private:
           galois::iterate(size_t{0}, phantomMasterNodes[h].size()),
           [&](size_t n) {
             phantomMasterNodes[h][n] = userGraph.getLID(phantomMasterNodes[h][n]);
-          },
-          galois::no_stats());
+          });
 
       if (phantomMasterNodes[h].size() == 0) {
           net.excludeHostWorkTermination();
@@ -291,8 +288,7 @@ private:
           galois::iterate(size_t{0}, phantomNodes[h].size()),
           [&](size_t n) {
             phantomNodes[h][n] = userGraph.getLID(phantomNodes[h][n]);
-          },
-          galois::no_stats());
+          });
     }
 
     // send off the phantom master nodes
@@ -1042,8 +1038,7 @@ public:
       // CPU always enters this block
       galois::do_all(
           galois::iterate(r.first, r.second),
-          [&](uint32_t lid) { FnTy::reset(lid, userGraph.getData(lid)); },
-          galois::no_stats());
+          [&](uint32_t lid) { FnTy::reset(lid, userGraph.getData(lid)); });
     }
   }
 

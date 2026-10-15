@@ -37,24 +37,18 @@ static std::string TYPE_NAME;
 enum Exp {
     Pull,
     Push,
-    Global_Heuristic,
-    Global_Hysteresis,
-    Local_Heuristic,
-    Local_Hysteresis,
-    Hybrid_Heuristic,
-    Hybrid_Hysteresis,
+    Global_Threshold,
+    Local_Threshold,
+    Hybrid_Threshold,
     Exp_Count
 };
 
 std::string exp_names[] = {
     "Pull",
     "Push",
-    "Global_Heuristic",
-    "Global_Hysteresis",
-    "Local_Heuristic",
-    "Local_Hysteresis",
-    "Hybrid_Heuristic",
-    "Hybrid_Hysteresis"
+    "Global_Threshold",
+    "Local_Threshold",
+    "Hybrid_Threshold"
 };
 
 /******************************************************************************/
@@ -70,12 +64,12 @@ static cll::opt<unsigned int>
                   cll::desc("Maximum iterations: Default 1000"),
                   cll::init(1000));
 
-static cll::opt<float> lower_bound("lower_bound",
-                                   cll::desc("edge density lower bound for switching"),
+static cll::opt<float> edge_bound("edge_bound",
+                                   cll::desc("edge density bound for switching"),
                                    cll::init(0.05));
 
-static cll::opt<float> upper_bound("upper_bound",
-                                   cll::desc("edge density upper bound for switching"),
+static cll::opt<float> vertex_bound("vertex_bound",
+                                   cll::desc("vertex density bound for switching"),
                                    cll::init(0.8));
 
 /******************************************************************************/
@@ -114,7 +108,7 @@ struct InitializeGraph {
 
     galois::do_all(
         galois::iterate(presentNodes),
-        InitializeGraph{&_graph}, galois::no_stats());
+        InitializeGraph{&_graph});
   }
 
   void operator()(GNode src) const {
@@ -146,7 +140,7 @@ struct PageRank_delta {
 
     galois::do_all(
         galois::iterate(masterNodes),
-        PageRank_delta{&_graph, _active_vertices, _active_edges}, galois::no_stats());
+        PageRank_delta{&_graph, _active_vertices, _active_edges});
   }
 
   void operator()(GNode src) const {
@@ -180,7 +174,7 @@ struct PullRemote {
 
       galois::do_all(
           galois::iterate(remoteNodes), PullRemote{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -211,7 +205,7 @@ struct PullMaster {
       
       galois::do_all(
           galois::iterate(masterNodes), PullMaster{&_graph},
-          galois::steal(), galois::no_stats());
+          galois::steal());
   }
 
   void operator()(GNode dst) const {
@@ -247,7 +241,7 @@ struct Push {
       const auto& masterNodes = _graph.masterNodesRange();
       
       galois::do_all(galois::iterate(masterNodes), Push{&_graph},
-                     galois::no_stats(), galois::steal());
+                     galois::steal());
   }
 
   void operator()(WorkItem src) const {
@@ -294,12 +288,9 @@ struct PageRank {
     uint64_t local_active_e;
     uint64_t global_active_e;
 
-    bitset_residual.set_all();
-
     bool pull = true;
     bool dual = false;
     bool local = false;
-    bool hysteresis = false;
     bool hybrid = false;
 
     switch (exp) {
@@ -311,43 +302,18 @@ struct PageRank {
             pull = false;
             break;
         }
-        case Global_Heuristic: {
+        case Global_Threshold: {
             dual = true;
-            hysteresis = false;
             break;
         }
-        case Global_Hysteresis: {
-            pull = true;
-            dual = true;
-            hysteresis = true;
-            break;
-        }
-        case Local_Heuristic: {
+        case Local_Threshold: {
             dual = true;
             local = true;
-            hysteresis = false;
             break;
         }
-        case Local_Hysteresis: {
-            pull = true;
+        case Hybrid_Threshold: {
             dual = true;
             local = true;
-            hysteresis = true;
-            break;
-        }
-        case Hybrid_Heuristic: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = false;
-            hybrid = true;
-            break;
-        }
-        case Hybrid_Hysteresis: {
-            pull = true;
-            dual = true;
-            local = true;
-            hysteresis = true;
             hybrid = true;
             break;
         }
@@ -358,81 +324,49 @@ struct PageRank {
     }
 
     uint64_t active_edges;
-    uint64_t edge_threshold_low, edge_threshold_high;
+    uint64_t edge_threshold;
     if (local) {
-        edge_threshold_low = _graph.sizeEdges() * lower_bound;
-        edge_threshold_high = _graph.sizeEdges() * upper_bound;
+        edge_threshold = _graph.sizeEdges() * edge_bound;
     }
     else {
-        edge_threshold_low = _graph.globalSizeEdges() * lower_bound;
-        edge_threshold_high = _graph.globalSizeEdges() * upper_bound;
+        edge_threshold = _graph.globalSizeEdges() * edge_bound;
     }
-    uint64_t vertex_threshold_high = _graph.numMasters() * upper_bound;
+    uint64_t vertex_threshold = _graph.numMasters() * vertex_bound;
 
-    while (true) {
-      if (_num_iterations >= maxIterations) {
-          break;
-      }
+    bitset_residual.set_all();
+    PageRank_delta::go(_graph, active_v, active_e);
+    local_active_v = active_v.reduce();
+    local_active_e = active_e.reduce();
 
+    do {
 #ifdef GALOIS_PRINT_PROCESS
       galois::gPrint("Host ", _net.ID, " : iteration ", _num_iterations, "\n");
 #endif
-      
-      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
-      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
-      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
-      
-      StatTimer_total.start();
-      bitset_delta.reset();
-      active_v.reset();
-      active_e.reset();
-
-      StatTimer_delta.start();
-      PageRank_delta::go(_graph, active_v, active_e);
-      StatTimer_delta.stop();
-      local_active_v = active_v.reduce();
-      local_active_e = active_e.reduce();
 
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
       
-      StatTimer_active.start();
-      global_active_e = 0;
-      MPI_Allreduce(&local_active_e, &global_active_e, 1,
-                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
-      StatTimer_active.stop();
-
-      if (global_active_e == 0) {
-          StatTimer_total.stop();
-          break;
-      }
-
+      std::string total_str("Total_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_total(total_str.c_str(), REGION_NAME_RUN.c_str());
       std::string compute_str("Compute_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_compute(compute_str.c_str(), REGION_NAME_RUN.c_str());
       std::string comm_str("Communication_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_comm(comm_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string delta_str("Delta_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_delta(delta_str.c_str(), REGION_NAME_RUN.c_str());
+      std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
+      galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
-      syncSubstrate->set_num_round(_num_iterations);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
+      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
 
+      StatTimer_total.start();
       if (dual) {
           active_edges = local ? local_active_e : global_active_e;
 
-          if (hysteresis) {
-              if (active_edges >= edge_threshold_high) {
-                  pull = true;
-              }
-              else if (active_edges <= edge_threshold_low) {
-                  pull = false;
-              }
-          }
-          else {
-              pull = active_edges > edge_threshold_low;
-          }
+          pull = active_edges > edge_threshold;
 
-          if (hybrid && local_active_v >= vertex_threshold_high) {
+          if (hybrid && local_active_v >= vertex_threshold) {
               pull = true;
           }
       }
@@ -469,10 +403,27 @@ struct PageRank {
           syncSubstrate->reset_mirrorField<Reduce_add_residual>();
           StatTimer_reset.stop();
       }
+      
+      bitset_delta.reset();
+      active_v.reset();
+      active_e.reset();
+
+      StatTimer_delta.start();
+      PageRank_delta::go(_graph, active_v, active_e);
+      StatTimer_delta.stop();
+      local_active_v = active_v.reduce();
+      local_active_e = active_e.reduce();
+      
+      StatTimer_active.start();
+      global_active_e = 0;
+      MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                    MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+      StatTimer_active.stop();
+      
+      StatTimer_total.stop();
 
       ++_num_iterations;
-      StatTimer_total.stop();
-    }
+    } while (global_active_e && (_num_iterations < maxIterations));
   }
 };
 
@@ -529,8 +480,7 @@ struct PageRankSanity {
                    PageRankSanity(&_graph, DGA_sum,
                                   DGA_sum_residual,
                                   DGA_residual_over_tolerance, max_value,
-                                  min_value, max_residual, min_residual),
-                   galois::no_stats());
+                                  min_value, max_residual, min_residual));
 
     float max_rank          = max_value.reduce();
     float min_rank          = min_value.reduce();
@@ -667,8 +617,6 @@ int main(int argc, char** argv) {
         PageRankSanity::go(*hg, DGA_sum, DGA_sum_residual,
                            DGA_residual_over_tolerance, max_value, min_value,
                            max_residual, min_residual);
-    
-        (*syncSubstrate).set_num_run(run + 1);
     }
   }
 
