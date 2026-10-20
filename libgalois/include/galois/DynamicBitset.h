@@ -333,6 +333,18 @@ public:
         galois::no_stats());
     return ret.reduce();
   }
+  
+  bool find(uint32_t& index) {
+    for (size_t i=0; i<bitvec.size(); i++) {
+        uint64_t value = bitvec[i].load(std::memory_order_relaxed);
+        if (value != 0) {
+            index = i * 64 + std::countr_zero(value);
+            return true;
+        }
+    }
+
+    return false;
+  }
 
   /**
    * Returns a vector containing the set bits in this bitset in order

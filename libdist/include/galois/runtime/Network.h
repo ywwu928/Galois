@@ -72,6 +72,8 @@ private:
   std::vector<FixedSizeBufferAllocator> sendAllocators;
   FixedSizeBufferAllocator recvAllocator;
 
+  size_t commBufferSize;
+  std::vector<uint8_t*> sendCommBuffer;
   std::vector<uint8_t*> recvCommBuffer;
 
   unsigned numT;
@@ -146,22 +148,7 @@ private:
 
   std::vector<recvBufferData> recvData;
   
-  /**
-   * Receive buffers for the buffered network interface
-   */
-  class recvBufferCommunication {
-      // single producer single consumer
-      moodycamel::ReaderWriterQueue<uint32_t> hosts;
-
-  public:
-      recvBufferCommunication() {}
-
-      bool tryPopMsg(uint32_t& host);
-      
-      void add(uint32_t host);
-  }; // end recv buffer class
-
-  recvBufferCommunication recvCommunication;
+  galois::DynamicBitSet bitsetRecvComm;
 
   /**
    * Receive buffers for the buffered network interface
@@ -200,22 +187,9 @@ private:
   };
 
   std::vector<sendBufferData> sendData;
-
-  /**
-   * Single producer single consumer
-   */
-  class sendBufferComm {
-      moodycamel::ReaderWriterQueue<std::tuple<uint32_t, uint8_t*, size_t>> messages;
-
-  public:
-      sendBufferComm() {}
-    
-      bool pop(uint32_t& dest, uint8_t*& data, size_t& dataLen);
-
-      void push(uint32_t dest, uint8_t* data, size_t dataLen);
-  };
-
-  sendBufferComm sendCommData;
+  
+  galois::DynamicBitSet bitsetSendComm;
+  std::vector<size_t> sendCommLen;
 
   /**   
    * single producer single consumer with single tag
@@ -274,17 +248,21 @@ private:
   
   std::deque<trackMessageSend> sendInflightData;
   std::vector<std::deque<trackMessageSend>> sendInflightWork;
-  std::deque<trackMessageSend> sendInflightComm;
+  std::vector<MPI_Request> sendInflightComm;
+  std::vector<MPI_Request> inflightComm;
+  std::vector<int> indices;
     
   void sendDataComplete();
   void sendWorkComplete();
-  void sendWorkCommCompleteUntilEmpty();
+  void sendWorkCommComplete();
+  void sendWorkCompleteUntilEmpty();
   void sendCommComplete();
+  void sendCommCompleteUntilEmpty();
 
   void sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen);
   void sendFullWork(unsigned tid, uint32_t dest, uint8_t* buf);
   void sendPartialWork(unsigned tid, uint32_t dest, uint8_t* buf, size_t bufLen);
-  void sendCommunication(uint32_t dest, uint8_t* buf, size_t bufLen);
+  void sendCommunication(uint32_t dest);
   void sendTermination(uint32_t dest, uint32_t tag);
 
   /**
@@ -310,7 +288,7 @@ private:
   };
   
   std::deque<mpiWorkRecv> recvInflightWork;
-  std::deque<MPI_Request*> recvInflightComm;
+  std::vector<MPI_Request> recvInflightComm;
   
   void recvProbeData();
   void recvProbeWorkComm();
@@ -377,12 +355,12 @@ public:
   template <typename ValTy>
   void sendWork(unsigned tid, uint32_t dest, uint32_t lid, ValTy val);
   
-  void sendComm(uint32_t dest, uint8_t* bufPtr, size_t len);
+  void sendComm(uint32_t dest, size_t len);
 
   //! Receive and dispatch messages
   void handleReceives();
 
-  void allocateRecvCommBuffer(size_t alloc_size);
+  void allocateCommBuffer(size_t alloc_size, std::vector<uint8_t*>& gluonSendBuffer, std::vector<uint8_t*>& gluonRecvBuffer);
 
   void deallocateRecvBuffer(uint8_t* buf);
 
@@ -395,7 +373,8 @@ public:
 
   bool receiveRemoteWork(std::atomic<bool>& terminateFlag, bool& fullFlag, uint8_t*& work, size_t& workLen);
   
-  void receiveComm(uint32_t& host, uint8_t*& work);
+  uint32_t receiveComm();
+
   
   //! move send buffers out to network
   void flushRemoteWork();

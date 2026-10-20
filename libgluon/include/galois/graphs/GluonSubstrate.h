@@ -33,6 +33,7 @@
 #include <vector>
 #include <chrono>
 #include <sstream>
+#include <numa.h>
 
 #include "galois/runtime/GlobalObj.h"
 #include "galois/DReducible.h"
@@ -109,6 +110,7 @@ private:
   
   std::vector<uint8_t*> sendCommBuffer;
   std::vector<size_t> sendCommBufferLen;
+  std::vector<uint8_t*> recvCommBuffer;
 
   size_t maxSharedSize;
 
@@ -494,6 +496,7 @@ public:
     // allocate communication buffer
     sendCommBuffer.resize(numHosts, nullptr);
     sendCommBufferLen.resize(numHosts, 0);
+    recvCommBuffer.resize(numHosts, nullptr);
 
     // noData : data_mode
     // bitsetData : data_mode + syncBitset + dirty data
@@ -505,21 +508,7 @@ public:
         (maxSharedSize * sizeof(uint32_t)) + // syncOffsets or syncBitset
         (maxSharedSize * sizeof(ValTy)); // dirty data
 
-    // send buffer
-    for (unsigned i=0; i<numHosts; i++) {
-        if (i == id) {
-            continue;
-        }
-          
-        void* ptr = malloc(total_alloc_size);
-        if (ptr == nullptr) {
-            galois::gError("Failed to allocate memory for the communication phase send buffer\n");
-        }
-        sendCommBuffer[i] = static_cast<uint8_t*>(ptr);
-    }
-
-    // receive buffer
-    net.allocateRecvCommBuffer(total_alloc_size);
+    net.allocateCommBuffer(total_alloc_size, sendCommBuffer, recvCommBuffer);
     
     // set thread communication range
     threadRangeMaster.resize(numHosts);
@@ -567,14 +556,6 @@ public:
             threadRangeMirror[h][tid] = std::pair<unsigned int, unsigned int>(start, end);
         }
     });
-  }
-
-  ~GluonSubstrate() {
-      for (unsigned i=0; i<numHosts; i++) {
-          if (sendCommBuffer[i] != nullptr) {
-              free(sendCommBuffer[i]);
-          }
-      }
   }
 
 private:
@@ -814,7 +795,7 @@ private:
 
       syncExtract<syncType, SyncFnTy>(x, bitset_ptr);
 
-      net.sendComm(x, sendCommBuffer[x], sendCommBufferLen[x]);
+      net.sendComm(x, sendCommBufferLen[x]);
     }
 
     reset_bitset(syncType, bitset_ptr);
@@ -837,10 +818,11 @@ private:
    * @param buf Buffer that contains received message from other host
    */
   template <SyncType syncType, typename SyncFnTy>
-  void syncRecvApply(uint32_t from_id, uint8_t* bufPtr, galois::DynamicBitSet* bitset_compute_ptr) {
+  void syncRecvApply(uint32_t from_id, galois::DynamicBitSet* bitset_compute_ptr) {
     auto& indices = (syncType == syncReduce) ? masterNodes[from_id] : mirrorNodes[from_id];
     uint32_t num = indices.size();
     auto& threadRange = (syncType == syncReduce) ? threadRangeMaster[from_id] : threadRangeMirror[from_id];
+    uint8_t* bufPtr = recvCommBuffer[from_id];
 
     // 1st deserialize gets data mode
     data_mode = *((DataCommMode*)bufPtr);
@@ -970,17 +952,23 @@ private:
   void syncRecv(galois::DynamicBitSet* bitset_ptr) {
       auto& sharedNodes = (syncType == syncReduce) ? masterNodes : mirrorNodes;
       
-      uint32_t host;
-      uint8_t* work;
       for (unsigned x = 0; x < numHosts; ++x) {
           if (x == id)
               continue;
           if (sharedNodes[x].size() == 0)
               continue;
 
-          net.receiveComm(host, work);
+          auto start = std::chrono::high_resolution_clock::now();
+          uint32_t host = net.receiveComm();
+          auto end = std::chrono::high_resolution_clock::now();
+          auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+          galois::gPrint("Host ", id, " : receiveComm from host ", host, " takes ", duration.count(), " us\n");
 
-          syncRecvApply<syncType, SyncFnTy>(host, work, bitset_ptr);
+          start = std::chrono::high_resolution_clock::now();
+          syncRecvApply<syncType, SyncFnTy>(host, bitset_ptr);
+          end = std::chrono::high_resolution_clock::now();
+          duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+          galois::gPrint("Host ", id, " : syncRecvApply from host ", host, " takes ", duration.count(), " us\n");
       }
       incrementEvilPhase();
   }
@@ -998,10 +986,25 @@ public:
    */
   template <typename ReduceFnTy>
   void reduce(galois::DynamicBitSet* bitset_ptr) {
+    galois::gPrint("Host ", id, " : reduce start!\n");
+    auto start = std::chrono::high_resolution_clock::now();
     syncSend<syncReduce, ReduceFnTy>(bitset_ptr);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    galois::gPrint("Host ", id, " : syncSend takes ", duration.count(), " us\n");
     net.flushCommunication();
+    start = std::chrono::high_resolution_clock::now();
     poll_for_remote_work_bitset<ReduceFnTy>(bitset_ptr);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    galois::gPrint("Host ", id, " : poll_for_remote_work_bitset takes ", duration.count(), " us\n");
+    start = std::chrono::high_resolution_clock::now();
     syncRecv<syncReduce, ReduceFnTy>(bitset_ptr);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    galois::gPrint("Host ", id, " : syncRecv takes ", duration.count(), " us\n");
+    net.resetWorkTermination();
+    galois::gPrint("Host ", id, " : reduce end!\n");
   }
 
   /**
