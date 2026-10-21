@@ -378,31 +378,27 @@ struct PageRank {
       if (pull) {
           StatTimer_compute.start();
           PullRemote::go(_graph);
-          _net.flushRemoteWork();
           PullMaster::go(_graph);
           StatTimer_compute.stop();
       }
       else {
-          StatTimer_compute.start();
-          Push::go(_graph);
-          _net.flushRemoteWork();
-          StatTimer_compute.stop();
-      }
-
-      StatTimer_comm.start();
-      syncSubstrate->reduce<Reduce_add_residual>(&bitset_residual);
-      StatTimer_comm.stop();
-      
-      _net.resetWorkTermination();
-      
-      if (!pull) {
           std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));
           galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
 
           StatTimer_reset.start();
           syncSubstrate->reset_mirrorField<Reduce_add_residual>();
           StatTimer_reset.stop();
+          
+          StatTimer_compute.start();
+          Push::go(_graph);
+          StatTimer_compute.stop();
       }
+      _net.compPhaseEnd();
+
+      StatTimer_comm.start();
+      syncSubstrate->reduce<Reduce_add_residual>(&bitset_residual);
+      StatTimer_comm.stop();
+      _net.commPhaseEnd();
       
       bitset_delta.reset();
       active_v.reset();
@@ -541,8 +537,8 @@ std::vector<float> makeResults(std::unique_ptr<Graph>& hg) {
 /* Main */
 /******************************************************************************/
 
-constexpr static const char* const name = "Distributed Pagerank (Push)";
-constexpr static const char* const desc = "Distributed Pagerank (Push)";
+constexpr static const char* const name = "Distributed Pagerank";
+constexpr static const char* const desc = "Distributed Pagerank";
 constexpr static const char* const url = 0;
 
 int main(int argc, char** argv) {

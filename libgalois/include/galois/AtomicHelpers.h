@@ -31,7 +31,7 @@ const Ty atomicMax(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   // if old value is less than new value, atomically exchange
   while (old_a < b &&
-         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+         !a.compare_exchange_weak(old_a, b, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
   return old_a;
 }
@@ -41,7 +41,7 @@ void atomicMaxVoid(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   // if old value is less than new value, atomically exchange
   while (old_a < b &&
-         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+         !a.compare_exchange_weak(old_a, b, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
 }
 
@@ -84,7 +84,7 @@ template <typename Ty>
 const Ty atomicMin(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   while (old_a > b &&
-         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+         !a.compare_exchange_weak(old_a, b, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
   return old_a;
 }
@@ -93,7 +93,7 @@ template <typename Ty>
 void atomicMinVoid(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   while (old_a > b &&
-         !a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
+         !a.compare_exchange_weak(old_a, b, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
 }
 
@@ -101,7 +101,8 @@ template <typename Ty>
 bool atomicMinBool(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
   if (old_a > b) {
-      while (!a.compare_exchange_weak(old_a, b, std::memory_order_relaxed)) ;
+      while (!a.compare_exchange_weak(old_a, b, std::memory_order_acq_rel, std::memory_order_acquire))
+          ;
       return true;
   }
   else {
@@ -157,8 +158,7 @@ inline void minVoid(Ty& a, const Ty& b) {
 template <typename Ty>
 const Ty atomicAdd(std::atomic<Ty>& val, Ty delta) {
   Ty old_val = val.load(std::memory_order_relaxed);
-  while (!val.compare_exchange_weak(old_val, old_val + delta,
-                                    std::memory_order_relaxed))
+  while (!val.compare_exchange_weak(old_val, old_val + delta, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
   return old_val;
 }
@@ -166,8 +166,7 @@ const Ty atomicAdd(std::atomic<Ty>& val, Ty delta) {
 template <typename Ty>
 void atomicAddVoid(std::atomic<Ty>& val, Ty delta) {
   Ty old_val = val.load(std::memory_order_relaxed);
-  while (!val.compare_exchange_weak(old_val, old_val + delta,
-                                    std::memory_order_relaxed))
+  while (!val.compare_exchange_weak(old_val, old_val + delta, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
 }
 
@@ -209,8 +208,7 @@ inline void addVoid(Ty& a, const Ty& b) {
 template <typename Ty>
 const Ty atomicSubtract(std::atomic<Ty>& val, Ty delta) {
   Ty old_val = val.load(std::memory_order_relaxed);
-  while (!val.compare_exchange_weak(old_val, old_val - delta,
-                                    std::memory_order_relaxed))
+  while (!val.compare_exchange_weak(old_val, old_val - delta, std::memory_order_acq_rel, std::memory_order_acquire))
     ;
   return old_val;
 }

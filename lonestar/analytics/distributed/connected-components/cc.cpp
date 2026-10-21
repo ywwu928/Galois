@@ -38,6 +38,10 @@ enum Exp {
     Global_Threshold,
     Local_Threshold,
     Hybrid_Threshold,
+    Pull_Update_Mirror,
+    Global_Threshold_Update_Mirror,
+    Local_Threshold_Update_Mirror,
+    Hybrid_Threshold_Update_Mirror,
     Exp_Count
 };
 
@@ -46,7 +50,11 @@ std::string exp_names[] = {
     "Push",
     "Global_Threshold",
     "Local_Threshold",
-    "Hybrid_Threshold"
+    "Hybrid_Threshold",
+    "Pull_Update_Mirror",
+    "Global_Threshold_Update_Mirror",
+    "Local_Threshold_Update_Mirror",
+    "Hybrid_Threshold_Update_Mirror"
 };
 
 /******************************************************************************/
@@ -177,6 +185,76 @@ struct PullRemote {
   }
 };
 
+struct PullPhantom {
+  Graph* graph;
+
+  galois::runtime::NetworkInterface& net;
+
+  PullPhantom(Graph* _graph)
+      : graph(_graph),
+        net(galois::runtime::getSystemNetworkInterface()) {}
+
+  void static go(Graph& _graph) {
+      const auto& phantomNodes = _graph.phantomNodesRangeIn();
+
+      galois::do_all(
+          galois::iterate(phantomNodes), PullPhantom{&_graph},
+          galois::steal());
+  }
+
+  void operator()(GNode dst) const {
+    uint32_t dcomp = UINT32_MAX;
+    for (auto jj : graph->inEdges(dst)) {
+        GNode src         = graph->getInEdgeSrc(jj);
+        if (bitset_active.test(src)) {
+            auto& snode       = graph->getData(src);
+            if (snode.comp_old < dcomp) {
+                dcomp = snode.comp_old;
+            }
+        }
+    }
+    
+    if (dcomp != UINT32_MAX) {
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dcomp);
+    }
+  }
+};
+
+struct PullMirror {
+  Graph* graph;
+
+  galois::runtime::NetworkInterface& net;
+  
+  PullMirror(Graph* _graph)
+      : graph(_graph),
+        net(galois::runtime::getSystemNetworkInterface()) {}
+
+  void static go(Graph& _graph) {
+      const auto& mirrorNodes = _graph.mirrorNodesRangeIn();
+      
+      galois::do_all(
+          galois::iterate(mirrorNodes), PullMirror{&_graph},
+          galois::steal());
+  }
+
+  void operator()(GNode dst) const {
+    NodeData& dnode = graph->getData(dst);
+
+    for (auto jj : graph->inEdges(dst)) {
+        GNode src         = graph->getInEdgeSrc(jj);
+        if (bitset_active.test(src)) {
+            auto& snode       = graph->getData(src);
+            galois::minVoid(dnode.comp_current, snode.comp_old);
+        }
+    }
+    
+    if (dnode.comp_old > dnode.comp_current) {
+        uint32_t dcomp = dnode.comp_current;
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dcomp);
+    }
+  }
+};
+
 struct PullMaster {
   Graph* graph;
 
@@ -272,6 +350,7 @@ struct ConnectedComp {
     bool dual = false;
     bool local = false;
     bool hybrid = false;
+    bool update = false;
 
     switch (exp) {
         case Pull: {
@@ -295,6 +374,29 @@ struct ConnectedComp {
             dual = true;
             local = true;
             hybrid = true;
+            break;
+        }
+        case Pull_Update_Mirror: {
+            pull = true;
+            update = true;
+            break;
+        }
+        case Global_Threshold_Update_Mirror: {
+            dual = true;
+            update = true;
+            break;
+        }
+        case Local_Threshold_Update_Mirror: {
+            dual = true;
+            local = true;
+            update = true;
+            break;
+        }
+        case Hybrid_Threshold_Update_Mirror: {
+            dual = true;
+            local = true;
+            hybrid = true;
+            update = true;
             break;
         }
         case Exp_Count: {
@@ -348,24 +450,31 @@ struct ConnectedComp {
       bitset_dirty.reset();
 
       if (pull) {
-          StatTimer_compute.start();
-          PullRemote::go(_graph);
-          _net.flushRemoteWork();
-          PullMaster::go(_graph);
-          StatTimer_compute.stop();
+          if (update) {
+              StatTimer_compute.start();
+              PullPhantom::go(_graph);
+              PullMirror::go(_graph);
+              PullMaster::go(_graph);
+              StatTimer_compute.stop();
+          }
+          else {
+              StatTimer_compute.start();
+              PullRemote::go(_graph);
+              PullMaster::go(_graph);
+              StatTimer_compute.stop();
+          }
       }
       else {
           StatTimer_compute.start();
           Push::go(_graph);
-          _net.flushRemoteWork();
           StatTimer_compute.stop();
       }
+      _net.compPhaseEnd();
 
       StatTimer_comm.start();
       syncSubstrate->reduce<Reduce_min_comp_current>(&bitset_dirty);
       StatTimer_comm.stop();
-      
-      _net.resetWorkTermination();
+      _net.commPhaseEnd();
       
       bitset_active.reset();
       active_v.reset();
@@ -447,8 +556,8 @@ std::vector<uint32_t> makeResults(std::unique_ptr<Graph>& hg) {
 /* Main */
 /******************************************************************************/
 
-constexpr static const char* const name = "Distributed Connected Components (Pull)";
-constexpr static const char* const desc = "Distributed Connected Components (Pull)";
+constexpr static const char* const name = "Distributed Connected Components";
+constexpr static const char* const desc = "Distributed Connected Components";
 constexpr static const char* const url = nullptr;
 
 int main(int argc, char** argv) {

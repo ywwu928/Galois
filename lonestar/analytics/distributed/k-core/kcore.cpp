@@ -365,31 +365,27 @@ struct KCore {
       if (pull) {
           StatTimer_compute.start();
           PullRemote::go(_graph);
-          _net.flushRemoteWork();
           PullMaster::go(_graph);
           StatTimer_compute.stop();
       }
       else {
-          StatTimer_compute.start();
-          Push::go(_graph);
-          _net.flushRemoteWork();
-          StatTimer_compute.stop();
-      }
-
-      StatTimer_comm.start();
-      syncSubstrate->reduce<Reduce_add_trim>(&bitset_trim);
-      StatTimer_comm.stop();
-      
-      _net.resetWorkTermination();
-      
-      if (!pull) {
           std::string reset_str("Reset_Mirror_Round_" + std::to_string(_num_iterations));
           galois::CondStatTimer<USER_STATS> StatTimer_reset(reset_str.c_str(), REGION_NAME_RUN.c_str());
 
           StatTimer_reset.start();
           syncSubstrate->reset_mirrorField<Reduce_add_trim>();
           StatTimer_reset.stop();
+          
+          StatTimer_compute.start();
+          Push::go(_graph);
+          StatTimer_compute.stop();
       }
+      _net.compPhaseEnd();
+
+      StatTimer_comm.start();
+      syncSubstrate->reduce<Reduce_add_trim>(&bitset_trim);
+      StatTimer_comm.stop();
+      _net.commPhaseEnd();
       
       bitset_active.reset();
       active_v.reset();
@@ -420,6 +416,16 @@ struct KCore {
 
 /* Gets the total number of nodes that are still alive */
 struct KCoreSanityCheck {
+  Graph* graph;
+  
+  galois::DGAccumulator<uint64_t>& sum;
+  
+  KCoreSanityCheck(
+      Graph* _graph,
+      galois::DGAccumulator<uint64_t>& _sum)
+      : graph(_graph),
+        sum(_sum) {}
+
   void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
     dga.reset();
 
@@ -432,6 +438,26 @@ struct KCoreSanityCheck {
     if (galois::runtime::getSystemNetworkInterface().ID == 0) {
       galois::gPrint("Number of nodes in the ", k_core_num, "-core is ", global_num_nodes, "\n");
     }
+    
+    dga.reset();
+
+    const auto& masterNodes = _graph.masterNodesRangeIn();
+    
+    galois::do_all(
+        galois::iterate(masterNodes),
+        KCoreSanityCheck{&_graph, dga});
+
+    uint64_t sum_trim = dga.reduce();
+    
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+      galois::gPrint("Sum of trim is ", sum_trim, "\n");
+    }
+  }
+
+  void operator()(GNode src) const {
+    NodeData& sdata = graph->getData(src);
+
+    sum += sdata.trim;
   }
 };
 
@@ -459,8 +485,8 @@ std::vector<unsigned> makeResults(std::unique_ptr<Graph>& hg) {
 /* Main method for running */
 /******************************************************************************/
 
-constexpr static const char* const name = "Distributed KCore Extraction (Push)";
-constexpr static const char* const desc = "Distributed KCore Extraction (Push)";
+constexpr static const char* const name = "Distributed KCore Extraction";
+constexpr static const char* const desc = "Distributed KCore Extraction";
 constexpr static const char* const url  = nullptr;
 
 int main(int argc, char** argv) {

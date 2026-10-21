@@ -198,7 +198,7 @@ public:
     size_t bit_index    = index / bits_uint64;
     uint64_t bit_offset = 1;
     bit_offset <<= (index % bits_uint64);
-    return ((bitvec[bit_index].load(std::memory_order_relaxed) & bit_offset) !=
+    return ((bitvec[bit_index].load(std::memory_order_acquire) & bit_offset) !=
             0);
   }
 
@@ -212,12 +212,12 @@ public:
     size_t bit_index    = index / bits_uint64;
     uint64_t bit_offset = 1;
     bit_offset <<= (index % bits_uint64);
-    uint64_t old_val = bitvec[bit_index];
+    uint64_t old_val = bitvec[bit_index].load(std::memory_order_relaxed);
     // test and set
     // if old_bit is 0, then atomically set it
     while (((old_val & bit_offset) == 0) &&
            !bitvec[bit_index].compare_exchange_weak(
-               old_val, old_val | bit_offset, std::memory_order_relaxed))
+               old_val, old_val | bit_offset, std::memory_order_acq_rel, std::memory_order_acquire))
       ;
     return (old_val & bit_offset);
   }
@@ -232,12 +232,12 @@ public:
     size_t bit_index    = index / bits_uint64;
     uint64_t bit_offset = 1;
     bit_offset <<= (index % bits_uint64);
-    uint64_t old_val = bitvec[bit_index];
+    uint64_t old_val = bitvec[bit_index].load(std::memory_order_relaxed);
     // test and reset
     // if old_bit is 1, then atomically reset it
     while (((old_val & bit_offset) != 0) &&
            !bitvec[bit_index].compare_exchange_weak(
-               old_val, old_val & ~bit_offset, std::memory_order_relaxed))
+               old_val, old_val & ~bit_offset, std::memory_order_acq_rel, std::memory_order_acquire))
       ;
     return (old_val & bit_offset);
   }

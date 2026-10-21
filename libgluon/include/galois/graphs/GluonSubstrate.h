@@ -958,17 +958,8 @@ private:
           if (sharedNodes[x].size() == 0)
               continue;
 
-          auto start = std::chrono::high_resolution_clock::now();
           uint32_t host = net.receiveComm();
-          auto end = std::chrono::high_resolution_clock::now();
-          auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-          galois::gPrint("Host ", id, " : receiveComm from host ", host, " takes ", duration.count(), " us\n");
-
-          start = std::chrono::high_resolution_clock::now();
           syncRecvApply<syncType, SyncFnTy>(host, bitset_ptr);
-          end = std::chrono::high_resolution_clock::now();
-          duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-          galois::gPrint("Host ", id, " : syncRecvApply from host ", host, " takes ", duration.count(), " us\n");
       }
       incrementEvilPhase();
   }
@@ -986,25 +977,9 @@ public:
    */
   template <typename ReduceFnTy>
   void reduce(galois::DynamicBitSet* bitset_ptr) {
-    galois::gPrint("Host ", id, " : reduce start!\n");
-    auto start = std::chrono::high_resolution_clock::now();
     syncSend<syncReduce, ReduceFnTy>(bitset_ptr);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    galois::gPrint("Host ", id, " : syncSend takes ", duration.count(), " us\n");
-    net.flushCommunication();
-    start = std::chrono::high_resolution_clock::now();
     poll_for_remote_work_bitset<ReduceFnTy>(bitset_ptr);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    galois::gPrint("Host ", id, " : poll_for_remote_work_bitset takes ", duration.count(), " us\n");
-    start = std::chrono::high_resolution_clock::now();
     syncRecv<syncReduce, ReduceFnTy>(bitset_ptr);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    galois::gPrint("Host ", id, " : syncRecv takes ", duration.count(), " us\n");
-    net.resetWorkTermination();
-    galois::gPrint("Host ", id, " : reduce end!\n");
   }
 
   /**

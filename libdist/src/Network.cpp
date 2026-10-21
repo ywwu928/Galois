@@ -49,13 +49,6 @@ cll::opt<uint32_t> recvBufCountExp("recvBufCountExp",
 
 namespace galois::runtime {
 
-double thread_cpu_time_us() {
-    timespec ts;
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-
-    return ts.tv_sec * 1e6 + ts.tv_nsec / 1e3;
-}
-
 uint32_t evilPhase = 4; // 0, 1, 2 and 3 is reserved
 
 uint32_t NetworkInterface::ID  = 0;
@@ -231,38 +224,7 @@ void NetworkInterface::sendWorkComplete() {
     }
 }
 
-void NetworkInterface::sendWorkCommComplete() {
-    for (unsigned t=0; t<numT; t++) {
-        if (!sendInflightWork[t].empty()) {
-            int flag = 0;
-            MPI_Status status;
-            auto& f = sendInflightWork[t].front();
-            MPI_Test(&f.req, &flag, &status);
-            if (flag) {
-                // return buffer back to pool
-                sendAllocators[t].deallocate(f.buf);
-                sendInflightWork[t].pop_front();
-            }
-            else {
-                sendInflightWork[t].push_back(f);
-                sendInflightWork[t].pop_front();
-            }
-        }
-    }
-    
-    int outcount = 0;
-
-    MPI_Testsome(
-        Num,
-        sendInflightComm.data(),
-        &outcount,
-        indices.data(),
-        MPI_STATUSES_IGNORE
-    );
-}
-
 void NetworkInterface::sendWorkCompleteUntilEmpty() {
-    // remote work
     bool empty;
     do {
         empty = true;
@@ -302,15 +264,12 @@ void NetworkInterface::sendCommComplete() {
 }
 
 void NetworkInterface::sendCommCompleteUntilEmpty() {
-    auto cpu_start = thread_cpu_time_us();
-    auto start = std::chrono::steady_clock::now();
     int outcount = 0;
 
     while (true) {
         MPI_Testsome(
             Num,
-            //sendInflightComm.data(),
-            inflightComm.data(),
+            sendInflightComm.data(),
             &outcount,
             indices.data(),
             MPI_STATUSES_IGNORE
@@ -320,12 +279,6 @@ void NetworkInterface::sendCommCompleteUntilEmpty() {
             break;
         }
     }
-    
-    auto end = std::chrono::steady_clock::now();
-    auto cpu_end = thread_cpu_time_us();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    galois::gPrint("Host ", ID, " : commThread send comm until empty takes ", duration.count(), " us (Wall Time)\n");
-    galois::gPrint("Host ", ID, " : commThread send comm until empty takes ", cpu_end - cpu_start, " us (CPU Time)\n");
 }
 
 void NetworkInterface::sendTaggedData(uint32_t dest, uint32_t tag, uint8_t* buf, size_t bufLen) {
@@ -347,8 +300,7 @@ void NetworkInterface::sendPartialWork(unsigned tid, uint32_t dest, uint8_t* buf
 }
 
 void NetworkInterface::sendCommunication(uint32_t dest) {
-    //MPI_Isend(sendCommBuffer[dest], sendCommLen[dest], MPI_BYTE, dest, communicationTag, comm_comm, &sendInflightComm[dest]);
-    MPI_Isend(sendCommBuffer[dest], sendCommLen[dest], MPI_BYTE, dest, communicationTag, comm_comm, &inflightComm[Num + dest]);
+    MPI_Isend(sendCommBuffer[dest], sendCommLen[dest], MPI_BYTE, dest, communicationTag, comm_comm, &sendInflightComm[dest]);
 }
 
 void NetworkInterface::sendTermination(uint32_t dest, uint32_t tag) {
@@ -400,8 +352,7 @@ void NetworkInterface::recvProbeWorkComm() {
             MPI_Irecv(buf, nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &m.req);
         }
         else if (status.MPI_TAG == (int)communicationTag) {
-            //MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &recvInflightComm[status.MPI_SOURCE]);
-            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightComm[status.MPI_SOURCE]);
+            MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &recvInflightComm[status.MPI_SOURCE]);
         }
         else { // workTerminationTag
             MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightTermination[Num + status.MPI_SOURCE]);
@@ -441,49 +392,14 @@ void NetworkInterface::recvProbeWorkComm() {
 
     MPI_Testsome(
         Num,
-        //recvInflightComm.data(),
-        inflightComm.data(),
+        recvInflightComm.data(),
         &outcount,
         indices.data(),
         MPI_STATUSES_IGNORE
     );
 
     for (int i=0; i<outcount; i++) {
-        if (indices[i] < (int)Num) {
-            bitsetRecvComm.set(indices[i]);
-        }
-    }
-}
-
-void NetworkInterface::recvProbeComm() {
-    int flag = 0;
-    MPI_Status status;
-    // check for new messages
-    MPI_Iprobe(MPI_ANY_SOURCE, (int)communicationTag, comm_comm, &flag, &status);
-    if (flag) {
-        int nbytes;
-        MPI_Get_count(&status, MPI_BYTE, &nbytes);
-
-        //MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &recvInflightComm[status.MPI_SOURCE]);
-        MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightComm[status.MPI_SOURCE]);
-    }
-    
-    // complete messages
-    int outcount = 0;
-
-    MPI_Testsome(
-        Num,
-        //recvInflightComm.data(),
-        inflightComm.data(),
-        &outcount,
-        indices.data(),
-        MPI_STATUSES_IGNORE
-    );
-
-    for (int i=0; i<outcount; i++) {
-        if (indices[i] < (int)Num) {
-            bitsetRecvComm.set(indices[i]);
-        }
+        bitsetRecvComm.set(indices[i]);
     }
 }
 
@@ -567,7 +483,6 @@ void NetworkInterface::commThread() {
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
-            // handle send queue
             sendDataComplete();
 
             recvProbeData();
@@ -586,16 +501,14 @@ void NetworkInterface::commThread() {
     
     // for program execution
     while (ready.load(std::memory_order_acquire) == 3) {
-        while (ready.load(std::memory_order_acquire) == 3 && !flushWork.load(std::memory_order_acquire)) {
+        while (ready.load(std::memory_order_acquire) == 3 && !compEnd.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
                 unsigned h = hostOrder[i];
 
-                // handle send queue
                 sendWorkComplete();
 
                 // remote work
                 for (unsigned t=0; t<numT; t++) {
-                    // push progress forward on the network IO
                     recvProbeWorkComm();
 
                     auto& srw = sendRemoteWork[h][t];
@@ -610,12 +523,14 @@ void NetworkInterface::commThread() {
             }
         }
 
+        // reset compEnd
+        compEnd.store(false, std::memory_order_release);
+
         // flush all full work messages
         for (unsigned i = 0; i < Num - 1; ++i) {
             unsigned h = hostOrder[i];
             
             for (unsigned t=0; t<numT; t++) {
-                // push progress forward on the network IO
                 recvProbeWorkComm();
   
                 auto& srw = sendRemoteWork[h][t];
@@ -644,60 +559,36 @@ void NetworkInterface::commThread() {
             // send work termination
             if (sendWorkTermination[h].load(std::memory_order_acquire)) {
                 sendTermination(h, workTerminationTag);
-                sendWorkTermination[h].store(false, std::memory_order_relaxed);
+                sendWorkTermination[h].store(false, std::memory_order_release);
             }
 
             partialBuf[h] = nullptr;
             partialBufLen[h] = 0;
         }
+        
+        sendWorkCompleteUntilEmpty();
 
-        // reset flush
-        flushWork.store(false, std::memory_order_relaxed);
-
-        while (ready.load(std::memory_order_acquire) == 3 && !flushComm.load(std::memory_order_acquire)) {
+        uint32_t dest;
+        while (ready.load(std::memory_order_acquire) == 3 && !commEnd.load(std::memory_order_acquire)) {
             // send communication message
-            uint32_t dest;
             if (bitsetSendComm.find(dest)) {
                 sendCommunication(dest);
                 bitsetSendComm.reset(dest);
             }
-
-            // push progress forward on the network IO
-            //sendWorkCommComplete();
-            sendWorkComplete();
+            
+            sendCommComplete();
             recvProbeWorkComm();
         }
-
-        sendWorkCompleteUntilEmpty();
-
-        // reset flush
-        flushComm.store(false, std::memory_order_relaxed);
-
-        auto start = std::chrono::steady_clock::now();
-        while (ready.load(std::memory_order_acquire) == 3 && hostWorkTerminationCount.load(std::memory_order_acquire) != Num) {
-        //while (ready.load(std::memory_order_acquire) == 3 && !recvAll.load(std::memory_order_acquire)) {
-            // push progress forward on the network IO
-            //sendCommComplete();
-            recvProbeWorkComm();
-        }
-        auto end = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        galois::gPrint("Host ", ID, " : commThread section 1 takes ", duration.count(), " us\n");
         
-        start = std::chrono::steady_clock::now();
-        while (ready.load(std::memory_order_acquire) == 3 && !recvAll.load(std::memory_order_acquire)) {
-            // push progress forward on the network IO
-            //sendCommComplete();
-            recvProbeComm();
+        // flush communication message
+        while (bitsetSendComm.find(dest)) {
+            sendCommunication(dest);
+            bitsetSendComm.reset(dest);
         }
-        end = std::chrono::steady_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        galois::gPrint("Host ", ID, " : commThread section 2 takes ", duration.count(), " us\n");
         
-        // reset recvAll
-        recvAll.store(false, std::memory_order_relaxed);
+        // reset commEnd
+        commEnd.store(false, std::memory_order_release);
 
-        // handle send queue
         sendCommCompleteUntilEmpty();
 
         terminationComplete();
@@ -725,7 +616,7 @@ void NetworkInterface::commThread() {
             else {
                 if (sendDataTermination[h].load(std::memory_order_acquire) == true) {
                     sendTermination(h, dataTerminationTag);
-                    sendDataTermination[h].store(false, std::memory_order_relaxed);
+                    sendDataTermination[h].store(false, std::memory_order_release);
                 }
             }
         }
@@ -748,8 +639,7 @@ NetworkInterface::NetworkInterface()
     recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready.load(std::memory_order_acquire) != 1) {};
 
-    flushWork.store(false, std::memory_order_relaxed);
-    flushComm.store(false, std::memory_order_relaxed);
+    compEnd.store(false, std::memory_order_relaxed);
     partialBuf = decltype(partialBuf)(Num);
     partialBufLen = decltype(partialBufLen)(Num);
     for (unsigned i=0; i<Num; i++) {
@@ -771,7 +661,7 @@ NetworkInterface::NetworkInterface()
         }
     }
 
-    recvAll.store(false, std::memory_order_relaxed);
+    commEnd.store(false, std::memory_order_relaxed);
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
     hostWorkTerminationBase = 0;
@@ -785,6 +675,7 @@ NetworkInterface::NetworkInterface()
             sendWorkTerminationValid[i] = true;
         }
     }
+    
     sendDataTermination = decltype(sendDataTermination)(Num);
     hostDataTerminationCount.store(1, std::memory_order_relaxed);
     for (unsigned i=0; i<Num; i++) {
@@ -800,14 +691,10 @@ NetworkInterface::NetworkInterface()
     
     sendInflightComm = decltype(sendInflightComm)(Num);
     recvInflightComm = decltype(recvInflightComm)(Num);
-    inflightComm = decltype(inflightComm)(2 * Num);
-    indices = decltype(indices)(2 * Num);
+    indices = decltype(indices)(Num);
     for (unsigned i=0; i<Num; i++) {
         sendInflightComm[i] = MPI_REQUEST_NULL;
         recvInflightComm[i] = MPI_REQUEST_NULL;
-    }
-    for (unsigned i=0; i<2*Num; i++) {
-        inflightComm[i] = MPI_REQUEST_NULL;
     }
 
     bitsetSendComm.resize(Num);
@@ -994,7 +881,8 @@ uint32_t NetworkInterface::receiveComm() {
     return host;
 }
 
-void NetworkInterface::flushRemoteWork() {
+void NetworkInterface::compPhaseEnd() {
+    // flush remote work
     // aggregate partial messages across threads
     for (uint32_t h = 0; h < Num; ++h) {
         if (h == ID) {
@@ -1071,11 +959,12 @@ void NetworkInterface::flushRemoteWork() {
         }
     }
 
-    flushWork.store(true, std::memory_order_release);
+    compEnd.store(true, std::memory_order_release);
 }
-
-void NetworkInterface::flushCommunication() {
-    flushComm.store(true, std::memory_order_release);
+  
+void NetworkInterface::commPhaseEnd() {
+    commEnd.store(true, std::memory_order_release);
+    hostWorkTerminationCount.store(hostWorkTerminationBase, std::memory_order_release);
 }
   
 void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
@@ -1084,16 +973,11 @@ void NetworkInterface::excludeSendWorkTermination(uint32_t host) {
   
 void NetworkInterface::excludeHostWorkTermination() {
     hostWorkTerminationBase += 1;
-    hostWorkTerminationCount.fetch_add(1, std::memory_order_relaxed);
-}
-  
-void NetworkInterface::resetWorkTermination() {
-    recvAll.store(true, std::memory_order_release);
-    hostWorkTerminationCount.store(hostWorkTerminationBase, std::memory_order_relaxed);
+    hostWorkTerminationCount.fetch_add(1, std::memory_order_release);
 }
 
 void NetworkInterface::resetDataTermination() {
-    hostDataTerminationCount.store(1, std::memory_order_relaxed);
+    hostDataTerminationCount.store(1, std::memory_order_release);
 }
 
 void NetworkInterface::signalDataTermination(uint32_t dest) {

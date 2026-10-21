@@ -249,12 +249,10 @@ private:
   std::deque<trackMessageSend> sendInflightData;
   std::vector<std::deque<trackMessageSend>> sendInflightWork;
   std::vector<MPI_Request> sendInflightComm;
-  std::vector<MPI_Request> inflightComm;
   std::vector<int> indices;
     
   void sendDataComplete();
   void sendWorkComplete();
-  void sendWorkCommComplete();
   void sendWorkCompleteUntilEmpty();
   void sendCommComplete();
   void sendCommCompleteUntilEmpty();
@@ -292,7 +290,6 @@ private:
   
   void recvProbeData();
   void recvProbeWorkComm();
-  void recvProbeComm();
   void recvProbeDataTermination();
 
   std::vector<MPI_Request> inflightTermination;
@@ -303,12 +300,11 @@ private:
   std::thread comm;
   std::atomic<int> ready;
   
-  std::atomic<bool> flushWork;
-  std::atomic<bool> flushComm;
+  std::atomic<bool> compEnd;
   std::vector<uint8_t*> partialBuf;
   std::vector<size_t> partialBufLen;
 
-  std::atomic<bool> recvAll;
+  std::atomic<bool> commEnd;
   std::vector<std::atomic<bool>> sendWorkTermination;
   std::vector<bool> sendWorkTerminationValid;
   uint32_t hostWorkTerminationBase;
@@ -377,15 +373,13 @@ public:
 
   
   //! move send buffers out to network
-  void flushRemoteWork();
+  void compPhaseEnd();
   
-  void flushCommunication();
+  void commPhaseEnd();
   
   void excludeSendWorkTermination(uint32_t host);
   
   void excludeHostWorkTermination();
-  
-  void resetWorkTermination();
   
   void resetDataTermination();
   
