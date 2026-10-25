@@ -353,6 +353,7 @@ void NetworkInterface::recvProbeWorkComm() {
         }
         else if (status.MPI_TAG == (int)communicationTag) {
             MPI_Irecv(recvCommBuffer[status.MPI_SOURCE], nbytes, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &recvInflightComm[status.MPI_SOURCE]);
+            recvCommLen[status.MPI_SOURCE] = nbytes;
         }
         else { // workTerminationTag
             MPI_Irecv(nullptr, 0, MPI_BYTE, status.MPI_SOURCE, status.MPI_TAG, comm_comm, &inflightTermination[Num + status.MPI_SOURCE]);
@@ -501,6 +502,7 @@ void NetworkInterface::commThread() {
     
     // for program execution
     while (ready.load(std::memory_order_acquire) == 3) {
+        compStart.store(true, std::memory_order_release);
         while (ready.load(std::memory_order_acquire) == 3 && !compEnd.load(std::memory_order_acquire)) {
             for (unsigned i = 0; i < Num - 1; ++i) {
                 unsigned h = hostOrder[i];
@@ -565,8 +567,6 @@ void NetworkInterface::commThread() {
             partialBuf[h] = nullptr;
             partialBufLen[h] = 0;
         }
-        
-        sendWorkCompleteUntilEmpty();
 
         uint32_t dest;
         while (ready.load(std::memory_order_acquire) == 3 && !commEnd.load(std::memory_order_acquire)) {
@@ -576,6 +576,7 @@ void NetworkInterface::commThread() {
                 bitsetSendComm.reset(dest);
             }
             
+            sendWorkComplete();
             sendCommComplete();
             recvProbeWorkComm();
         }
@@ -589,6 +590,7 @@ void NetworkInterface::commThread() {
         // reset commEnd
         commEnd.store(false, std::memory_order_release);
 
+        sendWorkCompleteUntilEmpty();
         sendCommCompleteUntilEmpty();
 
         terminationComplete();
@@ -639,7 +641,8 @@ NetworkInterface::NetworkInterface()
     recvAllocator.setup(aggMsgSize, recvBufCount);
     while (ready.load(std::memory_order_acquire) != 1) {};
 
-    compEnd.store(false, std::memory_order_relaxed);
+    compStart.store(false, std::memory_order_release);
+    compEnd.store(false, std::memory_order_release);
     partialBuf = decltype(partialBuf)(Num);
     partialBufLen = decltype(partialBufLen)(Num);
     for (unsigned i=0; i<Num; i++) {
@@ -661,13 +664,13 @@ NetworkInterface::NetworkInterface()
         }
     }
 
-    commEnd.store(false, std::memory_order_relaxed);
+    commEnd.store(false, std::memory_order_release);
     sendWorkTermination = decltype(sendWorkTermination)(Num);
     sendWorkTerminationValid = decltype(sendWorkTerminationValid)(Num);
     hostWorkTerminationBase = 0;
-    hostWorkTerminationCount.store(0, std::memory_order_relaxed);
+    hostWorkTerminationCount.store(0, std::memory_order_release);
     for (unsigned i=0; i<Num; i++) {
-        sendWorkTermination[i].store(false, std::memory_order_relaxed);
+        sendWorkTermination[i].store(false, std::memory_order_release);
         if (i == ID) {
             sendWorkTerminationValid[i] = false;
         }
@@ -677,9 +680,9 @@ NetworkInterface::NetworkInterface()
     }
     
     sendDataTermination = decltype(sendDataTermination)(Num);
-    hostDataTerminationCount.store(1, std::memory_order_relaxed);
+    hostDataTerminationCount.store(1, std::memory_order_release);
     for (unsigned i=0; i<Num; i++) {
-        sendDataTermination[i].store(false, std::memory_order_relaxed);
+        sendDataTermination[i].store(false, std::memory_order_release);
     }
     terminationCountTemp = 0;
 
@@ -692,6 +695,7 @@ NetworkInterface::NetworkInterface()
     sendInflightComm = decltype(sendInflightComm)(Num);
     recvInflightComm = decltype(recvInflightComm)(Num);
     indices = decltype(indices)(Num);
+    statuses = decltype(statuses)(Num);
     for (unsigned i=0; i<Num; i++) {
         sendInflightComm[i] = MPI_REQUEST_NULL;
         recvInflightComm[i] = MPI_REQUEST_NULL;
@@ -700,8 +704,10 @@ NetworkInterface::NetworkInterface()
     bitsetSendComm.resize(Num);
     bitsetRecvComm.resize(Num);
     sendCommLen = decltype(sendCommLen)(Num);
+    recvCommLen = decltype(recvCommLen)(Num);
     for (unsigned i=0; i<Num; i++) {
         sendCommLen[i] = 0;
+        recvCommLen[i] = 0;
     }
     
     ready.store(2, std::memory_order_release);
@@ -759,8 +765,8 @@ template void NetworkInterface::sendWork<uint32_t>(unsigned tid, uint32_t dest, 
 template void NetworkInterface::sendWork<float>(unsigned tid, uint32_t dest, uint32_t lid, float val);
 
 void NetworkInterface::sendComm(uint32_t dest, size_t len) {
-    bitsetSendComm.set(dest);
     sendCommLen[dest] = len;
+    bitsetSendComm.set(dest);
 }
 
 void NetworkInterface::allocateCommBuffer(size_t alloc_size, std::vector<uint8_t*>& gluonSendBuffer, std::vector<uint8_t*>& gluonRecvBuffer) {
@@ -878,7 +884,16 @@ uint32_t NetworkInterface::receiveComm() {
     uint32_t host;
     while (!bitsetRecvComm.find(host)) {}
     bitsetRecvComm.reset(host);
+    
     return host;
+}
+
+bool NetworkInterface::checkCompStart() {
+    return compStart.load(std::memory_order_acquire);
+}
+
+void NetworkInterface::resetCompStart() {
+    compStart.store(false, std::memory_order_release);
 }
 
 void NetworkInterface::compPhaseEnd() {

@@ -93,6 +93,57 @@ std::unique_ptr<galois::graphs::GluonSubstrate<Graph, uint32_t>> syncSubstrate;
 #include "kcore_sync.hh"
 
 /******************************************************************************/
+/* Sanity check operators */
+/******************************************************************************/
+
+/* Gets the total number of nodes that are still alive */
+struct KCoreSanityCheck {
+  Graph* graph;
+  
+  galois::DGAccumulator<uint64_t>& sum;
+  
+  KCoreSanityCheck(
+      Graph* _graph,
+      galois::DGAccumulator<uint64_t>& _sum)
+      : graph(_graph),
+        sum(_sum) {}
+
+  void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
+    dga.reset();
+
+    uint64_t local_num_nodes = _graph.numMasters() - bitset_exclude.count();
+    dga += local_num_nodes;
+
+    uint64_t global_num_nodes = dga.reduce();
+
+    // Only node 0 will print data
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+      galois::gPrint("Number of nodes in the ", k_core_num, "-core is ", global_num_nodes, "\n");
+    }
+    
+    dga.reset();
+
+    const auto& masterNodes = _graph.masterNodesRangeIn();
+    
+    galois::do_all(
+        galois::iterate(masterNodes),
+        KCoreSanityCheck{&_graph, dga});
+
+    uint64_t sum_trim = dga.reduce();
+    
+    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
+      galois::gPrint("Sum of trim is ", sum_trim, "\n");
+    }
+  }
+
+  void operator()(GNode src) const {
+    NodeData& sdata = graph->getData(src);
+
+    sum += sdata.trim;
+  }
+};
+
+/******************************************************************************/
 /* Functors for running the algorithm */
 /******************************************************************************/
 
@@ -327,6 +378,8 @@ struct KCore {
     KCore_trim::go(_graph, active_v, active_e);
     local_active_v = active_v.reduce();
     local_active_e = active_e.reduce();
+  
+    galois::DGAccumulator<uint64_t> trim_sum;
 
     do {
 #ifdef GALOIS_PRINT_PROCESS
@@ -362,6 +415,9 @@ struct KCore {
 
       bitset_trim.reset();
       
+      while (!_net.checkCompStart()) {}
+      _net.resetCompStart();
+
       if (pull) {
           StatTimer_compute.start();
           PullRemote::go(_graph);
@@ -407,57 +463,6 @@ struct KCore {
 
       _num_iterations++;
     } while (global_active_e && (_num_iterations < maxIterations));
-  }
-};
-
-/******************************************************************************/
-/* Sanity check operators */
-/******************************************************************************/
-
-/* Gets the total number of nodes that are still alive */
-struct KCoreSanityCheck {
-  Graph* graph;
-  
-  galois::DGAccumulator<uint64_t>& sum;
-  
-  KCoreSanityCheck(
-      Graph* _graph,
-      galois::DGAccumulator<uint64_t>& _sum)
-      : graph(_graph),
-        sum(_sum) {}
-
-  void static go(Graph& _graph, galois::DGAccumulator<uint64_t>& dga) {
-    dga.reset();
-
-    uint64_t local_num_nodes = _graph.numMasters() - bitset_exclude.count();
-    dga += local_num_nodes;
-
-    uint64_t global_num_nodes = dga.reduce();
-
-    // Only node 0 will print data
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Number of nodes in the ", k_core_num, "-core is ", global_num_nodes, "\n");
-    }
-    
-    dga.reset();
-
-    const auto& masterNodes = _graph.masterNodesRangeIn();
-    
-    galois::do_all(
-        galois::iterate(masterNodes),
-        KCoreSanityCheck{&_graph, dga});
-
-    uint64_t sum_trim = dga.reduce();
-    
-    if (galois::runtime::getSystemNetworkInterface().ID == 0) {
-      galois::gPrint("Sum of trim is ", sum_trim, "\n");
-    }
-  }
-
-  void operator()(GNode src) const {
-    NodeData& sdata = graph->getData(src);
-
-    sum += sdata.trim;
   }
 };
 

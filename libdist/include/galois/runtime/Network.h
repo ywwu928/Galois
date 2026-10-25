@@ -75,6 +75,7 @@ private:
   size_t commBufferSize;
   std::vector<uint8_t*> sendCommBuffer;
   std::vector<uint8_t*> recvCommBuffer;
+  std::vector<int> recvCommLen;
 
   unsigned numT;
 
@@ -250,6 +251,7 @@ private:
   std::vector<std::deque<trackMessageSend>> sendInflightWork;
   std::vector<MPI_Request> sendInflightComm;
   std::vector<int> indices;
+  std::vector<MPI_Status> statuses;
     
   void sendDataComplete();
   void sendWorkComplete();
@@ -300,6 +302,7 @@ private:
   std::thread comm;
   std::atomic<int> ready;
   
+  std::atomic<bool> compStart;
   std::atomic<bool> compEnd;
   std::vector<uint8_t*> partialBuf;
   std::vector<size_t> partialBufLen;
@@ -371,6 +374,8 @@ public:
   
   uint32_t receiveComm();
 
+  bool checkCompStart();
+  void resetCompStart();
   
   //! move send buffers out to network
   void compPhaseEnd();
