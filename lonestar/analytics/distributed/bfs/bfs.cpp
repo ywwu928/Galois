@@ -166,7 +166,7 @@ struct BFS_sync {
       sdata.dist_old = sdata.dist_current;
 
       active_vertices += 1;
-      uint64_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+      uint64_t nout = std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
       active_edges += nout;
     }
   }
@@ -426,7 +426,7 @@ struct BFS {
         }
     }
 
-    uint64_t active_edges;
+    uint64_t& active_edges = local ? local_active_e : global_active_e;
     uint64_t edge_threshold;
     if (local) {
         edge_threshold = _graph.sizeEdges() * edge_bound;
@@ -446,6 +446,9 @@ struct BFS {
         local_active_v = 0;
         local_active_e = 0;
     }
+    global_active_e = 0;
+    MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
 
     do {
 #ifdef GALOIS_PRINT_PROCESS
@@ -468,18 +471,25 @@ struct BFS {
       
       StatTimer_total.start();
       if (dual) {
-          active_edges = local ? local_active_e : global_active_e;
+          if (_num_iterations == 0) {
+              // force push
+              pull = false;
+          }
+          else {
+              pull = active_edges > edge_threshold;
 
-          pull = active_edges > edge_threshold;
-
-          if (hybrid && local_active_v >= vertex_threshold) {
-              pull = true;
+              if (hybrid && local_active_v >= vertex_threshold) {
+                  pull = true;
+              }
           }
       }
       
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
       
       bitset_dirty.reset();
+      
+      while (!_net.checkCompStart()) {}
+      _net.resetCompStart();
 
       if (pull) {
           if (update) {
@@ -497,9 +507,35 @@ struct BFS {
           }
       }
       else {
-          StatTimer_compute.start();
-          Push::go(_graph);
-          StatTimer_compute.stop();
+          if (_num_iterations == 0) {
+              StatTimer_compute.start();
+              if (_graph.isOwned(src_node)) {
+                  uint32_t src_lid = _graph.getLID(src_node);
+                  NodeData& snode = _graph.getData(src_lid);
+        
+                  auto edge_start = _graph.out_edge_begin(src_lid);
+                  galois::do_all(
+                      galois::iterate((uint64_t)0, local_active_e),
+                      [&](uint64_t edge_index) {
+                          GNode dst = _graph.getOutEdgeDst(edge_start + edge_index);
+                          if (_graph.isPhantom(dst)) {
+                              _net.sendWork(galois::substrate::ThreadPool::getTID(), _graph.getHostIDForLocal(dst), _graph.getRemoteLID(dst), snode.dist_old + 1);
+                          }
+                          else {
+                              auto& dnode = _graph.getData(dst);     
+                              galois::atomicMinVoid(dnode.dist_current, snode.dist_old + 1);
+                              bitset_dirty.set(dst);
+                          }
+                      }
+                  );
+              }
+              StatTimer_compute.stop();
+          }
+          else {
+              StatTimer_compute.start();
+              Push::go(_graph);
+              StatTimer_compute.stop();
+          }
       }
       _net.compPhaseEnd();
 

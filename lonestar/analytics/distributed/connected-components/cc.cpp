@@ -144,7 +144,7 @@ struct ConnectedComp_sync {
       sdata.comp_old = sdata.comp_current;
 
       active_vertices += 1;
-      uint64_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+      uint64_t nout = std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
       active_edges += nout;
     }
   }
@@ -405,7 +405,7 @@ struct ConnectedComp {
         }
     }
 
-    uint64_t active_edges;
+    uint64_t& active_edges = local ? local_active_e : global_active_e;
     uint64_t edge_threshold;
     if (local) {
         edge_threshold = _graph.sizeEdges() * edge_bound;
@@ -436,8 +436,6 @@ struct ConnectedComp {
       
       StatTimer_total.start();
       if (dual) {
-          active_edges = local ? local_active_e : global_active_e;
-
           pull = active_edges > edge_threshold;
 
           if (hybrid && local_active_v >= vertex_threshold) {
@@ -448,6 +446,9 @@ struct ConnectedComp {
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
       
       bitset_dirty.reset();
+      
+      while (!_net.checkCompStart()) {}
+      _net.resetCompStart();
 
       if (pull) {
           if (update) {

@@ -150,7 +150,7 @@ struct PageRank_delta {
       sdata.value += sdata.residual;
       if (sdata.residual > tolerance) {
         active_vertices += 1;
-        uint64_t nout = std::distance(graph->edge_begin(src), graph->edge_end(src));
+        uint64_t nout = std::distance(graph->out_edge_begin(src), graph->out_edge_end(src));
         if (nout > 0) {
           sdata.delta = sdata.residual * (1 - alpha) / nout;
           bitset_delta.set(src);
@@ -323,7 +323,7 @@ struct PageRank {
         }
     }
 
-    uint64_t active_edges;
+    uint64_t& active_edges = local ? local_active_e : global_active_e;
     uint64_t edge_threshold;
     if (local) {
         edge_threshold = _graph.sizeEdges() * edge_bound;
@@ -337,6 +337,9 @@ struct PageRank {
     PageRank_delta::go(_graph, active_v, active_e);
     local_active_v = active_v.reduce();
     local_active_e = active_e.reduce();
+    global_active_e = 0;
+    MPI_Allreduce(&local_active_e, &global_active_e, 1,
+                  MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
 
     do {
 #ifdef GALOIS_PRINT_PROCESS
@@ -357,13 +360,8 @@ struct PageRank {
       std::string active_str("Active_Reduce_Round_" + std::to_string(_num_iterations));
       galois::CondStatTimer<USER_STATS> StatTimer_active(active_str.c_str(), REGION_NAME_RUN.c_str());
 
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Vertices_Round_" + std::to_string(_num_iterations), local_active_v);
-      galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Active_Edges_Round_" + std::to_string(_num_iterations), local_active_e);
-
       StatTimer_total.start();
       if (dual) {
-          active_edges = local ? local_active_e : global_active_e;
-
           pull = active_edges > edge_threshold;
 
           if (hybrid && local_active_v >= vertex_threshold) {
@@ -374,6 +372,9 @@ struct PageRank {
       galois::runtime::reportStatCond_Single<USER_STATS>(REGION_NAME_RUN.c_str(), "Pull_Round_" + std::to_string(_num_iterations), pull);
 
       bitset_residual.reset();
+      
+      while (!_net.checkCompStart()) {}
+      _net.resetCompStart();
       
       if (pull) {
           StatTimer_compute.start();
