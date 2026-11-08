@@ -1539,7 +1539,6 @@ private:
     uint32_t fullMirrorCount = incomingMirrors.count();
     uint32_t partialMirrorCount;
 
-#ifndef GALOIS_FULL_MIRRORING
     const uint32_t mirrorThreshold = 1;
     galois::GAccumulator<uint32_t> partialMirrorAccumulator;
     partialMirrorAccumulator.reset();
@@ -1556,9 +1555,6 @@ private:
     });
 
     partialMirrorCount = partialMirrorAccumulator.reduce();
-#else
-    partialMirrorCount = fullMirrorCount;
-#endif
     uint32_t phantomCount = fullMirrorCount - partialMirrorCount;
 
     base_DistGraph::localToGlobalVector.resize(base_DistGraph::localToGlobalVector.size() + fullMirrorCount);
@@ -1624,7 +1620,6 @@ private:
           threadPrefixSums.clear();
           freeVector(threadPrefixSums); // should no longer use this variable
       }
-#ifndef GALOIS_FULL_MIRRORING
       else {
           // TODO move this part below into separate function
           uint32_t activeThreads = galois::getActiveThreads();
@@ -1719,7 +1714,6 @@ private:
           threadPhantomPrefixSums.clear();
           freeVector(threadPhantomPrefixSums); // should no longer use this variable
       }
-#endif
     }
     
     incomingDegree.clear();
