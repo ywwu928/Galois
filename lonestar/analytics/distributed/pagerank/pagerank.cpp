@@ -37,18 +37,18 @@ static std::string TYPE_NAME;
 enum Exp {
     Pull,
     Push,
-    Global_Threshold,
-    Local_Threshold,
-    Hybrid_Threshold,
+    Global,
+    Local,
+    Hybrid,
     Exp_Count
 };
 
 std::string exp_names[] = {
     "Pull",
     "Push",
-    "Global_Threshold",
-    "Local_Threshold",
-    "Hybrid_Threshold"
+    "Global",
+    "Local",
+    "Hybrid"
 };
 
 /******************************************************************************/
@@ -65,12 +65,16 @@ static cll::opt<unsigned int>
                   cll::init(1000));
 
 static cll::opt<float> edge_bound("edge_bound",
-                                   cll::desc("edge density bound for switching"),
-                                   cll::init(0.05));
+                                  cll::desc("edge density threshold for switching"),
+                                  cll::init(0.3));
 
-static cll::opt<float> vertex_bound("vertex_bound",
-                                   cll::desc("vertex density bound for switching"),
-                                   cll::init(0.8));
+static cll::opt<float> edge_bound_high("edge_bound_high",
+                                       cll::desc("edge density threshold for switching"),
+                                       cll::init(0.6));
+
+static cll::opt<float> degree_bound("degree_bound",
+                                    cll::desc("degree density threshold for switching"),
+                                    cll::init(1.3));
 
 /******************************************************************************/
 /* Graph structure declarations + other initialization */
@@ -302,16 +306,16 @@ struct PageRank {
             pull = false;
             break;
         }
-        case Global_Threshold: {
+        case Global: {
             dual = true;
             break;
         }
-        case Local_Threshold: {
+        case Local: {
             dual = true;
             local = true;
             break;
         }
-        case Hybrid_Threshold: {
+        case Hybrid: {
             dual = true;
             local = true;
             hybrid = true;
@@ -331,7 +335,9 @@ struct PageRank {
     else {
         edge_threshold = _graph.globalSizeEdges() * edge_bound;
     }
-    uint64_t vertex_threshold = _graph.numMasters() * vertex_bound;
+    // must be local
+    uint64_t edge_threshold_high = _graph.sizeEdges() * edge_bound_high;
+    float degree_threshold = ((float)_graph.sizeEdges() / (float)_graph.numMasters()) * degree_bound;
 
     bitset_residual.set_all();
     PageRank_delta::go(_graph, active_v, active_e);
@@ -364,8 +370,8 @@ struct PageRank {
       if (dual) {
           pull = active_edges > edge_threshold;
 
-          if (hybrid && local_active_v >= vertex_threshold) {
-              pull = true;
+          if (hybrid && pull && active_edges < edge_threshold_high && ((float)local_active_e / (float)local_active_v) < degree_threshold) {
+              pull = false;
           }
       }
       
