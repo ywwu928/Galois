@@ -100,14 +100,17 @@ void atomicMinVoid(std::atomic<Ty>& a, const Ty b) {
 template <typename Ty>
 bool atomicMinBool(std::atomic<Ty>& a, const Ty b) {
   Ty old_a = a.load(std::memory_order_relaxed);
-  if (old_a > b) {
-      while (!a.compare_exchange_weak(old_a, b, std::memory_order_relaxed))
-          ;
+
+  while (old_a > b) {
+    if (a.compare_exchange_weak(
+            old_a, b,
+            std::memory_order_relaxed,
+            std::memory_order_relaxed)) {
       return true;
+    }
   }
-  else {
-      return false;
-  }
+
+  return false;
 }
 
 template <typename Ty>
