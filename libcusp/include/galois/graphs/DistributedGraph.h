@@ -878,7 +878,7 @@ public:
   }
   
   inline const NodeRangeType& remoteNodesRangeIn() const {
-    return specificRanges[5];
+    return specificRangesIn[5];
   }
   
   /**
