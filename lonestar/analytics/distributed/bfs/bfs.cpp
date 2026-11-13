@@ -193,7 +193,7 @@ struct PullRemote {
         GNode src         = graph->getInEdgeSrc(jj);
         if (bitset_active.test(src)) {
             auto& snode       = graph->getData(src);
-            if (snode.dist_current + 1 < ddist) {
+            if (snode.dist_old + 1 < ddist) {
                 ddist = snode.dist_old + 1;
             }
         }
@@ -228,7 +228,7 @@ struct PullPhantom {
         GNode src         = graph->getInEdgeSrc(jj);
         if (bitset_active.test(src)) {
             auto& snode       = graph->getData(src);
-            if (snode.dist_current + 1 < ddist) {
+            if (snode.dist_old + 1 < ddist) {
                 ddist = snode.dist_old + 1;
             }
         }
@@ -259,6 +259,7 @@ struct PullMirror {
 
   void operator()(GNode dst) const {
     NodeData& dnode = graph->getData(dst);
+    uint32_t ddist_before = dnode.dist_current;
 
     for (auto jj : graph->inEdges(dst)) {
         GNode src         = graph->getInEdgeSrc(jj);
@@ -268,9 +269,9 @@ struct PullMirror {
         }
     }
 
-    if (dnode.dist_old > dnode.dist_current) {
-        uint32_t ddist = dnode.dist_current;
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), ddist);
+    uint32_t ddist_after = dnode.dist_current;
+    if (ddist_before > ddist_after) {
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), ddist_after);
     }
   }
 };
@@ -508,8 +509,9 @@ struct BFS {
                           }
                           else {
                               auto& dnode = _graph.getData(dst);     
-                              galois::atomicMinVoid(dnode.dist_current, snode.dist_old + 1);
-                              bitset_dirty.set(dst);
+                              if (galois::atomicMinBool(dnode.dist_current, snode.dist_old + 1)) {
+                                  bitset_dirty.set(dst);
+                              }
                           }
                       }
                   );

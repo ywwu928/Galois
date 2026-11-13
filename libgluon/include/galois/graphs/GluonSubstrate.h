@@ -605,8 +605,8 @@ private:
   void setWrapper(size_t lid, ValTy val, galois::DynamicBitSet* bit_set_compute_ptr) {
     if (syncType == syncReduce) {
       if (FnTy::reduce(lid, userGraph.getData(lid), val)) {
-          if (bit_set_compute_ptr->size() != 0)
-              bit_set_compute_ptr->set(lid);
+          //if (bit_set_compute_ptr->size() != 0)
+          //    bit_set_compute_ptr->set(lid);
       }
     } else {
         FnTy::setVal(lid, userGraph.getData(lid), val);
@@ -1141,9 +1141,9 @@ public:
                             val = *((ValTy*)buf + (i << 1) + 1);
                             update = FnTy::reduce_atomic(userGraph.getData(lid), val);
 
-                            if (update) {
-                                bitset_ptr->set(lid);
-                            }
+                            //if (update) {
+                            //    bitset_ptr->set(lid);
+                            //}
                         }
 
                         net.deallocateRecvBuffer(buf);

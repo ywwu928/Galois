@@ -237,7 +237,8 @@ struct PullMirror {
 
   void operator()(GNode dst) const {
     NodeData& dnode = graph->getData(dst);
-
+    uint32_t dcomp_before = dnode.comp_current;
+    
     for (auto jj : graph->inEdges(dst)) {
         GNode src         = graph->getInEdgeSrc(jj);
         if (bitset_active.test(src)) {
@@ -246,9 +247,9 @@ struct PullMirror {
         }
     }
     
-    if (dnode.comp_old > dnode.comp_current) {
-        uint32_t dcomp = dnode.comp_current;
-        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dcomp);
+    uint32_t dcomp_after = dnode.comp_current;
+    if (dcomp_before > dcomp_after) {
+        net.sendWork(galois::substrate::ThreadPool::getTID(), graph->getHostIDForLocal(dst), graph->getRemoteLID(dst), dcomp_after);
     }
   }
 };
